@@ -1,0 +1,204 @@
+from PyQt5 import QtWidgets as qtw
+from PyQt5 import QtCore as qtc
+
+import sys
+if __name__ == '__main__':
+    import os.path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+from preprocessing.GUIbase import Ui_Form
+
+from sampling.solvers.solver import get_solver_name_list
+
+
+class GUI(qtw.QWidget, Ui_Form):
+            
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setupUi(self)
+        
+        self.set_solver_list_widget()
+        self.dimensionSpinBox.valueChanged.connect(self.dimension_spinbox_changed)
+        self.createSetupFileButton.clicked.connect(self.set_gui_dict)
+        
+        self.gui_data = {}
+
+    def add_parameter_range(self,par_nr):
+        """
+        Adds a field in the gui for defining the parameter range.
+        Indexing of ParameterRangeHorizontalLayout_par{} starts at 1 corresponding to dimension d.
+        """
+        self.ParameterRangeHorizontalLayout = qtw.QHBoxLayout()
+        self.ParameterRangeHorizontalLayout.setObjectName("ParameterRangeHorizontalLayout_par{}".format(par_nr))
+
+        self.RangeName = qtw.QLineEdit(self.gridLayoutWidget)
+        self.RangeName.setObjectName("RangeName_par{}".format(par_nr))
+        self.ParameterRangeHorizontalLayout.addWidget(self.RangeName)
+
+        self.line_1 = qtw.QFrame(self.gridLayoutWidget)
+        self.line_1.setFrameShape(qtw.QFrame.VLine)
+        self.line_1.setFrameShadow(qtw.QFrame.Sunken)
+        self.line_1.setObjectName("line_1_par{}".format(par_nr))
+        self.ParameterRangeHorizontalLayout.addWidget(self.line_1)
+
+        self.RangeLowerbound = qtw.QLineEdit(self.gridLayoutWidget)
+        self.RangeLowerbound.setObjectName("RangeLowerbound_par{}".format(par_nr))
+        self.ParameterRangeHorizontalLayout.addWidget(self.RangeLowerbound)
+
+        self.line_2 = qtw.QFrame(self.gridLayoutWidget)
+        self.line_2.setFrameShape(qtw.QFrame.VLine)
+        self.line_2.setFrameShadow(qtw.QFrame.Sunken)
+        self.line_2.setObjectName("line_2_par{}".format(par_nr))
+        self.ParameterRangeHorizontalLayout.addWidget(self.line_2)
+
+        self.RangeUpperbound = qtw.QLineEdit(self.gridLayoutWidget)
+        self.RangeUpperbound.setObjectName("RangeUpperbound_par{}".format(par_nr))
+        self.ParameterRangeHorizontalLayout.addWidget(self.RangeUpperbound)
+
+        self.ParameterRangeVerticalLayout.addLayout(self.ParameterRangeHorizontalLayout)
+
+        _translate = qtc.QCoreApplication.translate
+        self.RangeName.setText(_translate("Form", "x{}".format(par_nr)))
+        self.RangeLowerbound.setText(_translate("Form", "0"))
+        self.RangeUpperbound.setText(_translate("Form", "1"))
+
+
+    def remove_parameter_range(self, par_nr):
+        layout = self.ParameterRangeVerticalLayout.findChild(qtw.QHBoxLayout,"ParameterRangeHorizontalLayout_par{}".format(par_nr))
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+              child.widget().deleteLater()
+        layout.deleteLater()
+
+
+    def dimension_spinbox_changed(self):
+        count = self.ParameterRangeVerticalLayout.count() - 1
+        for i in range(count,self.dimensionSpinBox.value()):
+            self.add_parameter_range(i)
+        for i in range(self.dimensionSpinBox.value(), count):
+            self.remove_parameter_range(i)
+
+    
+        
+    def set_gui_dict(self):
+        """
+        Retrieve the data from the GUI form and return it in a dictionary.
+        """
+        gui_data = self.gui_data
+
+        # SOLVER & OBJECTIVE
+        gui_data['solver_str'] = str(self.selectSolverComboBox.currentText())
+        gui_data['d'] = self.dimensionSpinBox.value()
+
+        # search_space structured as data matrix X: [[d0_name,d1_name,d2_name,...],[lb0,lb1,...],[ub0,ub1,...]]
+        search_space = [[],[],[]]
+        children = self.ParameterRangeVerticalLayout.children()
+        for i in range(gui_data['d']):
+            horlay = self.ParameterRangeVerticalLayout.findChild(qtw.QHBoxLayout,"ParameterRangeHorizontalLayout_par{}".format(i))
+            RangeName = str(horlay.itemAt(0).widget().text())
+            RangeLowerbound = float(horlay.itemAt(2).widget().text())
+            RangeUpperbound = float(horlay.itemAt(4).widget().text())
+            search_space[0].append(RangeName)
+            search_space[1].append(RangeLowerbound)
+            search_space[2].append(RangeUpperbound)
+        
+        gui_data['search_space'] = search_space
+        
+        
+        # TODO hard
+        # objectiveFunctionHorizontalLayout
+        #     objectiveFunctionLineEdit
+        #     objectiveFunctionMinMaxComboBox()
+        # gui_data['objective'] = lambda x: objectiveFunctionLineEdit value to non-string
+
+
+        # # KRIGING OPTIONS
+        # selectKrigingTypeComboBox
+        gui_data['kriging_type'] = str(self.selectKrigingTypeComboBox.currentText())
+        
+        # multifidelityCheckBox
+        gui_data['multifidelity'] = self.multifidelityCheckBox.isChecked()
+        
+        # parallelSamplingCheckBox
+        gui_data['parallel'] = self.parallelSamplingCheckBox.isChecked()
+        
+        # krigingSearchAlgorithmComboBox
+        gui_data['kriging_search_algorithm'] = str(self.selectKrigingSearchAlgorithmComboBox.currentText())
+        
+        # stoppingCriterionComboBox
+        gui_data['stopping_criterion'] = str(self.stoppingCriterionComboBox.currentText())
+        
+        # stoppingCriterionValueLineEdit
+        gui_data['stopping_criterion_value'] = str(self.stoppingCriterionValueComboBox.text())
+        
+        # infillCriterionComboBox
+        gui_data['infill_criterion'] = str(self.infillCriterionComboBox.currentText())
+        
+        # infillSearchAlgorithmComboBox
+        gui_data['infill_search_algorithm'] = str(self.infillSearchAlgorithmComboBox.currentText())
+        
+        # hyperparameterSearchAlgorithmComboBox
+        gui_data['hyperparameter_search_algorithm'] = str(self.hyperparameterSearchAlgorithmComboBox.currentText())
+        
+        # doEComboBox
+        gui_data['DoE'] = str(self.doEComboBox.currentText())
+    
+    
+        # # OUTPUT OPTIONS
+        gui_data['SAVE_DATA'] = self.saveSampleDataCheckBox.isChecked()
+        
+        # livePlotCheckBox
+        gui_data['live_plot'] = self.livePlotCheckBox.isChecked()
+        
+        # plottingParametersLineEdit
+        # TODO
+        
+        # savePlotCheckBox
+        gui_data['save_plot'] = self.savePlotCheckBox.isChecked()
+        
+        self.close()
+    
+    def get_gui_dict(self):
+        if self.gui_data is not None:
+            return self.gui_data
+        else:
+            raise Exception
+
+
+    def set_input_parameter_list_widget():
+        # solverInputParameterListWidget
+        pass
+
+    def set_output_parameter_list_widget():
+        # solverOutputParameterListWidget
+        pass
+
+
+    def set_gui_form(self, data_dict):
+        """this function sets the gui data depending on a previously defined file"""
+        
+        # doing this retains our sample data as well
+        self.gui_data = data_dict
+        # TODO
+        
+
+
+    def get_optional_filename(self):
+        """function for returning the additional optional filename identifier"""
+        return self.optionalFilenameLineEdit.text()
+
+
+    def set_solver_list_widget(self):
+        """This sets the dropdownlist for selecting the solver"""
+        self.selectSolverComboBox.clear()
+        self.selectSolverComboBox.addItems(get_solver_name_list())
+        
+
+if __name__ == '__main__':
+    
+    app = qtw.QApplication([])
+    
+    widget = GUI()
+    widget.show()
+    app.exec_()

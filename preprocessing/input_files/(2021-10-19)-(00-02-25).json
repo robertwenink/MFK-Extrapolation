@@ -1,0 +1,19 @@
+{
+    "solver_str": "solver1",
+    "d": 2,
+    "search_space": [
+        [
+            "par0",
+            "par1"
+        ],
+        [
+            0.0,
+            -2.0
+        ],
+        [
+            1.0,
+            2.0
+        ]
+    ],
+    "SAVE_DATA": true,
+    "X": 

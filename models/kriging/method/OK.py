@@ -1,0 +1,3 @@
+"""
+Ordinary Kriging
+"""

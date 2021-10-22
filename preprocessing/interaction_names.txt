@@ -1,0 +1,58 @@
+SOLVER & OBJECTIVE
+	selectSolverComboBox
+	solverInputParameterListWidget
+	dimensionSpinBox
+
+	ParameterRangeVerticalLayout 					hier wil ik aan appenden
+		ParameterRangeHorizontalLayout_par1			container voor de 3 line edits
+			RangeName_par1
+			RangeLowerbound_par1
+			RangeUpperbound_par1
+
+	solverOutputParameterListWidget
+
+	readOutputCMDRadioButton
+
+	readOutputLocationHorizontalLayout
+		readOutputLocationLineEdit
+		readOutputLocationPushButton
+		readOutputLocationRadioButton
+
+	objectiveFunctionHorizontalLayout
+		objectiveFunctionLineEdit
+		objectiveFunctionMinMaxComboBox
+
+
+KRIGING OPTIONS
+	selectKrigingTypeComboBox
+	multifidelityCheckBox
+	parallelSamplingCheckBox
+	krigingSearchAlgorithmComboBox
+	stoppingCriterionComboBox
+	stoppingCriterionValueLineEdit
+	infillCriterionComboBox
+	infillSearchAlgorithmComboBox
+	hyperparameterSearchAlgorithmComboBox
+	doEComboBox
+
+
+OUTPUT OPTIONS
+	saveSampleDataCheckBox
+	livePlotCheckBox
+	plottingParametersLineEdit
+	savePlotCheckBox
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
