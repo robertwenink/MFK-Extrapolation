@@ -13,7 +13,7 @@ CLSMEMBERS += inspect.getmembers(internal, inspect.isclass)
 def get_solver_name_list():
     name_list = []
     for name, obj in CLSMEMBERS:
-        if name not in ["Solver", "TestFunction", "ABC"]:
+        if name not in ["Solver", "TestFunction", "ABC", "ExternalSolver"]:
             if "external" in str(obj):
                 name_list.append("external: " + name)
             else:
@@ -32,6 +32,8 @@ def get_solver(setup=None, name=None):
     else:
         raise Exception("solver_name not defined")
 
+    
+    # not efficient but small list
     for name, obj in CLSMEMBERS:
         if name == solver_name:
             return obj

@@ -428,6 +428,9 @@
       <property name="text">
        <string>Create Setup File</string>
       </property>
+      <property name="shortcut">
+       <string>Return</string>
+      </property>
      </widget>
     </item>
     <item row="4" column="0">
@@ -548,27 +551,7 @@
         </property>
         <item>
          <property name="text">
-          <string>x0</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>x1</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>x2</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>x3</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>x4</string>
+          <string>xi</string>
          </property>
         </item>
        </widget>
@@ -578,7 +561,14 @@
         <item>
          <widget class="QLabel" name="dimensionLabel">
           <property name="text">
-           <string>Set dimensional size of search space d: </string>
+           <string>Set dimension of search space d in the range</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="dimensionRangeLabel">
+          <property name="text">
+           <string>[2,10] :</string>
           </property>
          </widget>
         </item>
@@ -588,7 +578,7 @@
            <number>1</number>
           </property>
           <property name="maximum">
-           <number>20</number>
+           <number>10</number>
           </property>
           <property name="value">
            <number>2</number>
@@ -633,99 +623,6 @@
            <widget class="QLabel" name="label_6">
             <property name="text">
              <string> Upperbound</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="ParameterRangeHorizontalLayout_par0">
-          <property name="sizeConstraint">
-           <enum>QLayout::SetNoConstraint</enum>
-          </property>
-          <item>
-           <widget class="QLineEdit" name="RangeName_par0">
-            <property name="text">
-             <string>x0</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line_1_par0">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="RangeLowerbound_par0">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>0</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line_2_par0">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="RangeUpperbound_par0">
-            <property name="text">
-             <string>1</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="ParameterRangeHorizontalLayout_par1">
-          <item>
-           <widget class="QLineEdit" name="RangeName_par1">
-            <property name="text">
-             <string>x1</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line_1_par1">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="RangeLowerbound_par1">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>0</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line_2_par1">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="RangeUpperbound_par1">
-            <property name="text">
-             <string>1</string>
             </property>
            </widget>
           </item>
@@ -853,7 +750,11 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="objectiveFunctionLineEdit"/>
+         <widget class="QLineEdit" name="objectiveFunctionLineEdit">
+          <property name="text">
+           <string>z</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>

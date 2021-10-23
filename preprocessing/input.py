@@ -77,6 +77,7 @@ class Input:
         # make each self.data_dict key a variable in our input object
         for key in self.data_dict:
             setattr(self, key, self.data_dict[key])
+        
         print("Reading successful")
         self.write_previous_filename()
 

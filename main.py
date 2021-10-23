@@ -1,13 +1,14 @@
 from preprocessing.input import Input
 from sampling.initial import grid
+
 from sampling.solvers.solver import get_solver
 
 setup = Input(2)
-setup.X = grid.generate(setup, 3)
+setup.X = grid.generate(setup, 10)
 
 
-test = get_solver(setup)()
-test.plot2d(setup.X)
+solver = get_solver(setup)()
+solver.plot2d(setup.X)
 
 
 if setup.SAVE_DATA:

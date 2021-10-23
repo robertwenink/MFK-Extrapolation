@@ -8,8 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 
 class Solver(ABC):
@@ -20,6 +19,13 @@ class Solver(ABC):
     def solve(self):
         pass
 
+    max_d = 10
+    min_d = 1
+    
+    @classmethod
+    def get_preferred_search_space(cls,d):
+        pass
+
 class TestFunction(ABC):
     """
     Abstract Class for testfunctions.
@@ -27,9 +33,14 @@ class TestFunction(ABC):
     X.shape[1] is the number of dimensions of the sample.
     """
 
+    input_parameter_list = ["xi"]
+    output_parameter_list = ["z"]
+    objective_function = lambda z: min(z)
+
     def plot2d(self, X=None):
         if X is not None:
             X = self.correctFormatX(X, 2)
+            # TODO change to the d-th root sort out of the works for all dimensions as well
             L = int(math.sqrt(len(X[:, 0])))
             P1 = X[:, 0].reshape(L, L)
             P2 = X[:, 1].reshape(L, L)
@@ -70,45 +81,17 @@ class TestFunction(ABC):
 
         return X
 
-class Linear(TestFunction, Solver):
-    def solve(self, X):
-        X = self.correctFormatX(X)
-
-        y = np.array([], dtype=float)
-        for i in range(X.shape[0]):
-            y = np.append(y, np.sum(X[i]))
-        return y
-
-
-class Squared(TestFunction, Solver):
-    def solve(self, X, offset=0.25):
-        X = self.correctFormatX(X)
-
-        offset = np.ones(X.shape[1]) * offset
-        y = np.array([], dtype=float)
-        for i in range(X.shape[0]):
-            y = np.append(y, (np.sum((X[i] - offset) ** 2) ** 0.5))
-        return y
-
-
-class Cubed(TestFunction, Solver):
-    def solve(self, X, offset=0.25):
-        X = self.correctFormatX(X)
-
-        offset = np.ones(X.shape[1]) * offset
-        y = np.array([], dtype=float)
-        for i in range(X.shape[0]):
-            y = np.append(y, (np.sum((X[i] - offset) ** 3) ** (1 / 3.0)))
-        return y
-
 
 class Branin(TestFunction, Solver):
+    max_d = 2
+    min_d = 2
+
     def solve(self, X):
         """
         https://www.sfu.ca/~ssurjano/branin.html
         x1 ∈ [-5, 10], x2 ∈ [0, 15].
         a = 1, b = 5.1 ⁄ (4π2), c = 5 ⁄ π, r = 6, s = 10 and t = 1 ⁄ (8π)
-        minima at ..
+        global minima: f(x*)=0.397887, at x*=(-pi,12.275),(pi,2.275) and (9.42478,2.475)
         """
         X = self.correctFormatX(X, d_req=2)
 
@@ -122,29 +105,27 @@ class Branin(TestFunction, Solver):
         t = 1 / (8 * np.pi)
         return (a * (y - b * x ** 2 + c * x - r) ** 2 + s * (1 - t) * np.cos(x) + s) + x
 
-class BraninNoise(TestFunction, Solver):
-    def solve(self, X):
-        X = self.correctFormatX(X, d_req=2)
+    def get_preferred_search_space(d):
+        return [["x0", "x1"], [-5, 0], [10, 15]]
 
-        x = X[:, 0]
-        y = X[:, 1]
-        X1 = 15 * x - 5
-        X2 = 15 * y
-        a = 1
-        b = 5.1 / (4 * np.pi ** 2)
-        c = 5 / np.pi
-        d = 6
-        e = 10
-        ff = 1 / (8 * np.pi)
-        noiseFree = (
-            a * (X2 - b * X1 ** 2 + c * X1 - d) ** 2 + e * (1 - ff) * np.cos(X1) + e
-        ) + 5 * x
-        withNoise = []
-        for i in noiseFree:
-            withNoise.append(i + np.random.standard_normal() * 15)
-        return np.array(withNoise)
+
+class BraninNoise(Branin):
+    """Branin function including standard normal noise."""
+
+    def solve(self, X):
+        noise_free = super().solve(X)
+        y = noise_free + np.random.standard_normal(size=noise_free.shape)
+        return y
+
 
 class Paulson(TestFunction, Solver):
+    """
+    Made-up function of https://github.com/capaulson/pyKriging/blob/master/pyKriging/testfunctions.py
+    """
+
+    max_d = 2
+    min_d = 2
+
     def solve(self, X, hz=5):
         X = self.correctFormatX(X, d_req=2)
 
@@ -161,26 +142,44 @@ class Paulson(TestFunction, Solver):
 
 
 class Runge(TestFunction, Solver):
+    """
+    https://en.wikipedia.org/wiki/Runge%27s_phenomenon
+    """
+
     def solve(self, X, offset=0.0):
         X = self.correctFormatX(X)
 
-        offset = np.ones(X.shape[1]) * offset
-        y = np.array([], dtype=float)
-        for i in range(X.shape[0]):
-            y = np.append(y, (1 / (1 + np.sum((X[i] - offset) ** 2))))
+        y = 1 / (1 + np.sum((X - offset) ** 2, axis=1))
         return y
+
 
 class Stybtang(TestFunction, Solver):
     def solve(self, X):
         """
         STYBLINSKI-TANG FUNCTION
         https://www.sfu.ca/~ssurjano/stybtang.html
+
+        The function is usually evaluated on the hypercube xi ∈ [-5, 5], for all i = 1, …, d.
+
+        global minimum: f(x*)=-39.16599*d, at x*=(-2.903534,...,-2.903534)
         """
         X = self.correctFormatX(X)
         y = np.sum(np.power(X, 4) - 16 * np.power(X, 2) + 5 * X, axis=1) / 2
         return y
 
+    def get_preferred_search_space(d):
+        return [["x{}".format(i) for i in range(d)], [-5] * d, [5] * d]
+
+
 class Curretal88exp(TestFunction, Solver):
+    """
+    https://www.sfu.ca/~ssurjano/curretal88exp.html
+    The function is evaluated on the square xi ∈ [0, 1], for all i = 1, 2.
+    """
+
+    max_d = 2
+    min_d = 2
+
     def solve(self, X):
         X = self.correctFormatX(X, d_req=2)
 
@@ -193,51 +192,89 @@ class Curretal88exp(TestFunction, Solver):
 
         return fact1 * fact2 / fact3
 
+    def get_preferred_search_space(d):
+        return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]
 
-class Cosine(TestFunction, Solver):
-    def solve(self, X):
-        X = self.correctFormatX(X)
-        y = np.cos(np.sum(X, axis=1))
-        return y
 
 class Rastrigin(TestFunction, Solver):
     def solve(self, X):
         """
-        2D Rastrigin function:
-            with global minima: 0 at x = [0, 0]
-        :param x:
-        :return:
+        https://www.sfu.ca/~ssurjano/rastr.html
+        The function is usually evaluated on the hypercube xi ∈ [-5.12, 5.12], for all i = 1, …, d.
+        global minimum: f(x*)=0, at x*=[0]*d
         """
-        X = self.correctFormatX(X, d_req=2)
-
-        y = (
-            20
-            + X[:, 0] ** 2
-            + X[:, 1] ** 2
-            - 10 * (np.cos(2 * np.pi * X[:, 0]) + np.cos(2 * np.pi * X[:, 1]))
-        )
+        X = self.correctFormatX(X)
+        d = X.shape[0]
+        y = 10 * d + np.sum(X ** 2 - 10 * np.cos(2 * np.pi * X), axis=1)
         return y
+
+    def get_preferred_search_space(d):
+        return [["x{}".format(i) for i in range(d)], [-5.12] * d, [5.12] * d]
+
 
 class Rosenbrock(TestFunction, Solver):
     def solve(self, X):
         """
+        https://www.sfu.ca/~ssurjano/rosen.html
         Rosenbrock function(Any order, usually 2D and 10D, sometimes larger dimension is tested)
         with global minima: 0 at x = [1] * dimension
-        :param x:
-        :return:
+        The function is usually evaluated on the hypercube xi ∈ [-5, 10], for all i = 1, …, d,
+        although it may be restricted to the hypercube xi ∈ [-2.048, 2.048], for all i = 1, …, d.
         """
         X = self.correctFormatX(X)
-
-        y = [0.0] * X.shape[0]
-        for i in np.arange(0, X.shape[1] - 1):
-            y += (1 - X[:, i]) ** 2 + 100 * ((X[:, i + 1] - X[:, i] ** 2) ** 2)
-
+        y = (1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2)
         return y
 
+    def get_preferred_search_space(d):
+        return [["x{}".format(i) for i in range(d)], [-5] * d, [10] * d]
+
+
+# TODO multifidelity test cases
+# https://www.sfu.ca/~ssurjano/multi.html
+
+
 class Hartmann3(TestFunction, Solver):
+    max_d = 3
+    min_d = 3
+
     def solve(self, X):
         pass
 
+
 class Hartmann6(TestFunction, Solver):
+    max_d = 6
+    min_d = 6
+
     def solve(self, X):
         pass
+
+
+class XLinear(TestFunction, Solver):
+    def solve(self, X):
+        X = self.correctFormatX(X)
+
+        y = np.sum(X, axis=1)
+        return y
+
+
+class XSquared(TestFunction, Solver):
+    def solve(self, X, offset=0.25):
+        X = self.correctFormatX(X)
+
+        y = np.sum((X - offset) ** 2, axis=1)
+        return y
+
+
+class XCubed(TestFunction, Solver):
+    def solve(self, X, offset=0.25):
+        X = self.correctFormatX(X)
+
+        y = np.sum((X - offset) ** 3, axis=1)
+        return y
+
+
+class XCosine(TestFunction, Solver):
+    def solve(self, X):
+        X = self.correctFormatX(X)
+        y = np.cos(np.sum(X, axis=1))
+        return y
