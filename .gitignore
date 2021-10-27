@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+####### USER DEFINED ######## 
+input_files/
