@@ -1,0 +1,97 @@
+{
+    "solver_str": "Branin",
+    "d": 2,
+    "search_space": [
+        [
+            "x0",
+            "x1"
+        ],
+        [
+            -5.0,
+            0.0
+        ],
+        [
+            10.0,
+            15.0
+        ]
+    ],
+    "kriging_type": "OK",
+    "multifidelity": false,
+    "parallel": false,
+    "kriging_search_algorithm": "None",
+    "stopping_criterion": "EI relative (%)",
+    "stopping_criterion_value": "",
+    "infill_criterion": "EI",
+    "infill_search_algorithm": "GA",
+    "hyperparameter_search_algorithm": "GA",
+    "DoE": "LHS",
+    "SAVE_DATA": true,
+    "live_plot": true,
+    "save_plot": false,
+    "X": [
+        [
+            -5.0,
+            0.0
+        ],
+        [
+            0.0,
+            0.0
+        ],
+        [
+            5.0,
+            0.0
+        ],
+        [
+            10.0,
+            0.0
+        ],
+        [
+            -5.0,
+            5.0
+        ],
+        [
+            0.0,
+            5.0
+        ],
+        [
+            5.0,
+            5.0
+        ],
+        [
+            10.0,
+            5.0
+        ],
+        [
+            -5.0,
+            10.0
+        ],
+        [
+            0.0,
+            10.0
+        ],
+        [
+            5.0,
+            10.0
+        ],
+        [
+            10.0,
+            10.0
+        ],
+        [
+            -5.0,
+            15.0
+        ],
+        [
+            0.0,
+            15.0
+        ],
+        [
+            5.0,
+            15.0
+        ],
+        [
+            10.0,
+            15.0
+        ]
+    ]
+}

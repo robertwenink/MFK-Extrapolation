@@ -12,6 +12,9 @@ from abc import ABC, abstractmethod
 
 
 class Solver(ABC):
+    max_d = 10
+    min_d = 1
+
     def __init__(self):
         pass
 
@@ -19,12 +22,9 @@ class Solver(ABC):
     def solve(self):
         pass
 
-    max_d = 10
-    min_d = 1
-    
-    @classmethod
-    def get_preferred_search_space(cls,d):
+    def get_preferred_search_space(d):
         pass
+
 
 class TestFunction(ABC):
     """
@@ -191,6 +191,15 @@ class Curretal88exp(TestFunction, Solver):
         fact3 = 100 * np.power(x1, 3) + 500 * np.power(x1, 2) + 4 * x1 + 20
 
         return fact1 * fact2 / fact3
+
+    def solve_LF(self, X):
+        # Cheap Currin function
+        X1 = X + 0.05
+        X2 = np.maximum(X + np.array([0.05, -0.05]), np.array([-np.Inf, 0]))
+        X3 = X + np.array([-0.05, 0.05])
+        X4 = np.maximum(X - 0.05, np.array([-np.Inf, 0]))
+        res = 0.25 * (self.solve(X1) + self.solve(X2) + self.solve(X3) + self.solve(X4))
+        return res
 
     def get_preferred_search_space(d):
         return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]

@@ -12,14 +12,15 @@ if __name__ == "__main__":
 from preprocessing.GUIbase import Ui_Form
 
 from sampling.solvers.solver import get_solver_name_list, get_solver
-
+from models.kriging.kernel import get_available_kernel_names
 
 class GUI(qtw.QWidget, Ui_Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setupUi(self)
         self.set_solver_combobox()
-
+        self.set_kernel_combobox()
+        
         self.dimension_spinbox_changed()
         self.solver_changed()
 
@@ -102,7 +103,7 @@ class GUI(qtw.QWidget, Ui_Form):
 
         # SOLVER & OBJECTIVE
         gui_data["solver_str"] = self.get_solver_str()
-        gui_data["d"] = self.dimensionSpinBox.value()
+        gui_data["d"] = int(self.dimensionSpinBox.value())
 
         # search_space structured as data matrix X: [[d0_name,d1_name,d2_name,...],[lb0,lb1,...],[ub0,ub1,...]]
         search_space = [[], [], []]
@@ -130,6 +131,8 @@ class GUI(qtw.QWidget, Ui_Form):
         # # KRIGING OPTIONS
         # selectKrigingTypeComboBox
         gui_data["kriging_type"] = str(self.selectKrigingTypeComboBox.currentText())
+
+        gui_data["kernel"] =str(self.correlationKernelComboBox.currentText())
 
         # multifidelityCheckBox
         gui_data["multifidelity"] = self.multifidelityCheckBox.isChecked()
@@ -203,6 +206,11 @@ class GUI(qtw.QWidget, Ui_Form):
     def get_optional_filename(self):
         """function for returning the additional optional filename identifier"""
         return self.optionalFilenameLineEdit.text()
+    
+    def set_kernel_combobox(self):
+        """This sets the dropdownlist for selecting the Kriging kernel"""
+        self.correlationKernelComboBox.clear()
+        self.correlationKernelComboBox.addItems(get_available_kernel_names())
 
     def set_solver_combobox(self):
         """This sets the dropdownlist for selecting the solver"""
