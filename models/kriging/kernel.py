@@ -7,6 +7,7 @@ For Kriging we have to use a kernel that is able to scale the dimensions accordi
 
 import numpy as np
 
+from numba import njit, prange
 
 def get_available_kernel_names():
     """Helper function for the GUI"""
@@ -29,7 +30,7 @@ def get_kernel(setup):
         # par > x is encoded as x + np.finfo(float).eps for lowerbounds; likewise,
         # par < x is encoded as x - np.finfo(float).eps for upperbounds.
         # We can now externally always use >= and <= respectively.
-        hp_constraints = [["theta", "p"], [0, 0 + np.finfo(np.float).eps], [np.inf, 2]]
+        hp_constraints = [["theta", "p"], [0, 0 + np.finfo(np.float32).eps], [np.inf, 2]]
         
         return func, hps, hp_constraints
 
@@ -41,7 +42,7 @@ def _dist_matrix(X):
     """
     return np.power(np.sum(np.power(X[:, np.newaxis, :] - X, 2), axis=2), 1 / 2)
 
-
+@njit(cache=True, fastmath=True, parallel=True)
 def corr_matrix_kriging(X, X_other, theta, p):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).
@@ -52,10 +53,31 @@ def corr_matrix_kriging(X, X_other, theta, p):
     :param theta: hyperparameters scaling the (relative) relevance of each dimension
     :param p: hyperparameters for scaling the relevance of distance in each dimension
     """
-    return np.exp(
-        -np.sum(
-            theta
-            * np.power(np.abs(X[:, np.newaxis, :] - X_other[np.newaxis, :, :]), p),
-            axis=2,
-        )
-    )
+
+    # ugly but fast due to prange and memory efficiency
+    arr = np.zeros((X.shape[0], X_other.shape[0]))
+    for i in prange(X_other.shape[0]):
+        diff = np.abs(X - X_other[i,:])
+        for d in range(X_other.shape[1]):
+            arr[:,i]+=theta[d] * diff[:,d]**p[d]
+    return np.exp(-arr) 
+    
+    # ugly but faster due to memory efficiency
+    # arr = np.zeros((X.shape[0], X_other.shape[0]))
+    # for i in prange(X_other.shape[0]):
+    #     diff = np.abs(X - X_other[i,:])
+    #     arr[:,i] = np.exp(
+    #         -np.sum(
+    #             np.multiply(theta, np.power(diff, p)),
+    #             axis=-1
+    #         )
+    #     )
+    # return arr 
+    
+    # nice/pythonic but slow
+    # return np.exp(
+    #     -np.sum(
+    #         np.multiply(theta, np.power(np.abs(X[:, np.newaxis, :] - X_other[np.newaxis, :, :]), p)),
+    #         axis=2
+    #     )
+    # )

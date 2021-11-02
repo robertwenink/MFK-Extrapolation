@@ -1,5 +1,6 @@
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtCore as qtc
+
 _translate = qtc.QCoreApplication.translate
 
 import sys
@@ -12,7 +13,9 @@ if __name__ == "__main__":
 from preprocessing.GUIbase import Ui_Form
 
 from sampling.solvers.solver import get_solver_name_list, get_solver
+from sampling.initial_sampling import get_doe_name_list
 from models.kriging.kernel import get_available_kernel_names
+
 
 class GUI(qtw.QWidget, Ui_Form):
     def __init__(self, *args, **kwargs):
@@ -20,14 +23,15 @@ class GUI(qtw.QWidget, Ui_Form):
         self.setupUi(self)
         self.set_solver_combobox()
         self.set_kernel_combobox()
-        
+        self.set_doe_combobox()
+
         self.dimension_spinbox_changed()
         self.solver_changed()
 
         self.dimensionSpinBox.valueChanged.connect(self.dimension_spinbox_changed)
-        
+
         self.selectSolverComboBox.currentTextChanged.connect(self.solver_changed)
-        
+
         self.createSetupFileButton.clicked.connect(self.set_gui_dict)
 
         self.gui_data = {}
@@ -90,10 +94,11 @@ class GUI(qtw.QWidget, Ui_Form):
         for i in range(self.dimensionSpinBox.value(), count):
             self.remove_parameter_range(i)
 
-        
         solver_string = self.get_solver_str()
         solver = get_solver(name=solver_string)
-        self.set_search_space(solver.get_preferred_search_space(self.dimensionSpinBox.value()))
+        self.set_search_space(
+            solver.get_preferred_search_space(self.dimensionSpinBox.value())
+        )
 
     def set_gui_dict(self):
         """
@@ -118,7 +123,6 @@ class GUI(qtw.QWidget, Ui_Form):
             search_space[0].append(RangeName)
             search_space[1].append(RangeLowerbound)
             search_space[2].append(RangeUpperbound)
-
         gui_data["search_space"] = search_space
 
         # TODO hard
@@ -132,7 +136,7 @@ class GUI(qtw.QWidget, Ui_Form):
         # selectKrigingTypeComboBox
         gui_data["kriging_type"] = str(self.selectKrigingTypeComboBox.currentText())
 
-        gui_data["kernel"] =str(self.correlationKernelComboBox.currentText())
+        gui_data["kernel"] = str(self.correlationKernelComboBox.currentText())
 
         # multifidelityCheckBox
         gui_data["multifidelity"] = self.multifidelityCheckBox.isChecked()
@@ -177,18 +181,48 @@ class GUI(qtw.QWidget, Ui_Form):
         # livePlotCheckBox
         gui_data["live_plot"] = self.livePlotCheckBox.isChecked()
 
-        # plottingParametersLineEdit
-        # TODO
+        # dimensionsToPlotLineEdit
+        gui_data["d_plot"] = self.parse_dimensions_to_plot(
+            str(self.dimensionsToPlotLineEdit.text()), search_space
+        )
 
         # savePlotCheckBox
         gui_data["save_plot"] = self.savePlotCheckBox.isChecked()
 
-        self.close()
+        if gui_data["d_plot"] != False:
+            self.close()
+
+    def parse_dimensions_to_plot(self, text, search_space):
+        pars = [s.strip() for s in text.split(",")]
+        if pars == [""]:
+            # then return the first dimensions for plotting
+            return [i for i in range(min(2, len(search_space[0])))]
+
+        res = []
+        for i in pars:
+            if i.isnumeric():
+                i = int(i)
+                if i < len(search_space[0]) and i >= 0:
+                    res.append(i)
+                else:
+                    raise Exception(
+                        "Plotting parameter does not exist, check if number is in dimensional range."
+                    )
+                    return False
+            else:
+                try:
+                    res.append(search_space[0].index(i))
+                except ValueError:
+                    print("Plotting parameter does not exist, check for typos.")
+                    return False
+        return res
 
     def get_solver_str(self):
-        return (str(self.selectSolverComboBox.currentText())
+        return (
+            str(self.selectSolverComboBox.currentText())
             .replace("internal: ", "")
-            .replace("external: ", ""))
+            .replace("external: ", "")
+        )
 
     def get_gui_dict(self):
         if self.gui_data is not None:
@@ -206,11 +240,16 @@ class GUI(qtw.QWidget, Ui_Form):
     def get_optional_filename(self):
         """function for returning the additional optional filename identifier"""
         return self.optionalFilenameLineEdit.text()
-    
+
     def set_kernel_combobox(self):
         """This sets the dropdownlist for selecting the Kriging kernel"""
         self.correlationKernelComboBox.clear()
         self.correlationKernelComboBox.addItems(get_available_kernel_names())
+
+    def set_doe_combobox(self):
+        """This sets the dropdownlist for selecting the Kriging kernel"""
+        self.doEComboBox.clear()
+        self.doEComboBox.addItems(get_doe_name_list())
 
     def set_solver_combobox(self):
         """This sets the dropdownlist for selecting the solver"""
@@ -221,37 +260,47 @@ class GUI(qtw.QWidget, Ui_Form):
         solver_string = self.get_solver_str()
         solver = get_solver(name=solver_string)
 
-        self.dimensionSpinBox.setMaximum(solver.max_d)  
+        self.dimensionSpinBox.setMaximum(solver.max_d)
         self.dimensionSpinBox.setMinimum(solver.min_d)
-        self.dimensionRangeLabel.setText(_translate("Form", "[{}, {}] :".format(solver.min_d, solver.max_d)))
+        self.dimensionRangeLabel.setText(
+            _translate("Form", "[{}, {}] :".format(solver.min_d, solver.max_d))
+        )
 
         # has to be behind any dimension spinbox functions
-        self.set_search_space(solver.get_preferred_search_space(self.dimensionSpinBox.value()))
+        self.set_search_space(
+            solver.get_preferred_search_space(self.dimensionSpinBox.value())
+        )
 
         self.set_input_parameter_list_widget(solver)
-        self.set_output_parameter_list_widget(solver)        
-        
+        self.set_output_parameter_list_widget(solver)
+
     def set_search_space(self, search_space):
         if search_space is not None:
             for i in range(self.dimensionSpinBox.value()):
                 horlay = self.ParameterRangeVerticalLayout.findChild(
                     qtw.QHBoxLayout, "ParameterRangeHorizontalLayout_par{}".format(i)
                 )
-                horlay.itemAt(0).widget().setText(_translate("Form", str(search_space[0][i])))
-                horlay.itemAt(2).widget().setText(_translate("Form", str(search_space[1][i])))
-                horlay.itemAt(4).widget().setText(_translate("Form", str(search_space[2][i])))
+                horlay.itemAt(0).widget().setText(
+                    _translate("Form", str(search_space[0][i]))
+                )
+                horlay.itemAt(2).widget().setText(
+                    _translate("Form", str(search_space[1][i]))
+                )
+                horlay.itemAt(4).widget().setText(
+                    _translate("Form", str(search_space[2][i]))
+                )
         else:
             # reset parameter range gui
             for i in range(self.dimensionSpinBox.value()):
                 self.remove_parameter_range(i)
             for i in range(self.dimensionSpinBox.value()):
                 self.add_parameter_range(i)
-        
+
     def set_input_parameter_list_widget(self, solver):
         # solverInputParameterListWidget
         self.solverInputParameterListWidget.clear()
         self.solverInputParameterListWidget.addItems(solver.input_parameter_list)
-        
+
     def set_output_parameter_list_widget(self, solver):
         # solverOutputParameterListWidget
         self.solverOutputParameterListWidget.clear()

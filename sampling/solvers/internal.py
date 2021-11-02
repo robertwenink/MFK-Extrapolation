@@ -231,11 +231,11 @@ class Rosenbrock(TestFunction, Solver):
         although it may be restricted to the hypercube xi ∈ [-2.048, 2.048], for all i = 1, …, d.
         """
         X = self.correctFormatX(X)
-        y = (1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2)
+        y = np.sum((1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2),axis=1)
         return y
 
     def get_preferred_search_space(d):
-        return [["x{}".format(i) for i in range(d)], [-5] * d, [10] * d]
+        return [["x{}".format(i) for i in range(d)], [-2.048] * d, [2.048] * d]
 
 
 # TODO multifidelity test cases

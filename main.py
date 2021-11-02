@@ -1,31 +1,38 @@
 from preprocessing.input import Input
-from sampling.initial import grid
+from sampling.initial_sampling import get_doe
 import numpy as np
 import matplotlib.pyplot as plt
 from sampling.solvers.solver import get_solver
 from models.kriging.kernel import _dist_matrix, corr_matrix_kriging
 from models.kriging.method.OK import OrdinaryKriging
-from postprocessing.plotting import plot2d
+from postprocessing.plotting import plot_kriging
 
 setup = Input(0)
-X = grid.generate(setup, 6)
-X_new = grid.generate(setup, 3)/1.5
+doe = get_doe(setup)
+if hasattr(setup,'X'):
+    X = setup.X
+else:
+    X = doe(setup, 20)
 
-R = corr_matrix_kriging(X,X,[4,1],[1,2])
+X_new = doe(setup, 100)/1.5
+print('Generated grids')
+
 solver = get_solver(setup)()
-# solver.plot2d(X)
 y = solver.solve(X)
+
+print(np.mean(y))
+
 ok = OrdinaryKriging(setup)
 ok.train(X, y)
 y_hat, mse = ok.predict(X_new)
-print(y_hat in y)
-print(np.sqrt(mse))
 
-plot2d(X,y,X_new,y_hat,mse)
+ok.tune()
+
+# print(np.sqrt(mse))
+
+plot_kriging(setup,X, y,X_new,y_hat,mse)
 
 plt.show()
 
 if setup.SAVE_DATA:
-    "update the input file explicitly by setting the corresponding value of data_dict."
-    setup.data_dict['X'] = X.tolist()
     setup.create_input_file()

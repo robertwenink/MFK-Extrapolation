@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import filedialog
 import json
 import time
+import numpy as np
 
 from preprocessing.GUIfunctions import GUI
 
@@ -18,6 +19,11 @@ from PyQt5 import QtCore as qtc
 
 INPUTS_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 
+def convert_np_to_list(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError('Not serializable')
+        
 class Input:
     def __init__(self, option=0):
         """
@@ -72,11 +78,17 @@ class Input:
         print("Now reading {}".format(file_path))
 
         with open(file_path) as json_file:
-            self.data_dict = json.load(json_file)
+            data_dict = json.load(json_file)
 
         # make each self.data_dict key a variable in our input object
-        for key in self.data_dict:
-            setattr(self, key, self.data_dict[key])
+        for key in data_dict:
+            setattr(self, key, data_dict[key])
+        
+        # NOTE this part is a bit of hardcoding, in order to convert some lists back to np.array    
+        if hasattr(self,'X'):
+            self.X = np.array(self.X,dtype=np.float64)
+        self.search_space[1] = np.array(self.search_space[1])
+        self.search_space[2] = np.array(self.search_space[2])
         
         print("Reading successful")
         self.write_previous_filename()
@@ -85,12 +97,12 @@ class Input:
         if optional != "":
             optional = "_" + optional
         self.filename = time.strftime("(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"
-
+    
     def create_input_file(self):
-        """Can be used to create or update the input file according to the contents of self.data_dict"""
+        """Can be used to create or update the input file according to the contents of __dict__"""
         # dumping
         json.dump(
-            self.data_dict, open(os.path.join(INPUTS_DIR, self.filename), "w"), indent=4
+            self.__dict__, open(os.path.join(INPUTS_DIR, self.filename), "w"), default=convert_np_to_list, indent=4
         )
         self.write_previous_filename()
 
@@ -102,8 +114,8 @@ class Input:
 
         app.exec_()
 
-        self.data_dict = gui.get_gui_dict()
-        if self.data_dict != {}:
+        self.__dict__ = gui.get_gui_dict()
+        if self.__dict__ != {}:
             self.create_new_filename(gui.get_optional_filename())
             self.create_input_file()
             self.read_input()
