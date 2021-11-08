@@ -186,6 +186,11 @@ class GUI(qtw.QWidget, Ui_Form):
             str(self.dimensionsToPlotLineEdit.text()), search_space
         )
 
+        # typeOfPlotComboBox
+        gui_data["type_of_plot"] = str(
+            self.typeOfPlotComboBox.currentText()
+        )
+
         # savePlotCheckBox
         gui_data["save_plot"] = self.savePlotCheckBox.isChecked()
 

@@ -10,15 +10,18 @@ def get_doe(setup):
             return obj
 
 def get_doe_name_list():
+    """Helper function for the GUI"""
     name_list = []
     for name, obj in inspect.getmembers(sys.modules[__name__], inspect.isfunction):
         if name not in ["lhs", "get_doe_name_list", "get_doe"]:
             name_list.append(name)
     return name_list
 
+
 def grid(setup, n=None, n_per_d=None):
     """
-    Build a grid and sample n points in each dimension d
+    Build a grid and sample n points in each dimension d.
+    Be aware that each column/ row is linearly dependent and thus correlation matrix R is (nearly) invertable.
     """
     if n is not None and n_per_d is None:
         n_per_d = int(round(n ** (1 / setup.d)))
@@ -29,11 +32,6 @@ def grid(setup, n=None, n_per_d=None):
     lis = [lin[:, i] for i in range(d)]
     res = np.meshgrid(*lis)
     X = np.stack(res, axis=-1).reshape(-1, d)
-    # remove entries to better ensure invertibility of correlation matrix R
-    # X = X.reshape(*[n for i in range(d)], d)
-    # i = np.arange(n)
-    # X[i] = np.delete(X[i], slice(None,None,n+1), axis = 0) # 0:n**d:n+1 , miss n**(d-1)+1?
-    # X = X.reshape(-1, d)
     return X
 
 
@@ -52,6 +50,6 @@ def LHS(setup, n=None, n_per_d=None):
     # scale data according to the search space bounds
     X = (
         np.multiply(X, setup.search_space[2] - setup.search_space[1])
-        - setup.search_space[1]
+        + setup.search_space[1]
     )
     return X

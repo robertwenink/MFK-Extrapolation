@@ -1,5 +1,5 @@
 from preprocessing.input import Input
-from sampling.initial_sampling import get_doe
+from sampling.initial_sampling import get_doe, grid
 import numpy as np
 import matplotlib.pyplot as plt
 from sampling.solvers.solver import get_solver
@@ -14,7 +14,7 @@ if hasattr(setup,'X'):
 else:
     X = doe(setup, 20)
 
-X_new = doe(setup, 100)/1.5
+X_new = grid(setup, 100)
 print('Generated grids')
 
 solver = get_solver(setup)()
@@ -30,9 +30,10 @@ ok.tune()
 
 # print(np.sqrt(mse))
 
-plot_kriging(setup,X, y,X_new,y_hat,mse)
+plot_kriging(setup,X, y, ok)
 
 plt.show()
 
 if setup.SAVE_DATA:
+    setup.X = X
     setup.create_input_file()

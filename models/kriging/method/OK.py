@@ -3,10 +3,11 @@ Ordinary Kriging
 """
 import numpy as np
 from scipy import linalg
-from models.kriging.kernel import get_kernel
+from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
 from numba import njit
 import time
 
+from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
 
 @njit(cache=True)
 def mu_hat(R_in, y):
@@ -41,30 +42,25 @@ def predictor(R_in, r, y, mu_hat):
     return y_hat, rtR_in
 
 
-# @njit(cache=True, fastmath=True) # is not necessarily faster
-def sigma_mu_hat_log(R, y, n):
-    """This function contains the left hand side of the concentrated log likelihood"""
-
-    # Inverses of several matrices can be computed at once:
-    # a = np.array([[[1., 2.], [3., 4.]], [[1, 3], [3, 5]]])
-    # inv(a)
-
-    R_in = linalg.inv(R)
+@njit(cache=True, fastmath=True) 
+def sigma_mu_hat_log_det(R_in, y, det):
+    """This function contains the left + right hand side of the concentrated log likelihood"""
+    n = y.shape[0]
     t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
-    return -n / 2 * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
+    return -n / 2 * np.log(np.dot(t.T, np.dot(R_in, t)) / n) - (1 / 2) * np.log(det)
 
 
-# this function cannot be decorated with njit due to *hps
-def fitness_func(X, y, corr, hps):
-    n = X.shape[0]
-    R = corr(X, X, *hps)
+# this function cannot be decorated with njit due to *hps and det
+def fitness_func(hps, diff_matrix, y, corr):
+    # missing 0.8 s somewhere, shape, unpacking hps, calling overhead??
+    # 1.386 of 7.166 s
+    R = corr_matrix_kriging_tune(diff_matrix, *hps)
+    # 2.231 of 7.166 s
     det = linalg.det(R)
-    if det == 0.0:
-        print(
-            "WARNING: Det equals 0 !!"
-        )  # det(R) is 0 betekent dat R niet inverteerbaar is.
-    return sigma_mu_hat_log(R, y, n) - (1 / 2) * np.log(det)
-
+    # 2.493 of 7.166 s
+    R_in = linalg.inv(R)
+    # 0.256 of 7.166 s
+    return sigma_mu_hat_log_det(R_in, y, det)
 
 class OrdinaryKriging:
     def __init__(self, setup):
@@ -98,12 +94,16 @@ class OrdinaryKriging:
 
     def tune(self):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
-        print("Now tuning")
+        diff_m = diff_matrix(self.X, self.X)
+        print("Now tuning, starting with fitness {}".format(fitness_func(self.hps,diff_m, self.y, self.corr)))
         start = time.time()
-        for i in range(5):
-            fit = fitness_func(self.X, self.y, self.corr, self.hps)
+        model=ga(function=fitness_func,dimension=self.hps.size,other_function_arguments = [diff_m, self.y, self.corr], \
+            variable_boundaries=self.hp_constraints,convergence_curve=True)
+        model.run()
+        self.hps =model.output_dict['variable']
+
         t = time.time() - start
-        print("Tuning completed with fitness {} and time {} s".format(fit, t))
+        print("Tuning completed with fitness {} and time {} s".format(model.output_dict['function'], t))
 
 
 # NOTE TODO
