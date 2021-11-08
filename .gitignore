@@ -131,3 +131,4 @@ dmypy.json
 ####### USER DEFINED ######## 
 input_files/
 *.prof
+.vscode

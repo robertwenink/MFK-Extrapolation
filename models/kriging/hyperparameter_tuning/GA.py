@@ -103,9 +103,6 @@ class geneticalgorithm:
             ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
         self.var_bound = variable_boundaries
         
-        # Timeout
-        self.funtimeout = float(function_timeout)
-
         # convergence_curve
         self.convergence_curve = convergence_curve
 
