@@ -33,7 +33,7 @@ def get_kernel(setup):
         # We can now externally always use >= and <= respectively.
         # hp_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
         hp_constraints = np.array(
-            [[[0, 1000]] * setup.d, [[0 + np.finfo(np.float32).eps, 2]] * setup.d]
+            [[[0, 1000]] * setup.d, [[1.999999 + np.finfo(np.float32).eps, 2]] * setup.d]
         )  # structured as in the GA
 
         return func, hps, hp_constraints
@@ -48,10 +48,10 @@ def _dist_matrix(X):
     return np.power(np.sum(np.power(X[:, np.newaxis, :] - X, 2), axis=2), 1 / 2)
 
 
-@njit(cache=True, fastmath=True, parallel=True)
+@njit(cache=True, fastmath=True)
 def diff_matrix(X, X_other):
     diff = np.zeros((X.shape[0], X_other.shape[0], X.shape[1]))
-    for i in prange(X_other.shape[0]):
+    for i in range(X_other.shape[0]):
         diff[:, i, :] = np.abs(X - X_other[i, :])
     return diff
 
@@ -73,7 +73,7 @@ def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     return np.exp(-arr)
 
 
-@njit(cache=True, fastmath=True, parallel=True)
+@njit(cache=True, fastmath=True)
 def corr_matrix_kriging(X, X_other, theta, p):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).

@@ -294,7 +294,7 @@
         <item row="13" column="0">
          <widget class="QLabel" name="doELabel">
           <property name="text">
-           <string>DoE:</string>
+           <string>doe:</string>
           </property>
          </widget>
         </item>

@@ -30,7 +30,7 @@ def mse(R_in, r, rtR_in, sigma_hat):
     t = 1 - np.sum(np.multiply(rtR_in, r.T), axis=-1)
 
     # np.abs because numbers close to zero / e-13 can get negative due to rounding errors (in R_in?)
-    mse = np.abs(sigma_hat * (t + np.power(t, 2) / np.sum(R_in)))
+    mse = np.abs(sigma_hat * (t + t ** 2 / np.sum(R_in)))
     return mse
 
 
@@ -41,25 +41,27 @@ def predictor(R_in, r, y, mu_hat):
     y_hat = mu_hat + np.dot(rtR_in, y - mu_hat)
     return y_hat, rtR_in
 
+@njit(cache=True, fastmath=True) 
+def sigma_mu_hat(R_in, y, n):
+    t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
+    sigma_hat = np.dot(t.T, np.dot(R_in, t)) / n
+    return sigma_hat
 
-@njit(cache=True, fastmath=True,parallel=False) 
-def sigma_mu_hat_log_det(R_in_list, y, R):
-    """This function contains the left + right hand side of the concentrated log likelihood"""
+@njit(cache=True, fastmath=True) 
+def fitness_func_loop(R_in_list, y, R):
+    """This function joins the left + right hand side of the concentrated log likelihood"""
     n_pop = R_in_list.shape[0]
     fit = np.zeros(n_pop)
-    for i in prange(n_pop):
-        R_in = R_in_list[i]
-        n = y.shape[0]
-        t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
-        det = np.linalg.det(R[i])
-        fit[i] = -n / 2 * np.log(np.dot(t.T, np.dot(R_in, t)) / n) - (1 / 2) * np.log(det)
+    n = y.shape[0]
+    for i in range(n_pop):
+        fit[i] = -n / 2 * np.log(sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(np.linalg.det(R[i]))
     return fit
 
 # @njit(cache=True)
 def fitness_func(hps, diff_matrix, y, corr):
     R = corr_matrix_kriging_tune(hps,diff_matrix)
-    R_in = np.linalg.inv(R)
-    return sigma_mu_hat_log_det(R_in, y, R)
+    R_in = np.linalg.inv(R) # computes many inverses simultaneously = much faster; no njit
+    return fitness_func_loop(R_in, y, R)
 
 class OrdinaryKriging:
     def __init__(self, setup):
@@ -67,11 +69,11 @@ class OrdinaryKriging:
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
-        r = self.corr(self.X, X_new, *self.hps)
+        self.r = self.corr(self.X, X_new, *self.hps)
         print("Predicting")
-        y_hat, rtR_in = predictor(self.R_in, r, self.y, self.mu_hat)
+        y_hat, rtR_in = predictor(self.R_in, self.r, self.y, self.mu_hat)
         print("Calculating mse")
-        mse_var = mse(self.R_in, r, rtR_in, self.sigma_hat)
+        mse_var = mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         print("Done with predict")
         return y_hat, mse_var
 
@@ -97,7 +99,7 @@ class OrdinaryKriging:
         # print("Now tuning, starting with fitness {}".format(fitness_func(np.array([self.hps]),diff_m, self.y, self.corr)))
         start = time.time()
         model=ga(function=fitness_func,dimension=self.hps.size,other_function_arguments = [diff_m, self.y, self.corr], \
-            variable_boundaries=self.hp_constraints,progress_bar=True,convergence_curve=False)
+            variable_boundaries=self.hp_constraints,progress_bar=True,convergence_curve=True)
         model.run()
         self.hps =model.output_dict['variable']
 

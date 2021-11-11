@@ -2,7 +2,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
-
+from sampling.solvers.solver import get_solver
 
 def plot_kriging(setup, X, y, predictor):
     setup.n_per_d = 50
@@ -53,15 +53,20 @@ def plot_2d(setup, X, y, predictor):
         ax = fig.add_subplot(111, projection="3d")
         # ax.plot_surface(P1, P2, Z, alpha=0.5)
         ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat, alpha=0.5)
-        ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat - std, alpha=0.5)
-        ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat + std, alpha=0.5)
+        # ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat - std, alpha=0.5)
+        # ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat + std, alpha=0.5)
         ax.set_zlabel("Z")
     elif setup.type_of_plot == "Contour":
         ax = fig.add_subplot()
         ax.contour(X_predict[:,:,0], X_predict[:,:,1], y_hat)
 
     # depict sample data. 
+    # solver = get_solver(setup)()
+    # y = solver.solve(X_new)
     ax.scatter(X[:, d_plot[0]],X[:, d_plot[1]],y)
+
+    y_hat, mse = predictor.predict(X)
+    ax.scatter(X[:, d_plot[0]],X[:, d_plot[1]],y_hat)
 
     ax.set_title("{}".format(setup.solver_str))
     ax.set_xlabel(setup.search_space[0][d_plot[0]])

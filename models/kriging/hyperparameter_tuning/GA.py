@@ -31,7 +31,7 @@ class geneticalgorithm:
         dimension,
         variable_boundaries,
         algorithm_parameters={
-            "max_num_iteration": 2001,
+            "max_num_iteration": None,
             "population_size": 100,
             "mutation_probability": 0.1,
             "elit_ratio": 0.05,
@@ -118,8 +118,7 @@ class geneticalgorithm:
         ), "parents_portion must be in range [0,1]"
 
         self.par_s = int(self.param["parents_portion"] * self.pop_s)
-        trl = self.pop_s - self.par_s
-        if trl % 2 != 0:
+        if (self.pop_s - self.par_s) % 2 != 0:
             self.par_s += 1
 
         self.prob_mut = self.param["mutation_probability"]
@@ -148,16 +147,11 @@ class geneticalgorithm:
         ), "\n number of parents must be greater than number of elits"
 
         if self.param["max_num_iteration"] == None:
-            self.iterate = 0
-            for i in range(0, self.dim):
-                self.iterate += (
-                    (self.var_bound[i][1] - self.var_bound[i][0])
-                    * 50
-                    * (100 / self.pop_s)
-                )
-            self.iterate = int(self.iterate)
-            if (self.iterate * self.pop_s) > 10000000:
-                self.iterate = 10000000 / self.pop_s
+            self.iterate = 4000
+            # TODO verzin wat leuks
+            # Max number of function evaluations set to 1m
+            if (self.iterate * self.pop_s) > 1000000:
+                self.iterate = 1000000 / self.pop_s
         else:
             self.iterate = int(self.param["max_num_iteration"])
 
@@ -178,29 +172,25 @@ class geneticalgorithm:
     def run(self):
         # Initial Population
         pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
-        solo = np.zeros(self.dim + 1)
 
+        " Set initial guess here "
         for p in range(0, self.pop_s):
             i = np.arange(self.dim)
-            solo[i] = self.var_bound[i,0] + np.random.random(size = self.dim) * (
+            pop[p,i] = self.var_bound[i,0] + np.random.random(size = self.dim) * (
                 self.var_bound[i,1] - self.var_bound[i,0]
             )
-
-            pop[p] = solo
 
         # Fitness of whole population at once.
         pop[:,self.dim] = self.sim(pop[:,:-1])
 
         # Report
-        obj = pop[0,-1]
         self.report = []
-        self.test_obj = obj
-        self.best_variable = solo[:-1]
-        self.best_function = obj
+        self.best_variable = pop[0,:-1]
+        self.best_function = pop[0,-1]
 
-        t = 1
+        t = 0
         counter = 0
-        while t <= self.iterate:
+        while t < self.iterate:
 
             if self.progress_bar == True:
                 self.progress(t, self.iterate, status="GA is running...")
@@ -211,12 +201,9 @@ class geneticalgorithm:
             if pop[0, self.dim] < self.best_function:
                 counter = 0
                 self.best_function = pop[0, self.dim].copy()
-                self.best_variable = pop[0, : self.dim].copy()
+                self.best_variable = pop[0, :self.dim].copy()
             else:
                 counter += 1
-
-            # Report
-            self.report.append(-pop[0, self.dim])
 
             # Normalizing objective function
             normobj = np.zeros(self.pop_s)
@@ -225,7 +212,7 @@ class geneticalgorithm:
             if minobj < 0:
                 normobj = pop[:, self.dim] + abs(minobj)
             else:
-                normobj = pop[:, self.dim].copy()
+                normobj = pop[:, self.dim]
 
             maxnorm = np.amax(normobj)
             normobj = maxnorm - normobj + 1
@@ -239,42 +226,39 @@ class geneticalgorithm:
             # Select parents
             par = np.array([np.zeros(self.dim + 1)] * self.par_s)
 
-            for k in range(0, self.num_elit):
-                par[k] = pop[k].copy()
-            for k in range(self.num_elit, self.par_s):
-                index = np.searchsorted(cumprob, np.random.random())
-                par[k] = pop[index].copy()
+            k = np.arange(self.num_elit)
+            par[k] = pop[k]
 
-            ef_par_list = np.array([False] * self.par_s)
+            # select random parents while keeping elitists.
+            k = np.arange(self.num_elit, self.par_s)
+            index = np.searchsorted(cumprob, np.random.random()) 
+            par[k] = pop[index]
+
             par_count = 0
             while par_count == 0:
-                for k in range(0, self.par_s):
-                    if np.random.random() <= self.prob_cross:
-                        ef_par_list[k] = True
-                        par_count += 1
+                ef_par_list = np.random.random(self.par_s) <= self.prob_cross
+                par_count = np.sum(ef_par_list)
 
-            ef_par = par[ef_par_list].copy()
+            ef_par = par[ef_par_list]
 
             # New generation
             pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
 
-            for k in range(0, self.par_s):
-                pop[k] = par[k].copy()
+            k = np.arange(self.par_s)
+            pop[k] = par[k]
 
             for k in range(self.par_s, self.pop_s, 2):
                 r1 = np.random.randint(0, par_count)
                 r2 = np.random.randint(0, par_count)
-                pvar1 = ef_par[r1, :self.dim].copy()
-                pvar2 = ef_par[r2, :self.dim].copy()
+                pvar1 = ef_par[r1, :self.dim]
+                pvar2 = ef_par[r2, :self.dim]
 
                 ch1,ch2 = cross(pvar1, pvar2, self.dim, self.c_type)
 
                 ch1 = mut(ch1, self.var_bound, self.prob_mut, self.dim)
                 ch2 = mutmidle(ch2, pvar1, pvar2, self.var_bound, self.prob_mut, self.dim)
-                solo[: self.dim] = ch1.copy()
-                pop[k] = solo.copy()
-                solo[: self.dim] = ch2.copy()
-                pop[k + 1] = solo.copy()
+                pop[k,:-1] = ch1
+                pop[k + 1,:-1] = ch2
             
             # Fitness of whole population at once.
             pop[self.par_s:,self.dim] = self.sim(pop[self.par_s:,:-1])
@@ -282,37 +266,34 @@ class geneticalgorithm:
             #############################################################
             t += 1
             if counter > self.mniwi:
-                pop = pop[pop[:, self.dim].argsort()]
-                if pop[0, self.dim] >= self.best_function:
-                    t = self.iterate
-                    if self.progress_bar == True:
-                        self.progress(t, self.iterate, status="GA is running...")
-                    t += 1
-                    self.stop_mniwi = True
+                self.stop_mniwi = True
+                break
+
+            # Report
+            self.report.append(-pop[0, self.dim])
 
         # Sort
         pop = pop[pop[:, self.dim].argsort()]
 
         if pop[0, self.dim] < self.best_function:
-
-            self.best_function = pop[0, self.dim].copy()
-            self.best_variable = pop[0, : self.dim].copy()
+            self.best_function = pop[0, self.dim]
+            self.best_variable = pop[0, : self.dim]
         
         # Report
-        self.report.append(-pop[0, self.dim])
         self.output_dict = {
             "variable": self.best_variable.reshape(self.hps_shape[:-1]),
             "function": -self.best_function,
         }
+
         if self.progress_bar == True:
             show = " " * 100
-            sys.stdout.write("\r%s" % (show))
+            sys.stdout.write("\r%s" % (" " * 100))
         sys.stdout.write("\r The best solution found:\n %s" % (self.best_variable))
         sys.stdout.write("\n\n Objective function:\n %s\n" % (-self.best_function))
         sys.stdout.flush()
-        re = np.array(self.report)
+
         if self.convergence_curve == True:
-            plt.plot(re)
+            plt.plot(self.report)
             plt.xlabel("Iteration")
             plt.ylabel("Objective function")
             plt.title("Genetic Algorithm")

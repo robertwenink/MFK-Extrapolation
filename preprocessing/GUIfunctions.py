@@ -173,7 +173,7 @@ class GUI(qtw.QWidget, Ui_Form):
         )
 
         # doEComboBox
-        gui_data["DoE"] = str(self.doEComboBox.currentText())
+        gui_data["doe"] = str(self.doEComboBox.currentText())
 
         # # OUTPUT OPTIONS
         gui_data["SAVE_DATA"] = self.saveSampleDataCheckBox.isChecked()

@@ -6,7 +6,7 @@ import sys
 
 def get_doe(setup):
     for name,obj in inspect.getmembers(sys.modules[__name__], inspect.isfunction): 
-        if name == setup.DoE:
+        if name == setup.doe:
             return obj
 
 def get_doe_name_list():
