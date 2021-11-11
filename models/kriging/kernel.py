@@ -55,9 +55,17 @@ def diff_matrix(X, X_other):
         diff[:, i, :] = np.abs(X - X_other[i, :])
     return diff
 
+@njit(cache=True)
+def corr_matrix_kriging_tune(hps,diff_matrix):
+    n = hps.shape[0]
+    l = diff_matrix.shape[0]
+    R = np.zeros((n,l,l))
+    for i in range(n):
+        R[i] = corr_matrix_kriging_tune_inner(diff_matrix, hps[i,0],hps[i,1])
+    return R
 
 @njit(cache=True, fastmath=True)
-def corr_matrix_kriging_tune(diff_matrix, theta, p):
+def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     arr = np.zeros((diff_matrix.shape[:-1]))
     i = np.arange(diff_matrix.shape[0])
     for d in range(diff_matrix.shape[-1]):

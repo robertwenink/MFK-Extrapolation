@@ -31,14 +31,14 @@ class geneticalgorithm:
         dimension,
         variable_boundaries,
         algorithm_parameters={
-            "max_num_iteration": 2000,
+            "max_num_iteration": 2001,
             "population_size": 100,
             "mutation_probability": 0.1,
             "elit_ratio": 0.05,
             "crossover_probability": 0.5,
             "parents_portion": 0.3,
-            "crossover_type": "two_point",
-            "max_iteration_without_improv": 400,
+            "crossover_type": "uniform",
+            "max_iteration_without_improv": None,
         },
         convergence_curve=True,
         progress_bar=True,
@@ -186,11 +186,13 @@ class geneticalgorithm:
                 self.var_bound[i,1] - self.var_bound[i,0]
             )
 
-            obj = self.sim(solo[:-1])
-            solo[self.dim] = obj
             pop[p] = solo
 
+        # Fitness of whole population at once.
+        pop[:,self.dim] = self.sim(pop[:,:-1])
+
         # Report
+        obj = pop[0,-1]
         self.report = []
         self.test_obj = obj
         self.best_variable = solo[:-1]
@@ -222,7 +224,6 @@ class geneticalgorithm:
             minobj = pop[0, self.dim]
             if minobj < 0:
                 normobj = pop[:, self.dim] + abs(minobj)
-
             else:
                 normobj = pop[:, self.dim].copy()
 
@@ -263,21 +264,20 @@ class geneticalgorithm:
             for k in range(self.par_s, self.pop_s, 2):
                 r1 = np.random.randint(0, par_count)
                 r2 = np.random.randint(0, par_count)
-                pvar1 = ef_par[r1, : self.dim].copy()
-                pvar2 = ef_par[r2, : self.dim].copy()
+                pvar1 = ef_par[r1, :self.dim].copy()
+                pvar2 = ef_par[r2, :self.dim].copy()
 
                 ch1,ch2 = cross(pvar1, pvar2, self.dim, self.c_type)
 
                 ch1 = mut(ch1, self.var_bound, self.prob_mut, self.dim)
                 ch2 = mutmidle(ch2, pvar1, pvar2, self.var_bound, self.prob_mut, self.dim)
                 solo[: self.dim] = ch1.copy()
-                obj = self.sim(ch1)
-                solo[self.dim] = obj
                 pop[k] = solo.copy()
                 solo[: self.dim] = ch2.copy()
-                obj = self.sim(ch2)
-                solo[self.dim] = obj
                 pop[k + 1] = solo.copy()
+            
+            # Fitness of whole population at once.
+            pop[self.par_s:,self.dim] = self.sim(pop[self.par_s:,:-1])
                 
             #############################################################
             t += 1
@@ -326,21 +326,25 @@ class geneticalgorithm:
     
 
     def sim(self, X):
-        self.temp = X.reshape(self.hps_shape[:-1])
-        obj = -self.f(self.temp, *self.other_function_arguments)
+        temp = X.reshape((-1,*self.hps_shape[:-1]))
+        obj = -self.f(temp, *self.other_function_arguments)
         return obj
 
     def progress(self, count, total, status=""):
-        bar_len = 50
-        filled_len = int(round(bar_len * count / float(total)))
+        """
+        This is a relatively expensive function due to stdout.
+        """
+        if  count % (int(total/100))==0:
+            bar_len = 50
+            filled_len = int(round(bar_len * count / float(total)))
 
-        percents = round(100.0 * count / float(total), 1)
-        bar = "|" * filled_len + "_" * (bar_len - filled_len)
+            percents = round(100.0 * count / float(total), 1)
+            bar = "|" * filled_len + "_" * (bar_len - filled_len)
 
-        sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
-        sys.stdout.flush()
+            sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
+            sys.stdout.flush()
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def mut(x,var_bound,prob_mut,dim):
     for i in range(dim):
         ran = np.random.random()
@@ -350,7 +354,7 @@ def mut(x,var_bound,prob_mut,dim):
             )
     return x
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def mutmidle(x, p1, p2,var_bound,prob_mut,dim):
     for i in range(dim):
         ran = np.random.random()
@@ -365,7 +369,7 @@ def mutmidle(x, p1, p2,var_bound,prob_mut,dim):
                 )
     return x
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def cross(x, y, dim, c_type):
 
     ofs1 = x.copy()

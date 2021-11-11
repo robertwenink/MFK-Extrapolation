@@ -4,7 +4,7 @@ Ordinary Kriging
 import numpy as np
 from scipy import linalg
 from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
-from numba import njit
+from numba import njit,prange
 import time
 
 from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
@@ -42,25 +42,24 @@ def predictor(R_in, r, y, mu_hat):
     return y_hat, rtR_in
 
 
-@njit(cache=True, fastmath=True) 
-def sigma_mu_hat_log_det(R_in, y, det):
+@njit(cache=True, fastmath=True,parallel=False) 
+def sigma_mu_hat_log_det(R_in_list, y, R):
     """This function contains the left + right hand side of the concentrated log likelihood"""
-    n = y.shape[0]
-    t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
-    return -n / 2 * np.log(np.dot(t.T, np.dot(R_in, t)) / n) - (1 / 2) * np.log(det)
+    n_pop = R_in_list.shape[0]
+    fit = np.zeros(n_pop)
+    for i in prange(n_pop):
+        R_in = R_in_list[i]
+        n = y.shape[0]
+        t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
+        det = np.linalg.det(R[i])
+        fit[i] = -n / 2 * np.log(np.dot(t.T, np.dot(R_in, t)) / n) - (1 / 2) * np.log(det)
+    return fit
 
-
-# this function cannot be decorated with njit due to *hps and det
+# @njit(cache=True)
 def fitness_func(hps, diff_matrix, y, corr):
-    # missing 0.8 s somewhere, shape, unpacking hps, calling overhead??
-    # 1.386 of 7.166 s
-    R = corr_matrix_kriging_tune(diff_matrix, *hps)
-    # 2.231 of 7.166 s
-    det = linalg.det(R)
-    # 2.493 of 7.166 s
-    R_in = linalg.inv(R)
-    # 0.256 of 7.166 s
-    return sigma_mu_hat_log_det(R_in, y, det)
+    R = corr_matrix_kriging_tune(hps,diff_matrix)
+    R_in = np.linalg.inv(R)
+    return sigma_mu_hat_log_det(R_in, y, R)
 
 class OrdinaryKriging:
     def __init__(self, setup):
@@ -95,10 +94,10 @@ class OrdinaryKriging:
     def tune(self):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
         diff_m = diff_matrix(self.X, self.X)
-        print("Now tuning, starting with fitness {}".format(fitness_func(self.hps,diff_m, self.y, self.corr)))
+        # print("Now tuning, starting with fitness {}".format(fitness_func(np.array([self.hps]),diff_m, self.y, self.corr)))
         start = time.time()
         model=ga(function=fitness_func,dimension=self.hps.size,other_function_arguments = [diff_m, self.y, self.corr], \
-            variable_boundaries=self.hp_constraints,convergence_curve=True)
+            variable_boundaries=self.hp_constraints,progress_bar=True,convergence_curve=False)
         model.run()
         self.hps =model.output_dict['variable']
 
