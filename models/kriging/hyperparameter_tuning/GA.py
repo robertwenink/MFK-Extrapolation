@@ -31,7 +31,7 @@ class geneticalgorithm:
         dimension,
         variable_boundaries,
         algorithm_parameters={
-            "max_num_iteration": None,
+            "max_num_iteration": 2000,
             "population_size": 100,
             "mutation_probability": 0.1,
             "elit_ratio": 0.05,

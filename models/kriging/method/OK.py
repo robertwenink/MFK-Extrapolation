@@ -77,11 +77,15 @@ class OrdinaryKriging:
         print("Done with predict")
         return y_hat, mse_var
 
-    def train(self, X, y):
+    def train(self, X, y, tune = False):
         """Train the class on matrix X and the corresponding sampled values of array y"""
-        R = self.corr(X, X, *self.hps)
         self.X = X
         self.y = y
+        
+        if tune:
+            self.tune()
+
+        R = self.corr(X, X, *self.hps)
         n = X.shape[0]
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around

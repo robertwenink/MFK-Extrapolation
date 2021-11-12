@@ -39,8 +39,6 @@ def plot_2d(setup, X, y, predictor):
     d_plot = setup.d_plot
     d = setup.d
     n_per_d = setup.n_per_d
-
-    fig = plt.figure()
     
     X_new = grid_plot(setup)
     y_hat, mse = predictor.predict(X_new)
@@ -48,29 +46,30 @@ def plot_2d(setup, X, y, predictor):
     X_predict = X_new[:,d_plot].reshape(n_per_d,n_per_d,-1)
     y_hat = y_hat.reshape(n_per_d,n_per_d)
     std = np.sqrt(mse.reshape(n_per_d,n_per_d))
+
+    fig = plt.figure()
+    fig.suptitle("{}".format(setup.solver_str)) # set_title if ax
+
+    nrows = 1
+    ncols = 2
+    ax = [[0]*ncols]*nrows
     
-    if setup.type_of_plot == "Surface":
-        ax = fig.add_subplot(111, projection="3d")
-        # ax.plot_surface(P1, P2, Z, alpha=0.5)
-        ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat, alpha=0.5)
-        # ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat - std, alpha=0.5)
-        # ax.plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat + std, alpha=0.5)
-        ax.set_zlabel("Z")
-    elif setup.type_of_plot == "Contour":
-        ax = fig.add_subplot()
-        ax.contour(X_predict[:,:,0], X_predict[:,:,1], y_hat)
+    ax[0][0] =  fig.add_subplot(1,2,1, projection='3d')    
+    ax[0][0].plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat, alpha=0.9)
+    ax[0][0].plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat - std, alpha=0.4)
+    ax[0][0].plot_surface(X_predict[:,:,0], X_predict[:,:,1], y_hat + std, alpha=0.4)
+    ax[0][0].set_zlabel("Z")
+    ax[0][0].scatter(X[:, d_plot[0]],X[:, d_plot[1]],y)
+    ax[0][0].scatter(X[:, d_plot[0]],X[:, d_plot[1]],predictor.predict(X)[0])
 
-    # depict sample data. 
-    # solver = get_solver(setup)()
-    # y = solver.solve(X_new)
-    ax.scatter(X[:, d_plot[0]],X[:, d_plot[1]],y)
+    ax[0][1] =fig.add_subplot(1,2,2)
+    ax[0][1].set_aspect('equal')
+    ax[0][1].contour(X_predict[:,:,0], X_predict[:,:,1], y_hat)
 
-    y_hat, mse = predictor.predict(X)
-    ax.scatter(X[:, d_plot[0]],X[:, d_plot[1]],y_hat)
-
-    ax.set_title("{}".format(setup.solver_str))
-    ax.set_xlabel(setup.search_space[0][d_plot[0]])
-    ax.set_ylabel(setup.search_space[0][d_plot[1]])
+    for row in ax:
+        for col in row:
+            col.set_xlabel(setup.search_space[0][d_plot[0]])
+            col.set_ylabel(setup.search_space[0][d_plot[1]])
 
 def plot_1d(setup, X, y, predictor):
     pass

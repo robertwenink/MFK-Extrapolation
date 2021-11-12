@@ -25,8 +25,7 @@ solver = get_solver(setup)()
 y = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
-ok.train(X, y)
-ok.tune()
+ok.train(X, y, True)
 
 # test if sigma_hat from tuning is equal to that of prediction regimes
 assert (
@@ -34,9 +33,10 @@ assert (
 ), "\n sigma_hat not equal between tuning and training"
 
 # test if r.T R_in r == 1 if r build using subset of R_in -> then np.all(mse == 0)
-ok.predict(X[:2])
+ok.predict(np.array([X[0]]))
 res = np.diag(np.linalg.multi_dot((ok.r.T, ok.R_in, ok.r)))
 rtR_in = np.dot(ok.r.T, ok.R_in)
+
 res0 = np.sum(np.multiply(rtR_in, ok.r.T), axis=-1)
 
 assert(np.all(res == res0)), '\n mse diagonalisation method not correct.'

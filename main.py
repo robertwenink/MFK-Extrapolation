@@ -8,7 +8,7 @@ from models.kriging.method.OK import OrdinaryKriging
 from postprocessing.plotting import plot_kriging
 
 # Testing ala beun
-import run_tests
+# import run_tests
 
 setup = Input(0)
 doe = get_doe(setup)
@@ -21,8 +21,7 @@ solver = get_solver(setup)()
 y = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
-ok.train(X, y)
-ok.tune()
+ok.train(X, y,True)
 
 
 plot_kriging(setup,X, y, ok)
