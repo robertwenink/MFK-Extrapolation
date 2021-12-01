@@ -4,10 +4,21 @@ Ordinary Kriging
 import numpy as np
 from scipy import linalg
 from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
-from numba import njit,prange
+from numba import njit, prange
 import time
 
 from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
+
+
+def correct_formatX(a):
+    if not isinstance(a, np.ndarray):
+        a = np.array(a)
+    if a.size == 1:
+        return np.array([[a]])
+    if a.ndim == 1:
+        return np.array([a]).T
+    return a
+
 
 @njit(cache=True)
 def mu_hat(R_in, y):
@@ -41,27 +52,35 @@ def predictor(R_in, r, y, mu_hat):
     y_hat = mu_hat + np.dot(rtR_in, y - mu_hat)
     return y_hat, rtR_in
 
-@njit(cache=True, fastmath=True) 
+
+@njit(cache=True, fastmath=True)
 def sigma_mu_hat(R_in, y, n):
     t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
     sigma_hat = np.dot(t.T, np.dot(R_in, t)) / n
     return sigma_hat
 
-@njit(cache=True, fastmath=True) 
+
+@njit(cache=True, fastmath=True)
 def fitness_func_loop(R_in_list, y, R):
     """This function joins the left + right hand side of the concentrated log likelihood"""
     n_pop = R_in_list.shape[0]
     fit = np.zeros(n_pop)
     n = y.shape[0]
     for i in range(n_pop):
-        fit[i] = -n / 2 * np.log(sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(np.linalg.det(R[i]))
+        fit[i] = -n / 2 * np.log(sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(
+            np.linalg.det(R[i])
+        )
     return fit
+
 
 # @njit(cache=True)
 def fitness_func(hps, diff_matrix, y, corr):
-    R = corr_matrix_kriging_tune(hps,diff_matrix)
-    R_in = np.linalg.inv(R) # computes many inverses simultaneously = much faster; no njit
+    R = corr_matrix_kriging_tune(hps, diff_matrix)
+    R_in = np.linalg.inv(
+        R
+    )  # computes many inverses simultaneously = much faster; no njit
     return fitness_func_loop(R_in, y, R)
+
 
 class OrdinaryKriging:
     def __init__(self, setup):
@@ -69,32 +88,26 @@ class OrdinaryKriging:
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
+        X_new = correct_formatX(X_new)
         self.r = self.corr(self.X, X_new, *self.hps)
-        print("Predicting")
         y_hat, rtR_in = predictor(self.R_in, self.r, self.y, self.mu_hat)
-        print("Calculating mse")
         mse_var = mse(self.R_in, self.r, rtR_in, self.sigma_hat)
-        print("Done with predict")
         return y_hat, mse_var
 
-    def train(self, X, y, tune = False):
+    def train(self, X, y, tune=False):
         """Train the class on matrix X and the corresponding sampled values of array y"""
-        self.X = X
+        self.X = correct_formatX(X)
         self.y = y
-        
+
         if tune:
             self.tune()
 
-        R = self.corr(X, X, *self.hps)
-        n = X.shape[0]
+        R = self.corr(self.X, self.X, *self.hps)
+        n = self.X.shape[0]
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around
-        start = time.time()
         self.R_in = linalg.inv(R)
-        end = time.time()
-        print("time for inv: {}".format(end - start))
         self.mu_hat = mu_hat(self.R_in, y)
-        print("mu_hat = {}".format(self.mu_hat))
         self.sigma_hat = sigma_hat(self.R_in, y, self.mu_hat, n)
 
     def tune(self):
@@ -102,13 +115,23 @@ class OrdinaryKriging:
         diff_m = diff_matrix(self.X, self.X)
         # print("Now tuning, starting with fitness {}".format(fitness_func(np.array([self.hps]),diff_m, self.y, self.corr)))
         start = time.time()
-        model=ga(function=fitness_func,dimension=self.hps.size,other_function_arguments = [diff_m, self.y, self.corr], \
-            variable_boundaries=self.hp_constraints,progress_bar=True,convergence_curve=True)
+        model = ga(
+            function=fitness_func,
+            dimension=self.hps.size,
+            other_function_arguments=[diff_m, self.y, self.corr],
+            variable_boundaries=self.hp_constraints,
+            progress_bar=True,
+            convergence_curve=True,
+        )
         model.run()
-        self.hps =model.output_dict['variable']
+        self.hps = model.output_dict["variable"]
 
         t = time.time() - start
-        print("Tuning completed with fitness {} and time {} s".format(model.output_dict['function'], t))
+        print(
+            "Tuning completed with fitness {} and time {} s".format(
+                model.output_dict["function"], t
+            )
+        )
 
 
 # NOTE TODO

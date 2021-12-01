@@ -33,7 +33,7 @@ def get_kernel(setup):
         # We can now externally always use >= and <= respectively.
         # hp_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
         hp_constraints = np.array(
-            [[[0, 1000]] * setup.d, [[1.999999 + np.finfo(np.float32).eps, 2]] * setup.d]
+            [[[0, 1000]] * setup.d, [[0 + np.finfo(np.float32).eps, 2]] * setup.d]
         )  # structured as in the GA
 
         return func, hps, hp_constraints
@@ -78,7 +78,7 @@ def corr_matrix_kriging(X, X_other, theta, p):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).
     This function does not include noise.
-    :param X X_other:   datapoint locations in format [[x11,x12,..],[x21,..],..]
+    :param X, X_other:   datapoint locations in format [[x11,x12,..],[x21,..],..]
                         for matrix R we use X_other = X,
                         for r we use X_other = X_predict
     :param theta: hyperparameters scaling the (relative) relevance of each dimension

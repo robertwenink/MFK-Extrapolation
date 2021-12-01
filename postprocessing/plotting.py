@@ -1,3 +1,4 @@
+
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -96,3 +97,4 @@ def plot_1d(setup, X, y, predictor):
 #     ax.set_title("{}".format(setup.solver_str))
 #     ax.set_xlabel(setup.search_space[0][d_to_plot])
 #     ax.set_ylabel("Z")
+

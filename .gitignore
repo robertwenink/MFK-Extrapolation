@@ -132,3 +132,5 @@ dmypy.json
 input_files/
 *.prof
 .vscode
+.tar
+.gz

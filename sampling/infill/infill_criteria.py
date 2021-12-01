@@ -1,20 +1,17 @@
-"""
-
-TODO ego-ei voor incraesing mf? nieuw ontwikkelen, of blijft hetzelfde? literatuur?
- i.e. if we have sample uncertainty, we have a probability distribution of the value of Y_min as well + possibly different ponts.
-"""
-
+"""Infill criteria"""
 
 # https://github.com/mid2SUPAERO/multi-fi-optimization/blob/master/MFK_tutorial.ipynb
-import scipy  as sci
-def EI_function(model,x):
-    x = np.atleast_2d(x)
-    Y_min = np.min(model.training_points[None][0][1])
-    y_pred = model.predict_values(x)
-    mse = modem.predict_variances(x)
-    y_pred = np.atleast_2d(y_pred)
-    sigma_y = np.sqrt(mse)
-    y_normed = (Y_min - y_pred[:,0])/sigma_y
-    " deze lijn gaat het om "
-    EI = (Y_min-y_pred[:,0])*sci.stats.norm.cdf(y_normed)+sigma_y*sci.stats.norm.pdf(y_normed)
-    return -EI
+import scipy as sci
+import numpy as np
+
+def EI(y, y_pred, sigma_pred):
+    """
+    Expected Improvement criterion, see e.g. (Jones 2001, Jones 1998)
+    param y: the sampled value(s) belonging to X at level l, (this could be just one point, but it would have been sampled at the best location of previous level)
+    param y_pred: (predicted) points at level l, locations X_pred
+    param sigma_pred: (predicted) variance of points at level l, locations X_pred
+    """
+    f_min = np.min(y)
+    u = (f_min - y_pred) / sigma_pred  # normalization
+    EI = sigma_pred * (u * sci.stats.norm.cdf(u) + sci.stats.norm.pdf(u))
+    return EI
