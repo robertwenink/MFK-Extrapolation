@@ -33,7 +33,7 @@ def get_kernel(setup):
         # We can now externally always use >= and <= respectively.
         # hp_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
         hp_constraints = np.array(
-            [[[0, 1000]] * setup.d, [[0 + np.finfo(np.float32).eps, 2]] * setup.d]
+            [[[0, 1000]] * setup.d, [[2, 2]] * setup.d]
         )  # structured as in the GA
 
         return func, hps, hp_constraints
