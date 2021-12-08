@@ -187,6 +187,8 @@ class geneticalgorithm:
         self.report = []
         self.best_variable = pop[0,:-1]
         self.best_function = pop[0,-1]
+        sys.stdout.write("\n Initial objective function:\n %s\n\n" % (-self.best_function))
+        sys.stdout.flush()
 
         t = 0
         counter = 0
@@ -280,8 +282,9 @@ class geneticalgorithm:
             self.best_variable = pop[0, : self.dim]
         
         # Report
+        self.best_variable = self.best_variable.reshape(self.hps_shape[:-1])
         self.output_dict = {
-            "variable": self.best_variable.reshape(self.hps_shape[:-1]),
+            "variable": self.best_variable,
             "function": -self.best_function,
         }
 
