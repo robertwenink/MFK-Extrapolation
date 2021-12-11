@@ -50,26 +50,44 @@ def _dist_matrix(X):
 
 @njit(cache=True, fastmath=True)
 def diff_matrix(X, X_other):
+    """
+    Calculate matrix of distances per dimension"""
     diff = np.zeros((X.shape[0], X_other.shape[0], X.shape[1]))
     for i in range(X_other.shape[0]):
         diff[:, i, :] = np.abs(X - X_other[i, :])
     return diff
 
+
 @njit(cache=True)
-def corr_matrix_kriging_tune(hps,diff_matrix):
+def corr_matrix_kriging_tune(hps, diff_matrix, R_diagonal=0):
+    
+    # amount of different sets of hyperparameters we are trying
     n = hps.shape[0]
+
+    # dimension
+    d = diff_matrix.shape[-1]
+
+    # size of single R
     l = diff_matrix.shape[0]
-    R = np.zeros((n,l,l))
+
+    # initialise stack of different correlation matrices
+    R = np.zeros((n, l, l))
+
     for i in range(n):
-        R[i] = corr_matrix_kriging_tune_inner(diff_matrix, hps[i,0],hps[i,1])
+        R[i] = corr_matrix_kriging_tune_inner(
+            diff_matrix, hps[i, :d], hps[i, d : 2 * d]
+        )
+        # add correlation with self
+        np.fill_diagonal(R[i], np.diag(R[i]) + R_diagonal * hps[i, -1])
     return R
+
 
 @njit(cache=True, fastmath=True)
 def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     arr = np.zeros((diff_matrix.shape[:-1]))
     i = np.arange(diff_matrix.shape[0])
     for d in range(diff_matrix.shape[-1]):
-        arr[i,:] += theta[d] * diff_matrix[i, :, d] ** p[d]
+        arr[i, :] += theta[d] * diff_matrix[i, :, d] ** p[d]
     return np.exp(-arr)
 
 
@@ -92,23 +110,3 @@ def corr_matrix_kriging(X, X_other, theta, p):
         for d in range(X_other.shape[1]):
             arr[:, i] += theta[d] * diff[:, d] ** p[d]
     return np.exp(-arr)
-
-    # ugly but faster presumably due to memory efficiency
-    # arr = np.zeros((X.shape[0], X_other.shape[0]))
-    # for i in prange(X_other.shape[0]):
-    #     diff = np.abs(X - X_other[i,:])
-    #     arr[:,i] = np.exp(
-    #         -np.sum(
-    #             np.multiply(theta, np.power(diff, p)),
-    #             axis=-1
-    #         )
-    #     )
-    # return arr
-
-    # nice/pythonic but slow
-    # return np.exp(
-    #     -np.sum(
-    #         np.multiply(theta, np.power(np.abs(X[:, np.newaxis, :] - X_other[np.newaxis, :, :]), p)),
-    #         axis=2
-    #     )
-    # )

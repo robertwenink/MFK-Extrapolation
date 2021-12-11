@@ -29,7 +29,7 @@ class geneticalgorithm:
         function,
         other_function_arguments,
         dimension,
-        variable_boundaries,
+        hps_constraints,
         algorithm_parameters={
             "max_num_iteration": 2000,
             "population_size": 100,
@@ -51,7 +51,7 @@ class geneticalgorithm:
 
         @param dimension <integer> - the number of decision variables
 
-        @param variable_boundaries <numpy array/None> - provide an array of tuples
+        @param hps_constraints <numpy array/None> - provide an array of tuples
         of length two as boundaries for each variable; the length of the array must be equal dimension. 
         For example, np.array([0,100],[0,200]) determines lower boundary 0 and upper boundary 100 for first variable.
 
@@ -80,28 +80,28 @@ class geneticalgorithm:
 
         # NOTE own additions
         self.other_function_arguments = other_function_arguments
-        self.hps_shape = variable_boundaries.shape
-        variable_boundaries = variable_boundaries.reshape(-1,2)
+        self.hps_shape = hps_constraints.shape[:-1]
+        hps_constraints = hps_constraints.reshape(-1,2)
 
         self.dim = int(dimension)
 
         # input variables' boundaries
         assert (
-            type(variable_boundaries).__module__ == "numpy"
-        ), "\n variable_boundaries must be numpy array"
+            type(hps_constraints).__module__ == "numpy"
+        ), "\n hps_constraints must be numpy array"
 
         assert (
-            len(variable_boundaries) == self.dim
-        ), "\n variable_boundaries must have a length equal dimension"
+            len(hps_constraints) == self.dim
+        ), "\n hps_constraints must have a length equal dimension"
 
-        for i in variable_boundaries:
+        for i in hps_constraints:
             assert (
                 len(i) == 2
             ), "\n boundary for each variable must be a tuple of length two."
             assert (
                 i[0] <= i[1]
             ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
-        self.var_bound = variable_boundaries
+        self.var_bound = hps_constraints
         
         # convergence_curve
         self.convergence_curve = convergence_curve
@@ -282,7 +282,7 @@ class geneticalgorithm:
             self.best_variable = pop[0, : self.dim]
         
         # Report
-        self.best_variable = self.best_variable.reshape(self.hps_shape[:-1])
+        self.best_variable = self.best_variable.reshape(self.hps_shape)
         self.output_dict = {
             "variable": self.best_variable,
             "function": -self.best_function,
@@ -310,7 +310,8 @@ class geneticalgorithm:
     
 
     def sim(self, X):
-        temp = X.reshape((-1,*self.hps_shape[:-1]))
+        # this conversion is usefull in case we are not inputting an array of shape (..,)
+        temp = X.reshape((-1,*self.hps_shape))
         obj = -self.f(temp, *self.other_function_arguments)
         return obj
 

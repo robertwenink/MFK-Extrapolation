@@ -21,7 +21,7 @@ solver = get_solver(setup)()
 y = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
-ok.train(X, y,True)
+ok.train(X, y,True,np.ones((X.shape[0],)))
 
 
 plot_kriging(setup,X, y, ok)
