@@ -85,7 +85,9 @@ def plot_1d(setup, X, y, predictor):
 
 ##############################################################
 from proposed_method import *
-
+import itertools
+from dummy_mf_solvers import *
+import matplotlib.pyplot as plt
 
 def draw_convergence(solver, solver_type_text):
 

@@ -15,7 +15,7 @@
             "name": "Python: proposed_method.py",
             "type": "python",
             "request": "launch",
-            "program": "proposed_method.py",
+            "program": "proposed_method_main.py",
             "console": "integratedTerminal"
         },
 		{
