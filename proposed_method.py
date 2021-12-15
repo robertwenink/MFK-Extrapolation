@@ -19,6 +19,7 @@ from models.kriging.method.OK import *
 
 class Setup:
     """Dummy class"""
+
     pass
 
 
@@ -75,42 +76,6 @@ def Kriging_unknown(Z_k, d_k, d_pred, X, x_b, X_unique):
     t = Z1_b * Z1
     d1 = (t - Z0 * Z1_b) / (t - Z0_b * Z1) * (d_pred - 1) + 1
     return d1
-
-
-def Kriging_unknown_2(Z_k, z_pred, X, x_b, X_unique):
-
-    Z0_k = Z_k[-2]
-    Z1_k = Z_k[-1]
-
-    # do calculations regarding the known point
-    Z0_b, S0_b = Z0_k.predict(x_b)
-    Z1_b, S1_b = Z1_k.predict(x_b)
-    S0_b, S1_b = np.sqrt(S0_b), np.sqrt(S1_b)
-
-    def func(lamb):
-        """get expectation of the function according to
-        integration of standard normal gaussian function lamb"""
-        c1 = z_pred - Z1_b
-        c2 = Z1_b - Z0_b
-        c3 = S1_b - S0_b
-        b1 = (c1 - lamb * S1_b) / (c2 + lamb * c3)
-
-        # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
-        return b1 * np.exp(-(x ** 2) / 2) / np.sqrt(2 * np.pi)
-
-    lambs = np.arange(-5, 5, 0.01)  # 1000 steps
-    y = func(lambs)
-    Exp_b1 = np.trapz(y, lambs, axis=1)  # TODO check of axis correct is
-
-    # do the (corrected) prediction
-    Z0_p, s0_p = Z0_k.predict(X_unique)
-    Z1_p, s1_p = Z1_k.predict(X_unique)
-    s0_p, s1_p = np.sqrt(s0_p), np.sqrt(s1_p)
-
-    z2_p = Exp_b1 * (z1_p - z0_p) + z1_p
-    s2_p = Exp_b1 * (s1_p - s0_p) + s1_p
-
-    return z2_p, s2_p ** 2
 
 
 def weighted_discrepancy_prediction(Z_k, d_k, D_pred, X, X_unique):
@@ -170,10 +135,92 @@ def weighted_discrepancy_prediction(Z_k, d_k, D_pred, X, X_unique):
     return np.sum(np.multiply(D, c_scaled), axis=0)
 
 
+def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
+
+    Z0_k = Z_k[-2]
+    Z1_k = Z_k[-1]
+
+    # get values corresponding to x_b of previous 2 levels
+    z0_b, s0_b = Z0_k.predict(x_b)
+    z1_b, s1_b = Z1_k.predict(x_b)
+    s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)
+
+    # get all other values of previous 2 levels
+    Z0, S0 = Z0_k.predict(X_unique)
+    Z1, S1 = Z1_k.predict(X_unique)
+    S0, S1 = np.sqrt(S0), np.sqrt(S1)
+
+    def func(lamb):
+        """get expectation of the function according to
+        integration of standard normal gaussian function lamb"""
+        c1 = z_pred - z1_b
+        c2 = z1_b - z0_b
+        c3 = s1_b - s0_b
+        b1 = (c1 - lamb * s1_b) / (c2 + lamb * c3)
+
+        # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
+        return b1 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
+
+    # 1000 steps; evaluates norm to 0.9999994113250346
+    lambs = np.arange(-5, 5, 0.01)
+
+    # evaluate expectation
+    y = func(lambs)
+    Exp_b1 = np.trapz(y, lambs, axis=0)
+
+    # retrieve the (corrected) prediction + std
+    Z2_p = Exp_b1 * (Z1 - Z0) + Z1
+    S2_p = Exp_b1 * (S1 - S0) + S1
+
+    return Z2_p, S2_p ** 2
+
+
+def weighted_prediction(X, X_unique, Z, Z_k):
+    """
+    Function that weights the results of the function 'Kriging_unknown' for multiple samples
+    at the (partly) unknown level based on spatial distance in a similar fashion to Kriging.
+    In case convergence is linear over levels and location, the discrepancy prediction is exact.
+    In case convergence is not linear, we get discrepancies,
+     something we try to solve by sampling and weighing the solutions.
+
+    @param X: list of all level`s sample locations, includes:
+           X_s = X[-1]: Locations at which we have sampled at the new level.
+    @param X_unique: all unique previously sampled locations in X.
+    @param Z: list of all level`s sample locations, including the new level.
+    @param Z_k: Kriging models of the levels, should only contain known levels.
+    """
+
+    X_s = correct_formatX(X[-1])
+    Z_s = Z[-1]
+    X_unique = correct_formatX(X_unique)
+
+    D, D_mse = [], []
+    for i in range(X_s.shape[0]):
+        Z_p, mse_p = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], Z_k)
+        D.append(Z_p)
+        D_mse.append(mse_p)
+    D, D_mse = np.array(D), np.array(D_mse)
+
+    # choice of weighting function
+    hps = Z_k[-1].hps
+    km = Kriging(X_s, None, hps=hps, train=False)
+    c = km.corr(X_s, X_unique, *hps)
+
+    # NOTE by scaling, values of D_pred are not necessarily seen back exact in the returned array
+    #      and thus the result is not exact anymore at sampled locations!! Therefore this fix.
+    # if we dont do this, EI does not work!!
+    # if we do this, we might get very spurious results.... -> we require regression!
+    mask = c == 1.0
+    idx = mask.any(axis=0)
+    c[:, idx] = 0
+    c += mask
+    c_scaled = np.divide(c, np.sum(c, axis=0))  # sums to 1 over axis=1
+
+    # TODO extend c scaled
+    return np.sum(np.multiply(D, c_scaled), axis=0), np.sum(np.multiply(D_mse, c_scaled), axis=0)
+
+
 def return_unique(X):
     # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
     seq = [item for sublist in X for item in sublist]
     return np.array(list(dict.fromkeys(seq)))
-    # return np.concatenate(X).ravel()
-
-

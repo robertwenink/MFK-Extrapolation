@@ -133,7 +133,7 @@ def draw_convergence(solver, solver_type_text):
     plt.legend()
 
 
-def draw_current_levels(X, Z, Z_k, d_k, X_unique, X_plot, solver, ax=None):
+def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
     marker = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
     if ax == None:
         fig, ax = plt.subplots(1, 1)
@@ -178,7 +178,7 @@ def draw_current_levels(X, Z, Z_k, d_k, X_unique, X_plot, solver, ax=None):
         )
         ax.plot(
             X_unique,
-            Z_k[i - 1].predict(X_unique)[0] * d_k[i - 1].predict(X_unique)[0],
+            Z_k[i].predict(X_unique)[0],
             linestyle="",
             markeredgecolor="none",
             marker=">",
