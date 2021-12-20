@@ -105,6 +105,10 @@ class geneticalgorithm:
         
         # convergence_curve
         self.convergence_curve = convergence_curve
+        if convergence_curve == True:
+            plt.close("GA")
+            self.fig,self.ax = plt.subplots()
+            self.fig.set_label("GA")
 
         # progress_bar
         self.progress_bar = progress_bar
@@ -296,10 +300,10 @@ class geneticalgorithm:
         sys.stdout.flush()
 
         if self.convergence_curve == True:
-            plt.plot(self.report)
-            plt.xlabel("Iteration")
-            plt.ylabel("Objective function")
-            plt.title("Genetic Algorithm")
+            self.ax.plot(self.report)
+            self.ax.set_xlabel("Iteration")
+            self.ax.set_ylabel("Objective function")
+            self.fig.suptitle("Genetic Algorithm")
             plt.draw()
 
         if self.stop_mniwi == True:

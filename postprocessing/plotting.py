@@ -89,6 +89,7 @@ import itertools
 from dummy_mf_solvers import *
 import matplotlib.pyplot as plt
 
+
 def draw_convergence(solver, solver_type_text):
 
     marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))
@@ -184,12 +185,30 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
             marker=">",
             color="black",
         )
+
+        # prediction
+        z_pred, mse_pred = Z_k[i].predict(X_plot)
         ax.plot(
             X_plot,
-            Z_k[i].predict(X_plot)[0],
+            z_pred,
             label="prediction level {}".format(i),
             color=color,
         )
+        ax.plot(
+            X_plot,
+            z_pred + np.sqrt(mse_pred),
+            label="prediction level {}".format(i),
+            color=color,
+            alpha=0.4,
+        )
+        ax.plot(
+            X_plot,
+            z_pred - np.sqrt(mse_pred),
+            label="prediction level {}".format(i),
+            color=color,
+            alpha=0.4,
+        )
+
         Y_plot_true, _ = mf_forrester2008(X_plot, i, solver)
         ax.plot(
             X_plot,

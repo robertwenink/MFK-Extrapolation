@@ -38,7 +38,7 @@ def mu_hat(R_in, y):
 
 @njit(cache=True)
 def sigma_hat(R_in, y, mu_hat, n):
-    """Estimated variance of the Gaussian process, according to (Jones 2001)"""
+    """Estimated variance sigma squared of the Gaussian process, according to (Jones 2001)"""
     t = y - mu_hat
     return np.dot(t.T, np.dot(R_in, t)) / n
 
@@ -83,25 +83,24 @@ def fitness_func_loop(R_in_list, y, R):
     return fit
 
 
-# @njit(cache=True)
 def fitness_func(hps, diff_matrix, y, corr):
     R = corr_matrix_kriging_tune(hps, diff_matrix)
 
     # computes many inverses simultaneously = much faster; no njit
     R_in = np.linalg.inv(R)
-    
+
     return fitness_func_loop(R_in, y, R)
 
 
 def fitness_func_mf_regression(hps, diff_matrix, y, corr, R_diagonal):
     """
     fitness function if regression is included. Add values to the diagonal of the correlation matrix.
-    R_diagonal: factors determining the correlation with a point with itself. 
+    R_diagonal: factors determining the correlation with a point with itself.
                 0 if sampled, 0> if originating from lower level/ not sampled on current.
-    hps_reg: regression hyperparameter, scaling R_diagonal contributions. 
+    hps_reg: regression hyperparameter, scaling R_diagonal contributions.
              This hyperparameter is only dependent on levels, so always 1d.
     """
-    R = corr_matrix_kriging_tune(hps, diff_matrix,R_diagonal)
+    R = corr_matrix_kriging_tune(hps, diff_matrix, R_diagonal)
 
     # computes many inverses simultaneously = much faster; no njit
     R_in = np.linalg.inv(R)
@@ -112,20 +111,20 @@ def fitness_func_mf_regression(hps, diff_matrix, y, corr, R_diagonal):
 class OrdinaryKriging:
     def __init__(self, setup):
         self.corr, self.hps, self.hps_constraints = get_kernel(setup)
-        self.hps_reg = 0.01
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
         X_new = correct_formatX(X_new)
 
-        # NOTE this does not involve regression terms. Those come back through R(_in) in both sigma and the prediction.
-        self.r = self.corr(self.X, X_new, *self.hps)
+        # NOTE correlation function for r shoould not involve regression terms (forrester2006).
+        # Those come back through R(_in) in both sigma and the prediction.
+        self.r = self.corr(self.X, X_new, self.hps)
 
         y_hat, rtR_in = predictor(self.R_in, self.r, self.y, self.mu_hat)
         mse_var = mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         return y_hat, mse_var
 
-    def train(self, X, y, tune=False, R_diagonal = None):
+    def train(self, X, y, tune=False, R_diagonal=None):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X)
         self.y = y
@@ -133,12 +132,13 @@ class OrdinaryKriging:
         if tune:
             self.tune(R_diagonal)
 
-        R = self.corr(self.X, self.X, *self.hps)
-        
-        # add correlation with self
+        R = self.corr(self.X, self.X, self.hps)
+
+        # add prediction regression terms
+        np.fill_diagonal(R, np.diag(R) + self.hps[-1])
         if R_diagonal is not None:
-            np.fill_diagonal(R, np.diag(R) + R_diagonal * self.hps_reg)
-    
+            np.fill_diagonal(R, np.diag(R) + R_diagonal)
+
         n = self.X.shape[0]
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around
@@ -150,28 +150,22 @@ class OrdinaryKriging:
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
         diff_m = diff_matrix(self.X, self.X)
 
-        # select fitness function and arguments based on inclusion of regression
+        # select fitness function and arguments based on inclusion of our regression
         if R_diagonal is None:
             ff = fitness_func
-            other_function_arguments=[diff_m, self.y, self.corr]
-            hps_constraints = self.hps_constraints.reshape(-1,2)
-            dim = self.hps.size
+            other_function_arguments = [diff_m, self.y, self.corr]
         else:
             ff = fitness_func_mf_regression
-            other_function_arguments=[diff_m, self.y, self.corr, R_diagonal]
+            other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
 
-            # add the regression hyperparameter constraint
-            hps_constraints = self.hps_constraints.reshape(-1,2)
-            hps_constraints = np.append(hps_constraints,[[0, 0.1]], axis=0)
-            dim = self.hps.size + 1
 
         # run model and time it
         start = time.time()
         model = ga(
             function=ff,
-            dimension=dim,
+            dimension=self.hps.size,
             other_function_arguments=other_function_arguments,
-            hps_constraints=hps_constraints,
+            hps_constraints=self.hps_constraints,
             progress_bar=True,
             convergence_curve=True,
         )
@@ -179,9 +173,8 @@ class OrdinaryKriging:
         t = time.time() - start
 
         # assign results to Kriging object
-        hps = model.output_dict["variable"]
-        self.hps_reg = hps[-1]
-        self.hps = hps[:-1].reshape(self.hps_constraints.shape[:-1])
+        self.hps = model.output_dict["variable"].reshape(self.hps.shape)
+        
         # print results of tuning
         print(
             "Tuning completed with fitness {} and time {} s".format(

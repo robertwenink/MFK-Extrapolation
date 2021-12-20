@@ -14,5 +14,7 @@ def EI(y_min, y_pred, sigma_pred):
     if sigma_pred == 0:
         return 0
     u = (y_min - y_pred) / sigma_pred  # normalization
+    
+    # TODO vectorize -> scipy.stats.norm.pdf(x) == np.exp(-x**2 / 2.) / np.sqrt(2.0*np.pi)
     EI = sigma_pred * (u * sci.stats.norm.cdf(u) + sci.stats.norm.pdf(u))
     return EI
