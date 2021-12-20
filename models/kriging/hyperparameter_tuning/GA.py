@@ -31,7 +31,7 @@ class geneticalgorithm:
         dimension,
         hps_constraints,
         algorithm_parameters={
-            "max_num_iteration": 2000,
+            "max_num_iteration": None,
             "population_size": 100,
             "mutation_probability": 0.1,
             "elit_ratio": 0.05,
@@ -151,11 +151,7 @@ class geneticalgorithm:
         ), "\n number of parents must be greater than number of elits"
 
         if self.param["max_num_iteration"] == None:
-            self.iterate = 4000
-            # TODO verzin wat leuks
-            # Max number of function evaluations set to 1m
-            if (self.iterate * self.pop_s) > 1000000:
-                self.iterate = 1000000 / self.pop_s
+            self.iterate = (10000/self.pop_s)* 2**((dimension-1)/2 + 1) # voor 2 decision variables prima
         else:
             self.iterate = int(self.param["max_num_iteration"])
 
@@ -300,9 +296,9 @@ class geneticalgorithm:
         sys.stdout.flush()
 
         if self.convergence_curve == True:
-            self.ax.plot(self.report)
+            self.ax.plot(self.report,label="Objective function")
             self.ax.set_xlabel("Iteration")
-            self.ax.set_ylabel("Objective function")
+            self.ax.set_ylabel("log likelihood")
             self.fig.suptitle("Genetic Algorithm")
             plt.draw()
 

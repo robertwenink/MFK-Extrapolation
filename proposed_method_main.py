@@ -4,6 +4,7 @@ from postprocessing.plotting import *
 from dummy_mf_solvers import *
 
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 if __name__ == "__main__":
     solver = solve_sq
@@ -14,7 +15,7 @@ if __name__ == "__main__":
     if solver.__name__ == "solve_ah":
         text = "Harmonic"
     elif solver.__name__ == "solve_sq":
-        text = "Stable, converging from above"
+        text = "Stable, converging from "
     else:
         text = "Stable, converging from below"
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     " inits and settings"
     X, Z, Z_k, costs, Z_pred = [], [], [], [], []
     n_samples_l0 = 20
-    max_cost = 1000
+    max_cost = 100
     l = 0
     max_level = l + 2
     runEGO = True
@@ -91,7 +92,7 @@ if __name__ == "__main__":
 
             # predict and calculate Expected Improvement
             y_pred, sigma_pred = Z_k_new.predict(X_infill)
-            y_min = np.min(Z_new_p)
+            y_min = np.min(Z_k_new.predict(X_unique)[0])
             ei = np.zeros(X_infill.shape[0])
             for i in range(len(y_pred)):
                 ei[i] = EI(y_min, y_pred[i], sigma_pred[i])
@@ -115,8 +116,27 @@ if __name__ == "__main__":
             Z_pred, mse_pred = weighted_prediction(X, X_unique, Z, Z_k)
 
             # build new kriging based on prediction
+            # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
             # TODO for top-level we require re-interpolation if we apply noise
-            Z_k_new = Kriging(X_unique, Z_pred, R_diagonal = mse_pred, hps=Z_k[-1].hps, tuning = True)
+            if "Z_k_new_noise" not in locals():
+                Z_k_new_noise = Kriging(
+                    X_unique,
+                    Z_pred,
+                    R_diagonal=mse_pred / Z_k[-1].sigma_hat,
+                    hps=Z_k[-1].hps,
+                    tuning=True,
+                )
+            else:
+                Z_k_new_noise.train(
+                    X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
+                )
+
+            " reinterpolate upper level the non-math way "
+            Z_k_new = deepcopy(Z_k_new_noise)
+            Z_k_new.hps[-1] = 0
+            Z_k_new.train(
+                    X_unique, Z_k_new_noise.predict(X_unique)[0], tune=False, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
+                )
 
             # " output "
             print("Current cost: {}".format(np.sum(costs)))
@@ -128,13 +148,15 @@ if __name__ == "__main__":
         Z_k.append(Z_k_new)
         X[-1] = np.array(X[-1]).ravel()
         Z[-1] = np.array(Z[-1]).ravel()
+        del Z_k_new_noise
 
         # moving to the next level we will be sampling at
         l += 1
 
+    print("Simulation finished")
     show = True
     if show:
         plt.show()
     else:
         plt.draw()
-        plt.pause(2)
+        plt.pause(10)

@@ -101,6 +101,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
     Z2_p = Exp_b1 * (Z1 - Z0) + Z1
     # S2_p = Exp_b1 * (S1 - S0) + S1
+    # TODO is this formulation correct?
     S2_p = Var_b1 * (Z1 - Z0) + Exp_b1 * (S1 + S0) + S1
 
     # get index in X_unique of x_b
@@ -157,7 +158,7 @@ def weighted_prediction(X, X_unique, Z, Z_k):
     #    We could simply do: sigma += 1 and divide.
     #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
     #    This decreases distance based influence if sigma > 0.
-    #    NOTE this is not a fully math-informed decision in terms of efffectiveness.
+    #    NOTE TODO this is not (yet) a fully math-informed decision in terms of efffectiveness.
 
     c = c / np.exp(-D_mse)
 

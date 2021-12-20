@@ -158,7 +158,6 @@ class OrdinaryKriging:
             ff = fitness_func_mf_regression
             other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
 
-
         # run model and time it
         start = time.time()
         model = ga(
@@ -167,14 +166,14 @@ class OrdinaryKriging:
             other_function_arguments=other_function_arguments,
             hps_constraints=self.hps_constraints,
             progress_bar=True,
-            convergence_curve=True,
+            convergence_curve=False,
         )
         model.run()
         t = time.time() - start
 
         # assign results to Kriging object
         self.hps = model.output_dict["variable"].reshape(self.hps.shape)
-        
+
         # print results of tuning
         print(
             "Tuning completed with fitness {} and time {} s".format(

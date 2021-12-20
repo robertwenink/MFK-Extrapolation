@@ -37,7 +37,7 @@ def solver_wrapper(solver_v, x):
             2 (non-linear sinus, i.e. shifting over the levels in period)
     """
     noise = False
-    mode = 1
+    mode = 2
     non_linear_power = CONVERGENCE_SPEED * 2 
 
     noise = 0.1 * noise * (np.random.standard_normal(size=x.shape)-0.5)

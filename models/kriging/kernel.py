@@ -66,7 +66,7 @@ def diff_matrix(X, X_other):
     return diff
 
 
-# @njit(cache=True)
+@njit(cache=True)
 def corr_matrix_kriging_tune(hps, diff_matrix,R_diagonal=0):
     
     # amount of different sets of hyperparameters we are trying
@@ -99,7 +99,7 @@ def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     return np.exp(-arr)
 
 
-# @njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def corr_matrix_kriging(X, X_other, hps):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).
