@@ -3,7 +3,7 @@ import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from sampling.solvers.solver import get_solver
-
+from sampling.solvers.internal import TestFunction
 
 def plot_kriging(setup, X, y, predictor):
     setup.n_per_d = 50
@@ -39,44 +39,96 @@ def grid_plot(setup, n_per_d=None):
 
 
 def plot_2d(setup, X, y, predictor):
+    contour = False
+
+    # retrieve the solver and check type
+    solver = get_solver(setup)()
+    testfunc = False
+    if isinstance(solver,TestFunction):
+        testfunc = True
+        
+    # retrieve some plotting parameters    
     d_plot = setup.d_plot
     d = setup.d
     n_per_d = setup.n_per_d
-
     X_new = grid_plot(setup)
+    X_plot = X_new[:, d_plot].reshape(n_per_d, n_per_d, -1)
+
+    " retrieve predictions "
     y_hat, mse = predictor.predict(X_new)
 
-    X_predict = X_new[:, d_plot].reshape(n_per_d, n_per_d, -1)
+    # reshape predictions to be a grid
     y_hat = y_hat.reshape(n_per_d, n_per_d)
     std = np.sqrt(mse.reshape(n_per_d, n_per_d))
 
+    " retrieve exact solution "
+    y_exact = solver.solve(X_new)
+
+    # reshape predictions to be a grid
+    y_exact = y_exact.reshape(n_per_d, n_per_d)
+
+
+    " initialise figure "
     fig = plt.figure()
     fig.suptitle("{}".format(setup.solver_str))  # set_title if ax
+    axes = []
 
-    nrows = 1
-    ncols = 2
-    ax = [[0] * ncols] * nrows
+    nrows = 1 + contour 
+    ncols = 1 + testfunc # then we can depict the exact solution
 
-    ax[0][0] = fig.add_subplot(1, 2, 1, projection="3d")
-    ax[0][0].plot_surface(X_predict[:, :, 0], X_predict[:, :, 1], y_hat, alpha=0.9)
-    ax[0][0].plot_surface(
-        X_predict[:, :, 0], X_predict[:, :, 1], y_hat - std, alpha=0.4
+    " plot prediction surface "
+    ax = fig.add_subplot(nrows, ncols, 1, projection="3d")
+    ax.set_title("prediction surface")
+    axes.append(ax)
+
+    ax.plot_surface(X_plot[:, :, 0], X_plot[:, :, 1], y_hat, alpha=0.9)
+    ax.plot_surface(
+        X_plot[:, :, 0], X_plot[:, :, 1], y_hat - 2*std, alpha=0.4
     )
-    ax[0][0].plot_surface(
-        X_predict[:, :, 0], X_predict[:, :, 1], y_hat + std, alpha=0.4
+    ax.plot_surface(
+        X_plot[:, :, 0], X_plot[:, :, 1], y_hat + 2*std, alpha=0.4
     )
-    ax[0][0].set_zlabel("Z")
-    ax[0][0].scatter(X[:, d_plot[0]], X[:, d_plot[1]], y)
-    ax[0][0].scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
+    ax.set_zlabel("Z")
 
-    ax[0][1] = fig.add_subplot(1, 2, 2)
-    ax[0][1].set_aspect("equal")
-    ax[0][1].contour(X_predict[:, :, 0], X_predict[:, :, 1], y_hat)
+    # add samplepoints
+    ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], y)
+    ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
 
-    for row in ax:
-        for col in row:
-            col.set_xlabel(setup.search_space[0][d_plot[0]])
-            col.set_ylabel(setup.search_space[0][d_plot[1]])
+    " plot exact surface "
+    if testfunc:
+        ax = fig.add_subplot(nrows, ncols, 2, projection="3d")
+        ax.set_title("exact surface")
+        axes.append(ax)
+
+        ax.plot_surface(X_plot[:, :, 0], X_plot[:, :, 1], y_exact, alpha=0.9)
+        ax.set_zlabel("Z")
+
+        # add samplepoints
+        ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], y)
+        ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
+
+    if contour:
+        " Plot prediction contour "
+        ax = fig.add_subplot(nrows, ncols, 3)
+        ax.set_title("prediction contour")
+        axes.append(ax)
+
+        ax.set_aspect("equal")
+        ax.contour(X_plot[:, :, 0], X_plot[:, :, 1], y_hat)
+
+        " Plot exact contour "
+        if testfunc:
+            ax = fig.add_subplot(nrows, ncols, 4)
+            ax.set_title("exact contour")
+            axes.append(ax)
+
+            ax.set_aspect("equal")
+            ax.contour(X_plot[:, :, 0], X_plot[:, :, 1], y_exact)
+
+    " set axes properties "
+    for ax in axes:
+            ax.set_xlabel(setup.search_space[0][d_plot[0]])
+            ax.set_ylabel(setup.search_space[0][d_plot[1]])
 
 
 def plot_1d(setup, X, y, predictor):
@@ -196,14 +248,14 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
         )
         ax.plot(
             X_plot,
-            z_pred + np.sqrt(mse_pred),
+            z_pred + 2*np.sqrt(mse_pred),
             label="prediction level {}".format(i),
             color=color,
             alpha=0.4,
         )
         ax.plot(
             X_plot,
-            z_pred - np.sqrt(mse_pred),
+            z_pred - 2*np.sqrt(mse_pred),
             label="prediction level {}".format(i),
             color=color,
             alpha=0.4,

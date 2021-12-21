@@ -154,7 +154,7 @@ if __name__ == "__main__":
         l += 1
 
     print("Simulation finished")
-    show = True
+    show = False
     if show:
         plt.show()
     else:

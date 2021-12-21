@@ -53,3 +53,5 @@ def LHS(setup, n=None, n_per_d=None):
         + setup.search_space[1]
     )
     return X
+
+

@@ -102,6 +102,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     Z2_p = Exp_b1 * (Z1 - Z0) + Z1
     # S2_p = Exp_b1 * (S1 - S0) + S1
     # TODO is this formulation correct?
+    # TODO add extra term based on distance.
     S2_p = Var_b1 * (Z1 - Z0) + Exp_b1 * (S1 + S0) + S1
 
     # get index in X_unique of x_b

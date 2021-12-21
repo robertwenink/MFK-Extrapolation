@@ -150,8 +150,9 @@ class geneticalgorithm:
             self.par_s >= self.num_elit
         ), "\n number of parents must be greater than number of elits"
 
+        # SET max numbers of iteration 
         if self.param["max_num_iteration"] == None:
-            self.iterate = (10000/self.pop_s)* 2**((dimension-1)/2 + 1) # voor 2 decision variables prima
+            self.iterate = round((10000/self.pop_s)**(((dimension-1)/2 + 1)**(1/2))) # voor 2 decision variables prima
         else:
             self.iterate = int(self.param["max_num_iteration"])
 

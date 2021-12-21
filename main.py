@@ -11,6 +11,7 @@ from postprocessing.plotting import plot_kriging
 # import run_tests
 
 setup = Input(0)
+setup.regression = False
 doe = get_doe(setup)
 if hasattr(setup,'X'):
     X = setup.X
@@ -21,7 +22,7 @@ solver = get_solver(setup)()
 y = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
-ok.train(X, y,True,np.ones((X.shape[0],)))
+ok.train(X, y,True)
 
 
 plot_kriging(setup,X, y, ok)
