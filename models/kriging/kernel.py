@@ -40,7 +40,7 @@ def get_kernel(setup):
         ).reshape(-1,2)
 
         if setup.regression:
-            hps_constraints = np.append(hps_constraints,[[0, 0.1]], axis=0)
+            hps_constraints = np.append(hps_constraints,[[0, 0.001]], axis=0)
         else:
             hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)        
 

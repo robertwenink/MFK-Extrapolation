@@ -29,7 +29,7 @@ def Kriging(X_l, d_l, tuning=False, R_diagonal=None, hps=None, train=True):
     setup = Setup()
     setup.d = 1
     setup.kernel = "kriging"
-    setup.regression = True
+    setup.regression = False
 
     ok = OrdinaryKriging(setup)
 
@@ -41,7 +41,6 @@ def Kriging(X_l, d_l, tuning=False, R_diagonal=None, hps=None, train=True):
         ok.hps = hps
 
     if train:
-        # TODO miss R_diagonal door huidige sigma_hat delen om echt een + lambda I te krijgen.
         ok.train(X_l, d_l, tuning, R_diagonal)
 
     return ok
@@ -72,13 +71,13 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     Z1, S1 = Z1_k.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
-    def func(lamb):
+    def exp_b1(lamb):
         """get expectation of the function according to
         integration of standard normal gaussian function lamb"""
         c1 = z_pred - z1_b
         c2 = z1_b - z0_b
-        c3 = s1_b - s0_b
-        b1 = (c1 - lamb * s1_b) / (c2 + lamb * c3)
+        c3 = (s1_b + s0_b)/2 # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
+        b1 = (c1 - lamb * s1_b) / (c2 + lamb * c3 + np.finfo(np.float32).eps)
 
         # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
         return b1 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi), b1
@@ -87,23 +86,26 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     lambs = np.arange(-5, 5, 0.01)
 
     # evaluate expectation
-    y, b1 = func(lambs)
+    y, b1 = exp_b1(lambs)
     Exp_b1 = np.trapz(y, lambs, axis=0)
 
-    def func2(lamb):
+    def var_b1(lamb):
         # E[(X-E[X])]
         return (b1 - Exp_b1) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
 
-    y2 = func2(lambs)
+    y2 = var_b1(lambs)
     Var_b1 = np.trapz(y2, lambs, axis=0)
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
     Z2_p = Exp_b1 * (Z1 - Z0) + Z1
-    # S2_p = Exp_b1 * (S1 - S0) + S1
-    # TODO is this formulation correct?
+
+    # TODO taking S0 + S1 etc is not correct
     # TODO add extra term based on distance.
-    S2_p = Var_b1 * (Z1 - Z0) + Exp_b1 * (S1 + S0) + S1
+    # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging 
+    # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
+    Var_b2 = (S1 + S0)/2
+    S2_p = Exp_b1 * Var_b2 + (Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
 
     # get index in X_unique of x_b
     ind = X_unique == x_b

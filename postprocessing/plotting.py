@@ -186,7 +186,7 @@ def draw_convergence(solver, solver_type_text):
     plt.legend()
 
 
-def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
+def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None, Z_k_new_noise = None):
     marker = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
     if ax == None:
         fig, ax = plt.subplots(1, 1)
@@ -201,6 +201,7 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
 
     for i in range(max(len(X) - 1, 2)):
         color = next(ax._get_lines.prop_cycler)["color"]
+        z_pred, mse_pred = Z_k[i].predict(X_plot)
         ax.plot(
             X[i],
             Z[i],
@@ -211,10 +212,24 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
         )
         ax.plot(
             X_plot,
-            Z_k[i].predict(X_plot)[0],
+            z_pred,
             linestyle="-",
             color=color,
             label="Kriging level {}".format(i),
+        )        
+        ax.plot(
+            X_plot,
+            z_pred - 2*np.sqrt(mse_pred),
+            linestyle="-",
+            color=color,
+            alpha=0.2,
+        )        
+        ax.plot(
+            X_plot,
+            z_pred + 2*np.sqrt(mse_pred),
+            linestyle="-",
+            color=color,
+            alpha=0.2,
         )
 
     if len(X) > 2:  # first two levels always known
@@ -239,28 +254,14 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
         )
 
         # prediction
-        z_pred, mse_pred = Z_k[i].predict(X_plot)
-        ax.plot(
-            X_plot,
-            z_pred,
-            label="prediction level {}".format(i),
-            color=color,
-        )
-        ax.plot(
-            X_plot,
-            z_pred + 2*np.sqrt(mse_pred),
-            label="prediction level {}".format(i),
-            color=color,
-            alpha=0.4,
-        )
-        ax.plot(
-            X_plot,
-            z_pred - 2*np.sqrt(mse_pred),
-            label="prediction level {}".format(i),
-            color=color,
-            alpha=0.4,
-        )
+        plot_kriging(Z_k[i], X_plot, ax, color,"prediction level {}".format(i))
 
+        if Z_k_new_noise is not None: 
+            color = next(ax._get_lines.prop_cycler)["color"]
+            plot_kriging(Z_k_new_noise, X_plot, ax, color,"prediction level {} with noise".format(i))
+            
+
+        " plot truth "
         Y_plot_true, _ = mf_forrester2008(X_plot, i, solver)
         ax.plot(
             X_plot,
@@ -282,3 +283,25 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None):
     plt.draw()
     plt.pause(1)
     return ax
+
+
+def plot_kriging(Z_k, X_plot, ax, color,label):
+    z_pred, mse_pred = Z_k.predict(X_plot)
+    ax.plot(
+        X_plot,
+        z_pred,
+        label=label,
+        color=color,
+    )
+    ax.plot(
+        X_plot,
+        z_pred + 2*np.sqrt(mse_pred),
+        color=color,
+        alpha=0.4,
+    )
+    ax.plot(
+        X_plot,
+        z_pred - 2*np.sqrt(mse_pred),
+        color=color,
+        alpha=0.4,
+    )

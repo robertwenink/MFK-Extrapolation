@@ -1,4 +1,4 @@
-
+# https://github.com/capaulson/pyKriging/tree/master/pyKriging
 __author__ = 'chrispaulson'
 import numpy as np
 import math as m

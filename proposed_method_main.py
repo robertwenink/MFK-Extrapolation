@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 
 if __name__ == "__main__":
-    solver = solve_sq
-    # solver = solve_sq_inverse
-    # solver = solve_ah
+    # solver = solve_sq
+    solver = solve_sq_inverse
+    solver = solve_ah
 
     # plotting
     if solver.__name__ == "solve_ah":
@@ -23,8 +23,8 @@ if __name__ == "__main__":
 
     " inits and settings"
     X, Z, Z_k, costs, Z_pred = [], [], [], [], []
-    n_samples_l0 = 20
-    max_cost = 100
+    n_samples_l0 = 10
+    max_cost = 200
     l = 0
     max_level = l + 2
     runEGO = True
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
             # predict and calculate Expected Improvement
             y_pred, sigma_pred = Z_k_new.predict(X_infill)
-            y_min = np.min(Z_k_new.predict(X_unique)[0])
+            y_min = np.min(Z[-1]) 
             ei = np.zeros(X_infill.shape[0])
             for i in range(len(y_pred)):
                 ei[i] = EI(y_min, y_pred[i], sigma_pred[i])
@@ -118,18 +118,28 @@ if __name__ == "__main__":
             # build new kriging based on prediction
             # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
             # TODO for top-level we require re-interpolation if we apply noise
+            # NOTE f is a scaling for decreasing the relative noise; we want to give the predictions less weight in determining the noise
+            f = 1
             if "Z_k_new_noise" not in locals():
                 Z_k_new_noise = Kriging(
                     X_unique,
                     Z_pred,
-                    R_diagonal=mse_pred / Z_k[-1].sigma_hat,
+                    R_diagonal=mse_pred / Z_k[-1].sigma_hat * f,
                     hps=Z_k[-1].hps,
                     tuning=True,
                 )
             else:
                 Z_k_new_noise.train(
-                    X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
+                    X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat * f
                 )
+
+            # NOTE noise should decrease when we increase the fidelity, therefore, extrapolate the noise of the previous levels.
+            # in a real case this should be something like a log over the resolution, here we just take the previous result.
+            # furthermore, points closeby will always have benefit from a larger noise + the predictions we make build upon the noise -> more noise.
+            # at the same time, for points closeby, if there is little noise, we will require little noise.
+            # we should thus not tune for noise at the prediction level, but maybe re-use a previous estimate in some way.
+            # TODO maybe only tune the noise bases on the sampled points?? i.e. exclude the prediction points as Kriging points.
+            Z_k_new_noise.hps[-1] = Z_k[-1].hps[-1]
 
             " reinterpolate upper level the non-math way "
             Z_k_new = deepcopy(Z_k_new_noise)
@@ -137,24 +147,26 @@ if __name__ == "__main__":
             Z_k_new.train(
                     X_unique, Z_k_new_noise.predict(X_unique)[0], tune=False, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
                 )
-
+            
             # " output "
-            print("Current cost: {}".format(np.sum(costs)))
             ax = draw_current_levels(
-                X, Z, [*Z_k, Z_k_new], X_unique, X_plot, solver, ax
+                X, Z, [*Z_k, Z_k_new, dir], X_unique, X_plot, solver, ax, Z_k_new_noise
             )
+            print("Current cost: {}".format(np.sum(costs)))
+
 
         # update kriging models of levels and discrepancies before continueing to next level
         Z_k.append(Z_k_new)
         X[-1] = np.array(X[-1]).ravel()
         Z[-1] = np.array(Z[-1]).ravel()
-        del Z_k_new_noise
+        if "Z_k_new_noise"  in locals():
+            del Z_k_new_noise
 
         # moving to the next level we will be sampling at
         l += 1
 
     print("Simulation finished")
-    show = False
+    show = True
     if show:
         plt.show()
     else:
