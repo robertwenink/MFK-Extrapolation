@@ -36,8 +36,8 @@ def solver_wrapper(solver_v, x):
             1 (added sinus)
             2 (non-linear sinus, i.e. shifting over the levels in period)
     """
-    noise = False
-    mode = 0
+    noise = True
+    mode = 3
     non_linear_power = CONVERGENCE_SPEED * 2 
 
     noise = 0.1 * noise * (np.random.standard_normal(size=x.shape)-0.5)
@@ -45,6 +45,8 @@ def solver_wrapper(solver_v, x):
     if mode == 1:
         return solver_v + 2 * (1 - solver_v) * (np.sin(x * 2 * np.pi) + noise)
     elif mode == 2:
+        return solver_v + (1 - solver_v) * (0.5 + np.sin(np.sqrt(solver_v+1)/np.sqrt(2) * x * 2 * np.pi) + noise)
+    elif mode == 3:
         return solver_v + (1 - solver_v) * (0.5 + np.sin(solver_v * x * 2 * np.pi) + noise)
     else: 
         return solver_v * np.ones_like(x)
@@ -55,8 +57,8 @@ def mf_forrester2008(x, l, solver):
     conv = solver_wrapper(solver(l), x)
     A = conv
     linear_gain_mod = 2
-    B = 10 * abs(conv - 1) * linear_gain_mod
-    C = -5 * abs(conv - 1) * linear_gain_mod
+    B = 10 * abs(conv - 1) * linear_gain_mod # using abs is a non-linear effect
+    C = -5 * abs(conv - 1) * linear_gain_mod # using abs is a non-linear effect
     ret = A * forrester2008(x) + B * (x - 0.5) + C
     return ret.ravel(), sampling_costs(l) * x.shape[0]
 
