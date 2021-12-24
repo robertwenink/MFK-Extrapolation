@@ -76,7 +76,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
         integration of standard normal gaussian function lamb"""
         c1 = z_pred - z1_b
         c2 = z1_b - z0_b
-        c3 = (s1_b + s0_b)/2 # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
+        c3 = (s1_b + s0_b) # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
         b1 = (c1 - lamb * s1_b) / (c2 + lamb * c3 + np.finfo(np.float32).eps)
 
         # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
@@ -94,18 +94,17 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
         return (b1 - Exp_b1) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
 
     y2 = var_b1(lambs)
-    Var_b1 = np.trapz(y2, lambs, axis=0)
+    Var_b1 = np.sqrt(np.trapz(y2, lambs, axis=0))
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
     Z2_p = Exp_b1 * (Z1 - Z0) + Z1
 
-    # TODO taking S0 + S1 etc is not correct
     # TODO add extra term based on distance.
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging 
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    Var_b2 = (S1 + S0)/2
-    S2_p = Exp_b1 * Var_b2 + (Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
+    Var_b2 = (S1 + S0)
+    S2_p = abs(Exp_b1) * Var_b2 + abs(Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
 
     # get index in X_unique of x_b
     ind = X_unique == x_b
@@ -163,7 +162,8 @@ def weighted_prediction(X, X_unique, Z, Z_k):
     #    This decreases distance based influence if sigma > 0.
     #    NOTE TODO this is not (yet) a fully math-informed decision in terms of efffectiveness.
 
-    c = c / np.exp(-D_mse)
+    mult = np.exp(-D_mse)
+    c = c * mult
 
     " Scale to sum to 1; correct for sampled locations "
     # Contributions coefficients should sum up to 1.

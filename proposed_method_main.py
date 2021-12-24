@@ -24,7 +24,7 @@ if __name__ == "__main__":
     " inits and settings"
     X, Z, Z_k, costs, Z_pred = [], [], [], [], []
     n_samples_l0 = 10
-    max_cost = 200
+    max_cost = 300
     l = 0
     max_level = l + 2
     runEGO = True
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # draw result
     X_plot = np.arange(0, 1 + np.finfo(np.float32).eps, 1 / 200)
     ax = draw_current_levels(X, Z, Z_k, X0, X_plot, solver)
-
+    
     print("Initial cost: {}".format(np.sum(costs)))
     while np.sum(costs) < max_cost and l <= max_level:
         "sample first point at new level"
@@ -66,6 +66,7 @@ if __name__ == "__main__":
         # sample the best location, increase costs
         z_pred, cost = mf_forrester2008(x_b, l, solver)
         costs.append(cost)
+        print("Current cost: {}".format(np.sum(costs)))
 
         # add initial sample on the level to known list of samples
         X.append([x_b])
@@ -80,7 +81,6 @@ if __name__ == "__main__":
         Z_k_new = Kriging(X_unique, Z_new_p, hps=Z_k[-1].hps)
 
         " output "
-        print("Current cost: {}".format(np.sum(costs)))
         ax = draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique, X_plot, solver, ax)
 
         " sample from the predicted distribution in EGO fashion"
@@ -108,6 +108,7 @@ if __name__ == "__main__":
             X[-1].append(x_new)
             Z[-1].append(z_new)
             costs.append(cost)
+            print("Current cost: {}".format(np.sum(costs)))
 
             # recalculate X_unique
             X_unique = return_unique(X)
@@ -150,9 +151,8 @@ if __name__ == "__main__":
             
             # " output "
             ax = draw_current_levels(
-                X, Z, [*Z_k, Z_k_new, dir], X_unique, X_plot, solver, ax, Z_k_new_noise
+                X, Z, [*Z_k, Z_k_new], X_unique, X_plot, solver, ax, Z_k_new_noise
             )
-            print("Current cost: {}".format(np.sum(costs)))
 
 
         # update kriging models of levels and discrepancies before continueing to next level
