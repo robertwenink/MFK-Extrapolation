@@ -15,9 +15,9 @@ if __name__ == "__main__":
     if solver.__name__ == "solve_ah":
         text = "Harmonic"
     elif solver.__name__ == "solve_sq":
-        text = "Stable, converging from "
+        text = "Stable, converging down"
     else:
-        text = "Stable, converging from below"
+        text = "Stable, converging up"
 
     draw_convergence(solver, text)
 

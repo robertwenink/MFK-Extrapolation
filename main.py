@@ -10,7 +10,7 @@ from postprocessing.plotting import plot_kriging
 # Testing ala beun
 # import run_tests
 
-setup = Input(0)
+setup = Input(2)
 setup.regression = False
 doe = get_doe(setup)
 if hasattr(setup,'X'):

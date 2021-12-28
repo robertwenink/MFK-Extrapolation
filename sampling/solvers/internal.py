@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
 from abc import ABC, abstractmethod
-
+from utils.data_formatting import correct_formatX
 
 class Solver(ABC):
     max_d = 10
@@ -35,46 +35,14 @@ class TestFunction(ABC):
 
     input_parameter_list = ["xi"]
     output_parameter_list = ["z"]
-    objective_function = lambda z: min(z)
+    objective_function = lambda z: np.min(z)
 
-    def plot2d(self, X=None):
-        if X is not None:
-            X = self.correctFormatX(X, 2)
-            # TODO change to the d-th root sort out of the works for all dimensions as well
-            L = int(math.sqrt(len(X[:, 0])))
-            P1 = X[:, 0].reshape(L, L)
-            P2 = X[:, 1].reshape(L, L)
-        else:
-            # refer to p1 p2 instead of x,y to avoid confusion with X of data
-            p1 = p2 = np.arange(-5, 5, 0.05)
-            P1, P2 = np.meshgrid(p1, p2)
-            X = np.hstack((np.reshape(P1, (-1, 1)), np.reshape(P2, (-1, 1))))
-            print("Created new X")
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
-
-        zs = self.solve(X)
-        Z = zs.reshape(P1.shape)
-
-        ax.plot_surface(P1, P2, Z)
-        ax.set_title("{}".format(self.__class__.__name__))
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
-
-        plt.show()
-
-    def correctFormatX(self, X, d_req=None):
+    def check_formatX(self, X, d_req=None):
         """
-        First make sure X is an np.array.
+        First make sure X is of the correct format.
         X always is of the form [[..,..],[..,..],..]
         """
-        X = np.array(X)
-
-        # if only a single datapoint
-        if len(X.shape) < 2:
-            X = np.array([X])
+        X = correct_formatX(X)
 
         if d_req != None:
             assert X.shape[1] == d_req, "Dimension should be {}".format(d_req)
@@ -93,7 +61,7 @@ class Branin(TestFunction, Solver):
         a = 1, b = 5.1 ⁄ (4π2), c = 5 ⁄ π, r = 6, s = 10 and t = 1 ⁄ (8π)
         global minima: f(x*)=0.397887, at x*=(-pi,12.275),(pi,2.275) and (9.42478,2.475)
         """
-        X = self.correctFormatX(X, d_req=2)
+        X = self.check_formatX(X, d_req=2)
 
         x = X[:, 0]
         y = X[:, 1]
@@ -109,45 +77,13 @@ class Branin(TestFunction, Solver):
         return [["x0", "x1"], [-5, 0], [10, 15]]
 
 
-class BraninNoise(Branin):
-    """Branin function including standard normal noise."""
-
-    def solve(self, X):
-        noise_free = super().solve(X)
-        y = noise_free + np.random.standard_normal(size=noise_free.shape)
-        return y
-
-
-class Paulson(TestFunction, Solver):
-    """
-    Made-up function of https://github.com/capaulson/pyKriging/blob/master/pyKriging/testfunctions.py
-    """
-
-    max_d = 2
-    min_d = 2
-
-    def solve(self, X, hz=5):
-        X = self.correctFormatX(X, d_req=2)
-
-        x = X[:, 0]
-        y = X[:, 1]
-        return 0.5 * np.sin(x * hz) + 0.5 * np.cos(y * hz)
-
-    def paulson1(self, X, hz=10):
-        X = self.correctFormatX(X, d_req=2)
-
-        x = X[:, 0]
-        y = X[:, 1]
-        return (np.sin(x * hz)) / ((x + 0.2)) + (np.cos(y * hz)) / ((y + 0.2))
-
-
 class Runge(TestFunction, Solver):
     """
     https://en.wikipedia.org/wiki/Runge%27s_phenomenon
     """
 
     def solve(self, X, offset=0.0):
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
 
         y = 1 / (1 + np.sum((X - offset) ** 2, axis=1))
         return y
@@ -163,7 +99,7 @@ class Stybtang(TestFunction, Solver):
 
         global minimum: f(x*)=-39.16599*d, at x*=(-2.903534,...,-2.903534)
         """
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
         y = np.sum(np.power(X, 4) - 16 * np.power(X, 2) + 5 * X, axis=1) / 2
         return y
 
@@ -181,7 +117,7 @@ class Curretal88exp(TestFunction, Solver):
     min_d = 2
 
     def solve(self, X):
-        X = self.correctFormatX(X, d_req=2)
+        X = self.check_formatX(X, d_req=2)
 
         x1 = X[:, 0]
         x2 = X[:, 1]
@@ -212,7 +148,7 @@ class Rastrigin(TestFunction, Solver):
         The function is usually evaluated on the hypercube xi ∈ [-5.12, 5.12], for all i = 1, …, d.
         global minimum: f(x*)=0, at x*=[0]*d
         """
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
         d = X.shape[0]
         y = 10 * d + np.sum(X ** 2 - 10 * np.cos(2 * np.pi * X), axis=1)
         return y
@@ -230,7 +166,7 @@ class Rosenbrock(TestFunction, Solver):
         The function is usually evaluated on the hypercube xi ∈ [-5, 10], for all i = 1, …, d,
         although it may be restricted to the hypercube xi ∈ [-2.048, 2.048], for all i = 1, …, d.
         """
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
         y = np.sum((1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2),axis=1)
         return y
 
@@ -254,13 +190,28 @@ class Hartmann6(TestFunction, Solver):
     max_d = 6
     min_d = 6
 
+    A = np.array([
+        [10, 3, 17, 3.5, 1.7, 8],
+        [0.05, 10, 17, 0.1, 8, 14],
+        [3, 3.5, 1.7, 10, 17, 8],
+        [17, 8, 0.05, 10, 0.1, 14]
+        ])
+    
+    P = 1e-4 * np.array([
+        [1312,1696,5569, 124,8283,5886],
+        [2329,4135,8307,3736,1004,9991],
+        [2348,1451,3522,2883,2047,6650],
+        [4047,8828,8732,5743,1091,381]
+    ])
+
     def solve(self, X):
-        pass
+        X = self.check_formatX(X,6)
 
 
+" Functions really only used for testing purposes, with a simple analytic solution "
 class XLinear(TestFunction, Solver):
     def solve(self, X):
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
 
         y = np.sum(X, axis=1)
         return y
@@ -268,7 +219,7 @@ class XLinear(TestFunction, Solver):
 
 class XSquared(TestFunction, Solver):
     def solve(self, X, offset=0.25):
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
 
         y = np.sum((X - offset) ** 2, axis=1)
         return y
@@ -276,7 +227,7 @@ class XSquared(TestFunction, Solver):
 
 class XCubed(TestFunction, Solver):
     def solve(self, X, offset=0.25):
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
 
         y = np.sum((X - offset) ** 3, axis=1)
         return y
@@ -284,6 +235,6 @@ class XCubed(TestFunction, Solver):
 
 class XCosine(TestFunction, Solver):
     def solve(self, X):
-        X = self.correctFormatX(X)
+        X = self.check_formatX(X)
         y = np.cos(np.sum(X, axis=1))
         return y

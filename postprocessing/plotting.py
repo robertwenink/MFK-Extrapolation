@@ -199,51 +199,17 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None, Z_k_new_no
     else:
         ax.clear()
 
+    " plot known kriging levels"
     for i in range(max(len(X) - 1, 2)):
         color = next(ax._get_lines.prop_cycler)["color"]
-        z_pred, mse_pred = Z_k[i].predict(X_plot)
-        ax.plot(
-            X[i],
-            Z[i],
-            linestyle="",
-            markeredgecolor="none",
-            marker=next(marker),
-            color=color,
-        )
-        ax.plot(
-            X_plot,
-            z_pred,
-            linestyle="-",
-            color=color,
-            label="Kriging level {}".format(i),
-        )        
-        ax.plot(
-            X_plot,
-            z_pred - 2*np.sqrt(mse_pred),
-            linestyle="-",
-            color=color,
-            alpha=0.2,
-        )        
-        ax.plot(
-            X_plot,
-            z_pred + 2*np.sqrt(mse_pred),
-            linestyle="-",
-            color=color,
-            alpha=0.2,
-        )
+        plot_single_1d_kriging(X[i],Z[i],next(marker),Z_k[i], X_plot, ax, color,"Kriging level {}".format(i),alpha=0.2)
 
+
+    " plot prediction kriging "
     if len(X) > 2:  # first two levels always known
         i += 1
         color = next(ax._get_lines.prop_cycler)["color"]
 
-        ax.plot(
-            X[i],
-            Z[i],
-            linestyle="",
-            markeredgecolor="none",
-            marker=next(marker),
-            color=color,
-        )
         ax.plot(
             X_unique,
             Z_k[i].predict(X_unique)[0],
@@ -254,11 +220,12 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None, Z_k_new_no
         )
 
         # prediction
-        plot_kriging(Z_k[i], X_plot, ax, color,"prediction level {}".format(i))
+        mark = next(marker)
+        plot_single_1d_kriging(X[i],Z[i],mark,Z_k[i], X_plot, ax, color,"prediction level {}".format(i))
 
         if Z_k_new_noise is not None: 
             color = next(ax._get_lines.prop_cycler)["color"]
-            plot_kriging(Z_k_new_noise, X_plot, ax, color,"prediction level {} with noise".format(i))
+            plot_single_1d_kriging(X[i],Z[i],mark,Z_k_new_noise, X_plot, ax, color,"prediction level {} with noise".format(i))
             
 
         " plot truth "
@@ -285,8 +252,20 @@ def draw_current_levels(X, Z, Z_k, X_unique, X_plot, solver, ax=None, Z_k_new_no
     return ax
 
 
-def plot_kriging(Z_k, X_plot, ax, color,label):
+def plot_single_1d_kriging(Xi,Zi,marker,Z_k, X_plot, ax, color,label,alpha=0.4):
     z_pred, mse_pred = Z_k.predict(X_plot)
+
+    # plot sample points
+    ax.plot(
+        Xi,
+        Zi,
+        linestyle="",
+        markeredgecolor="none",
+        marker=marker,
+        color=color,
+    )
+
+    # plot prediction and mse
     ax.plot(
         X_plot,
         z_pred,
@@ -297,11 +276,11 @@ def plot_kriging(Z_k, X_plot, ax, color,label):
         X_plot,
         z_pred + 2*np.sqrt(mse_pred),
         color=color,
-        alpha=0.4,
+        alpha=alpha,
     )
     ax.plot(
         X_plot,
         z_pred - 2*np.sqrt(mse_pred),
         color=color,
-        alpha=0.4,
+        alpha=alpha,
     )

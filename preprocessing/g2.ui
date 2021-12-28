@@ -32,481 +32,6 @@
     <property name="sizeConstraint">
      <enum>QLayout::SetDefaultConstraint</enum>
     </property>
-    <item row="1" column="2">
-     <widget class="QLabel" name="titleKriginOptionsLabel">
-      <property name="font">
-       <font>
-        <pointsize>14</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Kriging Options</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignHCenter|Qt::AlignTop</set>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="2">
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <layout class="QFormLayout" name="krigingOptionsFormLayout">
-        <item row="0" column="0">
-         <widget class="QLabel" name="selectKrigingTypeLabel">
-          <property name="text">
-           <string>Select Kriging Type:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QComboBox" name="selectKrigingTypeComboBox">
-          <item>
-           <property name="text">
-            <string>OK</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>UK</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="multifidelityLabel">
-          <property name="text">
-           <string>Multifidelity?</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QCheckBox" name="multifidelityCheckBox">
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="parallelSamplingLabel">
-          <property name="text">
-           <string>Parallel Sampling?</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QCheckBox" name="parallelSamplingCheckBox"/>
-        </item>
-        <item row="4" column="0" colspan="2">
-         <widget class="Line" name="line_16">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="0">
-         <widget class="QLabel" name="krigingSearchAlgorithmLabel">
-          <property name="text">
-           <string>Kriging Search Algorithm:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="QComboBox" name="krigingSearchAlgorithmComboBox">
-          <item>
-           <property name="text">
-            <string>None</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>EGO</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>INC-EGO</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="6" column="0">
-         <widget class="QLabel" name="stoppingCriterionLabel">
-          <property name="text">
-           <string>Stopping Criterion:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="6" column="1">
-         <widget class="QComboBox" name="stoppingCriterionComboBox">
-          <item>
-           <property name="text">
-            <string>EI relative (%)</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>EI absolute (-)</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="7" column="0">
-         <widget class="QLabel" name="stoppingCriterionValueLabel">
-          <property name="text">
-           <string>Stopping Criterion Value:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="7" column="1">
-         <widget class="QLineEdit" name="stoppingCriterionValueLineEdit"/>
-        </item>
-        <item row="8" column="0" colspan="2">
-         <widget class="Line" name="line_17">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="9" column="0">
-         <widget class="QLabel" name="infillCriterionLabel">
-          <property name="text">
-           <string>Infill Criterion:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="9" column="1">
-         <widget class="QComboBox" name="infillCriterionComboBox">
-          <item>
-           <property name="text">
-            <string>EI</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Kriging Uncertainty</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="10" column="0">
-         <widget class="QLabel" name="infillSearchAlgorithmLabel">
-          <property name="text">
-           <string>Infill Search Algorithm:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="10" column="1">
-         <widget class="QComboBox" name="infillSearchAlgorithmComboBox">
-          <item>
-           <property name="text">
-            <string>GA</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Multistart</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Bayesian</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Random</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="11" column="0" colspan="2">
-         <widget class="Line" name="line_18">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="12" column="0">
-         <widget class="QLabel" name="hyperparameterSearchAlgorithmLabel">
-          <property name="text">
-           <string>Hyperparameter Search Algorithm:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="12" column="1">
-         <widget class="QComboBox" name="hyperparameterSearchAlgorithmComboBox">
-          <item>
-           <property name="text">
-            <string>GA</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Bayesian</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Multistart</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="13" column="0" colspan="2">
-         <widget class="Line" name="line_13">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="14" column="0">
-         <widget class="QLabel" name="doELabel">
-          <property name="text">
-           <string>Initial Sampling Method:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="14" column="1">
-         <widget class="QComboBox" name="doEComboBox">
-          <item>
-           <property name="text">
-            <string>LHS</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Grid</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Random</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="correlationKernelLabel">
-          <property name="text">
-           <string>Correlation Kernel</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QComboBox" name="correlationKernelComboBox">
-          <item>
-           <property name="text">
-            <string>kriging</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="Line" name="separatorLine">
-        <property name="frameShadow">
-         <enum>QFrame::Sunken</enum>
-        </property>
-        <property name="lineWidth">
-         <number>2</number>
-        </property>
-        <property name="midLineWidth">
-         <number>1</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="titleOutputOptions">
-        <property name="font">
-         <font>
-          <pointsize>14</pointsize>
-         </font>
-        </property>
-        <property name="text">
-         <string>Output Options</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignHCenter|Qt::AlignTop</set>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="Line" name="line_12">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <layout class="QFormLayout" name="outputOptionsFormLayout">
-        <item row="0" column="0">
-         <widget class="QLabel" name="saveSampleDataLabel">
-          <property name="text">
-           <string>Save Sample Data?</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QCheckBox" name="saveSampleDataCheckBox">
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0" colspan="2">
-         <widget class="Line" name="line_9">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="livePlotLabel">
-          <property name="text">
-           <string>(live) Plot?</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QCheckBox" name="livePlotCheckBox">
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="dimensionsToPlotLabel">
-          <property name="text">
-           <string>Dimensions to plot (if d &gt; 2):</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QLineEdit" name="dimensionsToPlotLineEdit">
-          <property name="placeholderText">
-           <string>For 2d give as e.g. : 0,4 ; x0,x4 ; or x0 , 4</string>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="0">
-         <widget class="QLabel" name="savePlotLabel">
-          <property name="text">
-           <string>Save Plot?</string>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="QCheckBox" name="savePlotCheckBox"/>
-        </item>
-        <item row="4" column="0">
-         <widget class="QLabel" name="typeOfPlotLabel">
-          <property name="text">
-           <string>Type of plot:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="1">
-         <widget class="QComboBox" name="typeOfPlotComboBox">
-          <item>
-           <property name="text">
-            <string>Surface</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Contour</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <spacer name="verticalSpacer">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>40</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </item>
-    <item row="2" column="2">
-     <widget class="Line" name="line_4">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="Line" name="line">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="2">
-     <widget class="Line" name="line_10">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="Line" name="line_3">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="2">
-     <widget class="QPushButton" name="createSetupFileButton">
-      <property name="text">
-       <string>Create Setup File</string>
-      </property>
-      <property name="shortcut">
-       <string>Return</string>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="0">
-     <widget class="Line" name="line_11">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="Line" name="line_2">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="titleSolverAndObjectiveLabel">
-      <property name="font">
-       <font>
-        <pointsize>14</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Solver &amp; Objective</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignHCenter|Qt::AlignTop</set>
-      </property>
-     </widget>
-    </item>
     <item row="3" column="0">
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -557,6 +82,95 @@
        </layout>
       </item>
       <item>
+       <layout class="QFormLayout" name="formLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="multifidelityLabel">
+          <property name="text">
+           <string>Make multifidelity?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QCheckBox" name="multifidelityCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="convergenceTypeLabel">
+          <property name="text">
+           <string>Convergence Type:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="convergenceTypeComboBox">
+          <item>
+           <property name="text">
+            <string>0 Stable up</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1 Stable down</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2 Alternating harmonic</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="convergenceModifierLabel">
+          <property name="text">
+           <string>Convergence Modifier:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="convergenceModifierComboBox">
+          <item>
+           <property name="text">
+            <string>0 No modifier</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1 Sinus (Linear)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2 Sinus (non-Linear)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3 Sinus (very non-Linear)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="addNoiseLabel">
+          <property name="text">
+           <string>Add Noise?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QCheckBox" name="addSolverNoiseCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
        <widget class="Line" name="line_8">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -578,15 +192,21 @@
       <item>
        <widget class="QListWidget" name="solverInputParameterListWidget">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+         <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>80</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
           <width>16777215</width>
-          <height>150</height>
+          <height>80</height>
          </size>
         </property>
         <property name="font">
@@ -710,10 +330,16 @@
       <item>
        <widget class="QListWidget" name="solverOutputParameterListWidget">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+         <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>80</height>
+         </size>
         </property>
         <property name="maximumSize">
          <size>
@@ -805,13 +431,6 @@
       </item>
      </layout>
     </item>
-    <item row="2" column="4">
-     <widget class="Line" name="line_5">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
     <item row="5" column="2">
      <layout class="QHBoxLayout" name="horizontalLayout_4">
       <item>
@@ -829,6 +448,467 @@
        </widget>
       </item>
      </layout>
+    </item>
+    <item row="2" column="2">
+     <widget class="Line" name="line_4">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="2">
+     <widget class="QLabel" name="titleKriginOptionsLabel">
+      <property name="font">
+       <font>
+        <pointsize>14</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Kriging Options</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignHCenter|Qt::AlignTop</set>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="2">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <layout class="QFormLayout" name="krigingOptionsFormLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="selectKrigingTypeLabel">
+          <property name="text">
+           <string>Select Kriging Type:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="selectKrigingTypeComboBox">
+          <item>
+           <property name="text">
+            <string>OK</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>UK</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="correlationKernelLabel">
+          <property name="text">
+           <string>Correlation Kernel</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="correlationKernelComboBox">
+          <item>
+           <property name="text">
+            <string>kriging</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="parallelSamplingLabel">
+          <property name="text">
+           <string>Parallel Sampling?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QCheckBox" name="parallelSamplingCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0" colspan="2">
+         <widget class="Line" name="line_16">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="krigingSearchAlgorithmLabel">
+          <property name="text">
+           <string>Kriging Search Algorithm:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QComboBox" name="krigingSearchAlgorithmComboBox">
+          <item>
+           <property name="text">
+            <string>INC-EGO (mf)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>EGO (non-mf)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="0" colspan="2">
+         <widget class="Line" name="line_17">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="infillCriterionLabel">
+          <property name="text">
+           <string>Infill Criterion:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QComboBox" name="infillCriterionComboBox">
+          <item>
+           <property name="text">
+            <string>EI</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Kriging Uncertainty</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="8" column="0">
+         <widget class="QLabel" name="infillSearchAlgorithmLabel">
+          <property name="text">
+           <string>Infill Search Method:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QComboBox" name="infillSearchAlgorithmComboBox">
+          <item>
+           <property name="text">
+            <string>Bruteforce</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>GA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Multistart + hillclimb</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Bayesian</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Random</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="9" column="0" colspan="2">
+         <widget class="Line" name="line_18">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="0">
+         <widget class="QLabel" name="hyperparameterSearchAlgorithmLabel">
+          <property name="text">
+           <string>Hyperparameter Search Algorithm:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="1">
+         <widget class="QComboBox" name="hyperparameterSearchAlgorithmComboBox">
+          <item>
+           <property name="text">
+            <string>GA</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>GA + multistart hillclimb</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Multistart hillclimb</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="11" column="0" colspan="2">
+         <widget class="Line" name="line_13">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="12" column="0">
+         <widget class="QLabel" name="doELabel">
+          <property name="text">
+           <string>Initial Sampling Method:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="12" column="1">
+         <widget class="QComboBox" name="doEComboBox">
+          <item>
+           <property name="text">
+            <string>LHS</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Grid</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Random</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="noiseRegressionLabel">
+          <property name="text">
+           <string>Noise Regression?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QCheckBox" name="noiseRegressionCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="Line" name="separatorLine">
+        <property name="frameShadow">
+         <enum>QFrame::Sunken</enum>
+        </property>
+        <property name="lineWidth">
+         <number>2</number>
+        </property>
+        <property name="midLineWidth">
+         <number>1</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="titleOutputOptions">
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Output Options</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignHCenter|Qt::AlignTop</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="Line" name="line_12">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QFormLayout" name="outputOptionsFormLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="saveSampleDataLabel">
+          <property name="text">
+           <string>Save Sample Data?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QCheckBox" name="saveSampleDataCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0" colspan="2">
+         <widget class="Line" name="line_9">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="livePlotLabel">
+          <property name="text">
+           <string>(live) Plot?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QCheckBox" name="livePlotCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="dimensionsToPlotLabel">
+          <property name="text">
+           <string>Dimensions to plot (if d &gt; 2):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLineEdit" name="dimensionsToPlotLineEdit">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="placeholderText">
+           <string>For 2d give as e.g. : 0,4 ; x0,x4 ; or x0 , 4</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="typeOfPlotLabel">
+          <property name="text">
+           <string>Type of plot:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QComboBox" name="typeOfPlotComboBox">
+          <item>
+           <property name="text">
+            <string>Surface</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Contour</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="savePlotLabel">
+          <property name="text">
+           <string>Save Plot?</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QCheckBox" name="savePlotCheckBox"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+    <item row="6" column="2">
+     <widget class="QPushButton" name="createSetupFileButton">
+      <property name="text">
+       <string>Create Setup File</string>
+      </property>
+      <property name="shortcut">
+       <string>Return</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="Line" name="line_3">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="4">
+     <widget class="Line" name="line_5">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="2">
+     <widget class="Line" name="line_10">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QLabel" name="titleSolverAndObjectiveLabel">
+      <property name="font">
+       <font>
+        <pointsize>14</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Solver &amp; Objective</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignHCenter|Qt::AlignTop</set>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="Line" name="line_11">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>

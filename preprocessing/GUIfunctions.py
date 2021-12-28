@@ -106,8 +106,25 @@ class GUI(qtw.QWidget, Ui_Form):
         """
         gui_data = self.gui_data
 
-        # SOLVER & OBJECTIVE
+        #############################
+        ### SOLVER & OBJECTIVE
+        #############################
+        
         gui_data["solver_str"] = self.get_solver_str()
+
+        # simulate multifidelity?
+        mf = self.multifidelityCheckBox.isChecked()
+        gui_data['mf'] = mf
+        if mf:
+            # stable up, stable donw, alternating harmonic
+            gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())[0]
+
+            # convergence modifier, contains a number as first character
+            gui_data["conv_mod"] = str(self.convergenceTypeComboBox.currentText())[0]
+
+            # whether we add noise to the convergence/ solver
+            gui_data['conv_noise'] = self.addSolverNoiseCheckBox.isChecked()
+
         gui_data["d"] = int(self.dimensionSpinBox.value())
 
         # search_space structured as data matrix X: [[d0_name,d1_name,d2_name,...],[lb0,lb1,...],[ub0,ub1,...]]
@@ -131,32 +148,25 @@ class GUI(qtw.QWidget, Ui_Form):
         #     objectiveFunctionMinMaxComboBox()
         # https://stackoverflow.com/questions/11112046/create-a-lambda-function-from-a-string-properly
         # gui_data['objective'] = lambda x: objectiveFunctionLineEdit value to non-string
+        
+        #############################
+        ### KRIGING OPTIONS
+        #############################
 
-        # # KRIGING OPTIONS
         # selectKrigingTypeComboBox
         gui_data["kriging_type"] = str(self.selectKrigingTypeComboBox.currentText())
 
         gui_data["kernel"] = str(self.correlationKernelComboBox.currentText())
 
-        # multifidelityCheckBox
-        gui_data["multifidelity"] = self.multifidelityCheckBox.isChecked()
-
         # parallelSamplingCheckBox
         gui_data["parallel"] = self.parallelSamplingCheckBox.isChecked()
+
+        # noise regression
+        gui_data["regression"] = self.noiseRegressionCheckBox.isChecked()
 
         # krigingSearchAlgorithmComboBox
         gui_data["kriging_search_algorithm"] = str(
             self.krigingSearchAlgorithmComboBox.currentText()
-        )
-
-        # stoppingCriterionComboBox
-        gui_data["stopping_criterion"] = str(
-            self.stoppingCriterionComboBox.currentText()
-        )
-
-        # stoppingCriterionValueLineEdit
-        gui_data["stopping_criterion_value"] = str(
-            self.stoppingCriterionValueLineEdit.text()
         )
 
         # infillCriterionComboBox
@@ -175,7 +185,10 @@ class GUI(qtw.QWidget, Ui_Form):
         # doEComboBox
         gui_data["doe"] = str(self.doEComboBox.currentText())
 
-        # # OUTPUT OPTIONS
+        #############################
+        ### OUTPUT OPTIONS
+        #############################
+
         gui_data["SAVE_DATA"] = self.saveSampleDataCheckBox.isChecked()
 
         # livePlotCheckBox
