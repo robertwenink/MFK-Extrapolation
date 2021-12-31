@@ -11,15 +11,15 @@ from postprocessing.plotting import plot_kriging
 # import run_tests
 
 setup = Input(2)
-setup.regression = False
+
 doe = get_doe(setup)
 if hasattr(setup,'X'):
     X = setup.X
 else:
     X = doe(setup, 20)
 
-solver = get_solver(setup)()
-y = solver.solve(X)
+solver = get_solver(setup)
+y, _ = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
 ok.train(X, y,True)

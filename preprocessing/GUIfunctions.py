@@ -117,7 +117,7 @@ class GUI(qtw.QWidget, Ui_Form):
         gui_data['mf'] = mf
         if mf:
             # stable up, stable donw, alternating harmonic
-            gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())[0]
+            gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())
 
             # convergence modifier, contains a number as first character
             gui_data["conv_mod"] = str(self.convergenceTypeComboBox.currentText())[0]

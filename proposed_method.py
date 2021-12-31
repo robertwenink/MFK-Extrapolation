@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from sampling.initial_sampling import get_doe
-from sampling.solvers.solver import get_solver
 from sampling.infill.infill_criteria import EI
 from models.kriging.method.OK import *
 
@@ -31,14 +30,13 @@ def Kriging(X_l, d_l, tuning=False, R_diagonal=None, hps=None, train=True):
     setup.kernel = "kriging"
     setup.regression = False
 
-    ok = OrdinaryKriging(setup)
+    ok = OrdinaryKriging(setup,hps_init=hps)
 
     if tuning == False:
         if hps is None:
             raise NameError(
                 "hps is not defined! When tuning=False, hps must be defined"
             )
-        ok.hps = hps
 
     if train:
         ok.train(X_l, d_l, tuning, R_diagonal)

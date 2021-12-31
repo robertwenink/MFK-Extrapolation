@@ -108,17 +108,17 @@
          <widget class="QComboBox" name="convergenceTypeComboBox">
           <item>
            <property name="text">
-            <string>0 Stable up</string>
+            <string>Stable up</string>
            </property>
           </item>
           <item>
            <property name="text">
-            <string>1 Stable down</string>
+            <string>Stable down</string>
            </property>
           </item>
           <item>
            <property name="text">
-            <string>2 Alternating harmonic</string>
+            <string>Alternating harmonic</string>
            </property>
           </item>
          </widget>

@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d import axes3d
 from abc import ABC, abstractmethod
 from utils.data_formatting import correct_formatX
 
+
 class Solver(ABC):
     max_d = 10
     min_d = 1
@@ -22,7 +23,7 @@ class Solver(ABC):
     def solve(self):
         pass
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         pass
 
 
@@ -50,6 +51,21 @@ class TestFunction(ABC):
         return X
 
 
+class Forrester2008(TestFunction, Solver):
+    max_d = 1
+    min_d = 1
+
+    def solve(self, X):
+        X = self.check_formatX(X, d_req=1)
+
+        # last term is not from forrester2008
+        res = (6 * X - 2) ** 2 * np.sin(12 * X - 4)  # + np.sin(8 * 2 * np.pi * X)
+        return res.ravel() 
+
+    def get_preferred_search_space(self, d):
+        return [["x"], [0], [1]]
+
+
 class Branin(TestFunction, Solver):
     max_d = 2
     min_d = 2
@@ -73,7 +89,7 @@ class Branin(TestFunction, Solver):
         t = 1 / (8 * np.pi)
         return (a * (y - b * x ** 2 + c * x - r) ** 2 + s * (1 - t) * np.cos(x) + s) + x
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         return [["x0", "x1"], [-5, 0], [10, 15]]
 
 
@@ -103,7 +119,7 @@ class Stybtang(TestFunction, Solver):
         y = np.sum(np.power(X, 4) - 16 * np.power(X, 2) + 5 * X, axis=1) / 2
         return y
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-5] * d, [5] * d]
 
 
@@ -137,7 +153,7 @@ class Curretal88exp(TestFunction, Solver):
         res = 0.25 * (self.solve(X1) + self.solve(X2) + self.solve(X3) + self.solve(X4))
         return res
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]
 
 
@@ -153,7 +169,7 @@ class Rastrigin(TestFunction, Solver):
         y = 10 * d + np.sum(X ** 2 - 10 * np.cos(2 * np.pi * X), axis=1)
         return y
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-5.12] * d, [5.12] * d]
 
 
@@ -167,48 +183,55 @@ class Rosenbrock(TestFunction, Solver):
         although it may be restricted to the hypercube xi ∈ [-2.048, 2.048], for all i = 1, …, d.
         """
         X = self.check_formatX(X)
-        y = np.sum((1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2),axis=1)
+        y = np.sum(
+            (1 - X[:, :-1]) ** 2 + 100 * ((X[:, 1:] - X[:, :-1] ** 2) ** 2), axis=1
+        )
         return y
 
-    def get_preferred_search_space(d):
+    def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-2.048] * d, [2.048] * d]
 
 
-# TODO multifidelity test cases
-# https://www.sfu.ca/~ssurjano/multi.html
-
-
-class Hartmann3(TestFunction, Solver):
-    max_d = 3
-    min_d = 3
-
-    def solve(self, X):
-        pass
-
-
 class Hartmann6(TestFunction, Solver):
+    """
+    6-dimensional Hartmann function.
+    https://www.sfu.ca/~ssurjano/hart6.html
+    Global minimum f(x*) = -3.32237 at x* = (0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573)"""
+
     max_d = 6
     min_d = 6
 
-    A = np.array([
-        [10, 3, 17, 3.5, 1.7, 8],
-        [0.05, 10, 17, 0.1, 8, 14],
-        [3, 3.5, 1.7, 10, 17, 8],
-        [17, 8, 0.05, 10, 0.1, 14]
-        ])
-    
-    P = 1e-4 * np.array([
-        [1312,1696,5569, 124,8283,5886],
-        [2329,4135,8307,3736,1004,9991],
-        [2348,1451,3522,2883,2047,6650],
-        [4047,8828,8732,5743,1091,381]
-    ])
+    alpha = np.array([1, 1.2, 3, 3.2]).T
+
+    A = np.array(
+        [
+            [10, 3, 17, 3.5, 1.7, 8],
+            [0.05, 10, 17, 0.1, 8, 14],
+            [3, 3.5, 1.7, 10, 17, 8],
+            [17, 8, 0.05, 10, 0.1, 14],
+        ]
+    )
+
+    P = 1e-4 * np.array(
+        [
+            [1312, 1696, 5569, 124, 8283, 5886],
+            [2329, 4135, 8307, 3736, 1004, 9991],
+            [2348, 1451, 3522, 2883, 2047, 6650],
+            [4047, 8828, 8732, 5743, 1091, 381],
+        ]
+    )
 
     def solve(self, X):
-        X = self.check_formatX(X,6)
+        X = self.check_formatX(X, 6)
+        # TODO
+
+    def get_preferred_search_space(self, d):
+        return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]
 
 
 " Functions really only used for testing purposes, with a simple analytic solution "
+
+
 class XLinear(TestFunction, Solver):
     def solve(self, X):
         X = self.check_formatX(X)

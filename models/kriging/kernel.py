@@ -68,6 +68,10 @@ def diff_matrix(X, X_other):
 
 @njit(cache=True)
 def corr_matrix_kriging_tune(hps, diff_matrix,R_diagonal=0):
+    """
+    Function used in tuning. Creates the correlation matrix for the whole population.
+    Includes terms for noise and R_diagonal regression.
+    """
     
     # amount of different sets of hyperparameters we are trying
     n = hps.shape[0]

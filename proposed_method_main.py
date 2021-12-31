@@ -1,7 +1,6 @@
 from proposed_method import *
 
 from postprocessing.plotting import *
-from dummy_mf_solvers import *
 
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -27,7 +26,6 @@ if __name__ == "__main__":
     max_cost = 300
     l = 0
     max_level = l + 2
-    runEGO = True
 
     " level 0 and 1 : setting 'DoE' and 'solve' "
     # level 0 DoE
@@ -86,7 +84,7 @@ if __name__ == "__main__":
         " sample from the predicted distribution in EGO fashion"
         ei = 1
         ei_criterion = 2 * np.finfo(np.float32).eps
-        while np.sum(costs) < max_cost and runEGO:
+        while np.sum(costs) < max_cost:
             # select points to asses expected
             X_infill = X_plot
 
@@ -118,14 +116,12 @@ if __name__ == "__main__":
 
             # build new kriging based on prediction
             # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
-            # TODO for top-level we require re-interpolation if we apply noise
-            # NOTE f is a scaling for decreasing the relative noise; we want to give the predictions less weight in determining the noise
-            f = 1
+            # NOTE for top-level we require re-interpolation if we apply noise
             if "Z_k_new_noise" not in locals():
                 Z_k_new_noise = Kriging(
                     X_unique,
                     Z_pred,
-                    R_diagonal=mse_pred / Z_k[-1].sigma_hat * f,
+                    R_diagonal=mse_pred / Z_k[-1].sigma_hat,
                     hps=Z_k[-1].hps,
                     tuning=True,
                 )

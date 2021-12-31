@@ -90,8 +90,11 @@ def fitness_func_mf_regression(hps, diff_matrix, y, corr, R_diagonal):
 
 
 class OrdinaryKriging:
-    def __init__(self, setup):
+    def __init__(self, setup, hps_init=None):
         self.corr, self.hps, self.hps_constraints = get_kernel(setup)
+        if hps is not None:
+            assert self.hps.shape == hps_init.shape, "Provide hps_init of correct size!"
+            self.hps = hps_init
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
@@ -105,13 +108,13 @@ class OrdinaryKriging:
         mse_var = mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         return y_hat, mse_var
 
-    def train(self, X, y, tune=False, R_diagonal=None):
+    def train(self, X, y, tune=False, R_diagonal=None, exclude = []):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X)
         self.y = y
 
         if tune:
-            self.tune(R_diagonal)
+            self.tune(R_diagonal, exclude)
 
         R = self.corr(self.X, self.X, self.hps)
 
@@ -127,8 +130,12 @@ class OrdinaryKriging:
         self.mu_hat = mu_hat(self.R_in, y)
         self.sigma_hat = sigma_hat(self.R_in, y, self.mu_hat, n)
 
-    def tune(self, R_diagonal=None):
+    def tune(self, R_diagonal=None, exclude=[]):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
+        assert isinstance(
+            exclude, list
+        ), "TUNE: 'exlude' parameter must be passed a list"
+
         diff_m = diff_matrix(self.X, self.X)
 
         # select fitness function and arguments based on inclusion of our regression
@@ -139,11 +146,13 @@ class OrdinaryKriging:
             ff = fitness_func_mf_regression
             other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
 
+        # TODO use self.hps as starting point
+
         # run model and time it
         start = time.time()
         model = ga(
             function=ff,
-            dimension=self.hps.size,
+            dimension=self.hps.size - len(exclude),
             other_function_arguments=other_function_arguments,
             hps_constraints=self.hps_constraints,
             progress_bar=True,

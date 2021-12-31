@@ -42,7 +42,7 @@ def plot_2d(setup, X, y, predictor):
     contour = False
 
     # retrieve the solver and check type
-    solver = get_solver(setup)()
+    solver = get_solver(setup)
     testfunc = False
     if isinstance(solver,TestFunction):
         testfunc = True
@@ -62,7 +62,7 @@ def plot_2d(setup, X, y, predictor):
     std = np.sqrt(mse.reshape(n_per_d, n_per_d))
 
     " retrieve exact solution "
-    y_exact = solver.solve(X_new)
+    y_exact, _ = solver.solve(X_new)
 
     # reshape predictions to be a grid
     y_exact = y_exact.reshape(n_per_d, n_per_d)
@@ -138,7 +138,6 @@ def plot_1d(setup, X, y, predictor):
 ##############################################################
 from proposed_method import *
 import itertools
-from dummy_mf_solvers import *
 import matplotlib.pyplot as plt
 
 

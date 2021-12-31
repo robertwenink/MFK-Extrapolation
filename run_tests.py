@@ -21,8 +21,8 @@ setup.search_space = [["x0", "x1"], np.array([-5, 0]), np.array([10, 15])]
 doe = get_doe(setup)
 X = doe(setup, 9)
 
-solver = get_solver(setup)()
-y = solver.solve(X)
+solver = get_solver(setup)
+y, _ = solver.solve(X)
 
 ok = OrdinaryKriging(setup)
 ok.train(X, y, True)
