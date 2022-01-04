@@ -28,6 +28,8 @@ class GUI(qtw.QWidget, Ui_Form):
         self.dimension_spinbox_changed()
         self.solver_changed()
 
+        self.multifidelityCheckBox.stateChanged.connect(self.mf_checkbox_changed)
+
         self.dimensionSpinBox.valueChanged.connect(self.dimension_spinbox_changed)
 
         self.selectSolverComboBox.currentTextChanged.connect(self.solver_changed)
@@ -115,15 +117,23 @@ class GUI(qtw.QWidget, Ui_Form):
         # simulate multifidelity?
         mf = self.multifidelityCheckBox.isChecked()
         gui_data['mf'] = mf
-        if mf:
-            # stable up, stable donw, alternating harmonic
-            gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())
 
-            # convergence modifier, contains a number as first character
-            gui_data["conv_mod"] = str(self.convergenceTypeComboBox.currentText())[0]
+        # are we using a testfunction?
+        if "internal" in str(self.selectSolverComboBox.currentText()):
 
             # whether we add noise to the convergence/ solver
-            gui_data['conv_noise'] = self.addSolverNoiseCheckBox.isChecked()
+            gui_data['solver_noise'] = self.addSolverNoiseCheckBox.isChecked()
+
+            if mf:
+                # stable up, stable donw, alternating harmonic
+                gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())
+    
+                # convergence modifier, contains a number as first character
+                gui_data["conv_mod"] = str(self.convergenceTypeComboBox.currentText())[0]
+        else:
+            pass
+            # NOTE we should not use any mf functionality, so better not set it; we will get an error then.
+            # gui_data['mf'],gui_data['solver_noise'],gui_data["conv_type"],gui_data["conv_mod"] =False,False,0,0
 
         gui_data["d"] = int(self.dimensionSpinBox.value())
 
@@ -162,7 +172,7 @@ class GUI(qtw.QWidget, Ui_Form):
         gui_data["parallel"] = self.parallelSamplingCheckBox.isChecked()
 
         # noise regression
-        gui_data["regression"] = self.noiseRegressionCheckBox.isChecked()
+        gui_data["noise_regression"] = self.noiseRegressionCheckBox.isChecked()
 
         # krigingSearchAlgorithmComboBox
         gui_data["kriging_search_algorithm"] = str(
@@ -274,7 +284,44 @@ class GUI(qtw.QWidget, Ui_Form):
         self.selectSolverComboBox.clear()
         self.selectSolverComboBox.addItems(get_solver_name_list())
 
+    def mf_checkbox_changed(self):
+        """hide or show boxes associated with the use of multifidelity"""
+        if self.multifidelityCheckBox.isChecked():
+            # then show convergence options
+            self.convergenceTypeComboBox.show()
+            self.convergenceModifierComboBox.show()
+            self.convergenceTypeLabel.show()
+            self.convergenceModifierLabel.show()
+        else:
+            # remove convergence options
+            self.convergenceTypeComboBox.hide()
+            self.convergenceModifierComboBox.hide()
+            self.convergenceTypeLabel.hide()
+            self.convergenceModifierLabel.hide()
+
     def solver_changed(self):
+
+        # are we using a testfunction?
+        if "internal" in str(self.selectSolverComboBox.currentText()):
+            # show noise and mf buttons
+            self.addSolverNoiseCheckBox.show()
+            self.multifidelityCheckBox.show()
+            self.addSolverNoiseLabel.show()
+            self.multifidelityLabel.show()
+
+            self.mf_checkbox_changed()
+        else:
+            # remove the noise, mf, and convergence boxes + labels
+            self.addSolverNoiseCheckBox.hide()
+            self.multifidelityCheckBox.hide()
+            self.convergenceTypeComboBox.hide()
+            self.convergenceModifierComboBox.hide()
+
+            self.addSolverNoiseLabel.hide()
+            self.multifidelityLabel.hide()
+            self.convergenceTypeLabel.hide()
+            self.convergenceModifierLabel.hide()
+
         solver_string = self.get_solver_str()
         solver = get_solver(name=solver_string)
 

@@ -3,7 +3,6 @@ from abc import abstractmethod
 
 import sampling.solvers.external as external
 import sampling.solvers.internal as internal
-from sampling.solvers.multifidelity import get_mf_solver
 
 import inspect
 
@@ -38,8 +37,5 @@ def get_solver(setup=None, name=None):
     for name, obj in CLSMEMBERS:
         if name == solver_name:
             solver = obj
-    
-    if setup is not None and setup.mf:
-        return get_mf_solver(setup,solver)
 
-    return solver()
+    return solver(setup)

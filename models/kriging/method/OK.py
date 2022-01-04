@@ -92,7 +92,7 @@ def fitness_func_mf_regression(hps, diff_matrix, y, corr, R_diagonal):
 class OrdinaryKriging:
     def __init__(self, setup, hps_init=None):
         self.corr, self.hps, self.hps_constraints = get_kernel(setup)
-        if hps is not None:
+        if hps_init is not None:
             assert self.hps.shape == hps_init.shape, "Provide hps_init of correct size!"
             self.hps = hps_init
 
@@ -100,7 +100,7 @@ class OrdinaryKriging:
         """Predicts and returns the prediction and associated mean square error"""
         X_new = correct_formatX(X_new)
 
-        # NOTE correlation function for r shoould not involve regression terms (forrester2006).
+        # NOTE correlation function for r should not involve regression terms (forrester2006).
         # Those come back through R(_in) in both sigma and the prediction.
         self.r = self.corr(self.X, X_new, self.hps)
 
@@ -147,6 +147,7 @@ class OrdinaryKriging:
             other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
 
         # TODO use self.hps as starting point
+        # TODO implement hillclimbing
 
         # run model and time it
         start = time.time()

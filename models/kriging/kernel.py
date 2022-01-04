@@ -39,7 +39,7 @@ def get_kernel(setup):
             [[[0, 1000]] * setup.d, [[2, 2]] * setup.d]
         ).reshape(-1,2)
 
-        if setup.regression:
+        if setup.noise_regression:
             hps_constraints = np.append(hps_constraints,[[0, 0.001]], axis=0)
         else:
             hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)        

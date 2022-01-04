@@ -62,7 +62,7 @@ def plot_2d(setup, X, y, predictor):
     std = np.sqrt(mse.reshape(n_per_d, n_per_d))
 
     " retrieve exact solution "
-    y_exact, _ = solver.solve(X_new)
+    y_exact, _ = solver.solve(X_new,100)
 
     # reshape predictions to be a grid
     y_exact = y_exact.reshape(n_per_d, n_per_d)
