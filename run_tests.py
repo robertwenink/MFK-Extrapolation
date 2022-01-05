@@ -29,7 +29,7 @@ ok.train(X, y, True)
 
 # test if sigma_hat from tuning is equal to that of prediction regimes
 assert (
-    ok.sigma_hat == sigma_mu_hat(ok.R_in, y, y.shape[0])
+    ok.sigma_hat == _sigma_mu_hat(ok.R_in, y, y.shape[0])
 ), "\n sigma_hat not equal between tuning and training"
 
 # test if r.T R_in r == 1 if r build using subset of R_in -> then np.all(mse == 0)
@@ -49,7 +49,7 @@ assert (
     np.allclose(res,1)
 ), "\n r.T R_in r != 1, with result: {}".format(res)
 
-assert (np.all(mse(ok.R_in, ok.r, rtR_in, ok.sigma_hat) == 0)), '\n mse not 0 when it should'
+assert (np.all(_mse(ok.R_in, ok.r, rtR_in, ok.sigma_hat) == 0)), '\n mse not 0 when it should'
 
 
 # test if r R_in r == 0 at index i if r_i build using subset of R_in -> then mse[i] == 0

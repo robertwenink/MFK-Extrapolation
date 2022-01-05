@@ -19,3 +19,8 @@ def correct_formatX(a):
     if a.ndim == 1:
         return np.array([a]).T
     return a
+
+def return_unique(X):
+    # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
+    seq = [item for sublist in X for item in sublist]
+    return np.array(list(dict.fromkeys(seq)))

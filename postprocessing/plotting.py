@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import axes3d
 from sampling.solvers.solver import get_solver
 from sampling.solvers.internal import TestFunction
 
+
 def plot_kriging(setup, X, y, predictor):
     setup.n_per_d = 50
 
@@ -61,12 +62,6 @@ def plot_2d(setup, X, y, predictor):
     y_hat = y_hat.reshape(n_per_d, n_per_d)
     std = np.sqrt(mse.reshape(n_per_d, n_per_d))
 
-    " retrieve exact solution "
-    y_exact, _ = solver.solve(X_new,100)
-
-    # reshape predictions to be a grid
-    y_exact = y_exact.reshape(n_per_d, n_per_d)
-
 
     " initialise figure "
     fig = plt.figure()
@@ -95,7 +90,13 @@ def plot_2d(setup, X, y, predictor):
     ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
 
     " plot exact surface "
-    if testfunc:
+    if testfunc:    
+        " retrieve exact solution "
+        y_exact, _ = solver.solve(X_new,l=100)
+
+        # reshape predictions to be a grid
+        y_exact = y_exact.reshape(n_per_d, n_per_d)
+
         ax = fig.add_subplot(nrows, ncols, 2, projection="3d")
         ax.set_title("exact surface")
         axes.append(ax)

@@ -119,7 +119,6 @@ class Input:
             self.create_new_filename(gui.get_optional_filename())
             self.create_input_file()
             self.read_input()
-
-
-if __name__ == "__main__":
-    input = Input(2)
+        else:
+            # in case of manually closing gui
+            sys.exit()

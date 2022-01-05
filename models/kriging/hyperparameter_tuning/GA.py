@@ -8,19 +8,18 @@ import matplotlib.pyplot as plt
 class geneticalgorithm:
 
     """
-    An implementation of elitist genetic algorithm for solving problems with
-    continuous, integers, or mixed variables.
+    Elitist genetic algorithm for solving problems with
+    continuous variables.
 
-    Implementation and output:
-        methods:
-                run(): implements the genetic algorithm
-        outputs:
-                output_dict:  a dictionary including the best set of variables
-            found and the value of the given function associated to it.
-            {'variable': , 'function': }
+    run(): implements the genetic algorithm
 
-                report: a list including the record of the progress of the
-                algorithm over iterations
+    outputs:
+            output_dict:  a dictionary including the best set of variables
+        found and the value of the given function associated to it.
+        {'variable': , 'function': }
+
+            report: a list including the record of the progress of the
+            algorithm over iterations
 
     """
 
@@ -28,8 +27,8 @@ class geneticalgorithm:
         self,
         function,
         other_function_arguments,
-        dimension,
         hps_constraints,
+        hps_init=None,
         algorithm_parameters={
             "max_num_iteration": None,
             "population_size": 100,
@@ -80,10 +79,16 @@ class geneticalgorithm:
 
         # NOTE own additions
         self.other_function_arguments = other_function_arguments
-        self.hps_shape = hps_constraints.shape[:-1]
-        hps_constraints = hps_constraints.reshape(-1,2)
+        
+        if hps_init is None:
+            self.hps_shape = hps_constraints.shape[:-1]
+        else:
+            assert (hps_init.ndim == 1), '\n please define hps_init as an 1d array of shape (..,)'
+            self.hps_shape = hps_init.shape
 
-        self.dim = int(dimension)
+        assert (hps_constraints.shape[:-1] == self.hps_shape), "\n please define hps_init and hps_constraints is similar fashion."
+
+        self.dim = self.hps_shape[0]
 
         # input variables' boundaries
         assert (
@@ -152,7 +157,7 @@ class geneticalgorithm:
 
         # SET max numbers of iteration 
         if self.param["max_num_iteration"] == None:
-            self.iterate = round((10000/self.pop_s)**(((dimension-1)/2 + 1)**(1/2))) # voor 2 decision variables prima
+            self.iterate = round((10000/self.pop_s)**(((self.dim-1)/2 + 1)**(1/2))) # voor 2 decision variables prima
         else:
             self.iterate = int(self.param["max_num_iteration"])
 
@@ -168,6 +173,9 @@ class geneticalgorithm:
             self.mniwi = self.iterate + 1
         else:
             self.mniwi = int(self.param["max_iteration_without_improv"])
+
+        # if all correct, run
+        self.run()
 
 
     def run(self):
@@ -311,9 +319,7 @@ class geneticalgorithm:
     
 
     def sim(self, X):
-        # this conversion is usefull in case we are not inputting an array of shape (..,)
-        temp = X.reshape((-1,*self.hps_shape))
-        obj = -self.f(temp, *self.other_function_arguments)
+        obj = -self.f(X, *self.other_function_arguments)
         return obj
 
     def progress(self, count, total, status=""):

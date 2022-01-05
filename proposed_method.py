@@ -13,35 +13,8 @@ import numpy as np
 
 from sampling.initial_sampling import get_doe
 from sampling.infill.infill_criteria import EI
-from models.kriging.method.OK import *
-
-
-class Setup:
-    """Dummy class"""
-    pass
-
-
-def Kriging(X_l, d_l, tuning=False, R_diagonal=None, hps=None, train=True):
-    """
-    Setup a Kriging model, either for the discrepancy or a level
-    """
-    setup = Setup()
-    setup.d = 1
-    setup.kernel = "kriging"
-    setup.regression = False
-
-    ok = OrdinaryKriging(setup,hps_init=hps)
-
-    if tuning == False:
-        if hps is None:
-            raise NameError(
-                "hps is not defined! When tuning=False, hps must be defined"
-            )
-
-    if train:
-        ok.train(X_l, d_l, tuning, R_diagonal)
-
-    return ok
+from models.kriging.method.OK import Kriging
+from utils.data_utils import return_unique
 
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
@@ -185,7 +158,4 @@ def weighted_prediction(X, X_unique, Z, Z_k):
     return Z_pred, mse
 
 
-def return_unique(X):
-    # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
-    seq = [item for sublist in X for item in sublist]
-    return np.array(list(dict.fromkeys(seq)))
+

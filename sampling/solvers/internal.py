@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
 from abc import ABC, abstractmethod
-from utils.data_formatting import correct_formatX
+from utils.data_utils import correct_formatX
 from sampling.solvers.convergence_base_models import *
 
 
@@ -57,7 +57,10 @@ class TestFunction(Solver):
     objective_function = lambda z: np.min(z)
 
     def __init__(self, setup=None):
-        "setup must be None, we do not always require the use of a setup."
+        """
+        setup must be None; we do not always require the use of a setup, 
+        as this class is used in creation of the setup object/ GUI for retrieving min_d, max_d.
+        """
         if setup is not None:
             self.solver_noise = setup.solver_noise
             self.mf = setup.mf
@@ -154,9 +157,9 @@ class TestFunction(Solver):
                 val = A * val + B * (np.sum(X, axis=1) - 0.5) + C
 
             if self.solver_noise:
-                # provide additive noise,present at every level
+                # provide noise,present at every level
                 # NOTE hard coded std /amplitude of e-3
-                val += 0.001 * (np.random.standard_normal(size=val.shape) - 0.5)
+                val *= 1 + 0.001 * (np.random.standard_normal(size=val.shape) - 0.5)
 
             return val, cost 
 

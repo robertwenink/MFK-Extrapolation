@@ -8,24 +8,42 @@ from numba import njit, prange
 import time
 
 from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
-from utils.data_formatting import correct_formatX
+from utils.data_utils import correct_formatX
 
+
+def Kriging(setup, X, y, tuning=False, R_diagonal=None, hps_init=None, train=True):
+    """
+    This method clusters and provides all the functionality required for setting up a kriging model.
+    """
+
+    ok = OrdinaryKriging(setup,hps_init=hps)
+
+    if tuning == False:
+        if hps_init is None:
+            raise NameError(
+                "hps_init is not defined! When tuning=False, hps_init must be defined"
+            )
+
+    if train:
+        ok.train(X_l, y_l, tuning, R_diagonal)
+
+    return ok
 
 @njit(cache=True)
-def mu_hat(R_in, y):
+def _mu_hat(R_in, y):
     """Estimated constant mean of the Gaussian process, according to (Jones 2001)"""
     return np.sum(np.dot(R_in, y)) / np.sum(R_in)
 
 
 @njit(cache=True)
-def sigma_hat(R_in, y, mu_hat, n):
+def _sigma_hat(R_in, y, mu_hat, n):
     """Estimated variance sigma squared of the Gaussian process, according to (Jones 2001)"""
     t = y - mu_hat
     return np.dot(t.T, np.dot(R_in, t)) / n
 
 
 # @njit is slower!
-def mse(R_in, r, rtR_in, sigma_hat):
+def _mse(R_in, r, rtR_in, sigma_hat):
     """Mean squared error of the predictor, according to (Jones 2001)"""
     # hiervan willen we de mse allen op de diagonaal, i.e. de mse van een punt naar een ander onsampled punt is niet onze interesse.
     # t0 = 1 - np.diag(np.dot(rtR_in , r)) # to make this faster we only need to calculates the columns/rows corresponding to the diagonals.
@@ -37,7 +55,7 @@ def mse(R_in, r, rtR_in, sigma_hat):
 
 
 @njit(cache=True, fastmath=True)
-def predictor(R_in, r, y, mu_hat):
+def _predictor(R_in, r, y, mu_hat):
     """Kriging predictor, according to (Jones 2001)"""
     rtR_in = np.dot(r.T, R_in)
     y_hat = mu_hat + np.dot(rtR_in, y - mu_hat)
@@ -45,48 +63,39 @@ def predictor(R_in, r, y, mu_hat):
 
 
 @njit(cache=True, fastmath=True)
-def sigma_mu_hat(R_in, y, n):
+def _sigma_mu_hat(R_in, y, n):
     t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
     sigma_hat = np.dot(t.T, np.dot(R_in, t)) / n
     return sigma_hat
 
 
 @njit(cache=True, fastmath=True)
-def fitness_func_loop(R_in_list, y, R):
+def _fitness_func_loop(R_in_list, y, R):
     """This function joins the left + right hand side of the concentrated log likelihood"""
     n_pop = R_in_list.shape[0]
     fit = np.zeros(n_pop)
     n = y.shape[0]
     for i in range(n_pop):
-        fit[i] = -n / 2 * np.log(sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(
+        fit[i] = -n / 2 * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(
             np.linalg.det(R[i])
         )
     return fit
 
 
-def fitness_func(hps, diff_matrix, y, corr):
-    R = corr_matrix_kriging_tune(hps, diff_matrix)
-
-    # computes many inverses simultaneously = much faster; no njit
-    R_in = np.linalg.inv(R)
-
-    return fitness_func_loop(R_in, y, R)
-
-
-def fitness_func_mf_regression(hps, diff_matrix, y, corr, R_diagonal):
+def fitness_func(hps, diff_matrix, y, corr, R_diagonal=0):
     """
-    fitness function if regression is included. Add values to the diagonal of the correlation matrix.
+    Fitness function for the tuning process. 
+
+    Regression is optionally included by adding values to the diagonal of the correlation matrix.
     R_diagonal: factors determining the correlation with a point with itself.
                 0 if sampled, 0> if originating from lower level/ not sampled on current.
-    hps_reg: regression hyperparameter, scaling R_diagonal contributions.
-             This hyperparameter is only dependent on levels, so always 1d.
     """
     R = corr_matrix_kriging_tune(hps, diff_matrix, R_diagonal)
 
     # computes many inverses simultaneously = much faster; no njit
     R_in = np.linalg.inv(R)
 
-    return fitness_func_loop(R_in, y, R)
+    return _fitness_func_loop(R_in, y, R)
 
 
 class OrdinaryKriging:
@@ -104,17 +113,17 @@ class OrdinaryKriging:
         # Those come back through R(_in) in both sigma and the prediction.
         self.r = self.corr(self.X, X_new, self.hps)
 
-        y_hat, rtR_in = predictor(self.R_in, self.r, self.y, self.mu_hat)
-        mse_var = mse(self.R_in, self.r, rtR_in, self.sigma_hat)
+        y_hat, rtR_in = _predictor(self.R_in, self.r, self.y, self.mu_hat)
+        mse_var = _mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         return y_hat, mse_var
 
-    def train(self, X, y, tune=False, R_diagonal=None, exclude = []):
+    def train(self, X, y, tune=False, R_diagonal=None):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X)
         self.y = y
 
         if tune:
-            self.tune(R_diagonal, exclude)
+            self.tune(R_diagonal)
 
         R = self.corr(self.X, self.X, self.hps)
 
@@ -127,39 +136,32 @@ class OrdinaryKriging:
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around
         self.R_in = linalg.inv(R)
-        self.mu_hat = mu_hat(self.R_in, y)
-        self.sigma_hat = sigma_hat(self.R_in, y, self.mu_hat, n)
+        self.mu_hat = _mu_hat(self.R_in, y)
+        self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
 
-    def tune(self, R_diagonal=None, exclude=[]):
+    def tune(self, R_diagonal=None):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
-        assert isinstance(
-            exclude, list
-        ), "TUNE: 'exlude' parameter must be passed a list"
 
         diff_m = diff_matrix(self.X, self.X)
 
         # select fitness function and arguments based on inclusion of our regression
         if R_diagonal is None:
-            ff = fitness_func
             other_function_arguments = [diff_m, self.y, self.corr]
         else:
-            ff = fitness_func_mf_regression
             other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
 
-        # TODO use self.hps as starting point
         # TODO implement hillclimbing
 
         # run model and time it
         start = time.time()
         model = ga(
-            function=ff,
-            dimension=self.hps.size - len(exclude),
+            function=fitness_func,
             other_function_arguments=other_function_arguments,
+            hps_init=self.hps,
             hps_constraints=self.hps_constraints,
             progress_bar=True,
             convergence_curve=False,
         )
-        model.run()
         t = time.time() - start
 
         # assign results to Kriging object
