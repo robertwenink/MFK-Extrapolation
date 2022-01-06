@@ -197,7 +197,8 @@ class geneticalgorithm:
             self.mniwi = self.iterate/5
         else:
             # new initial Population
-            pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
+            pop = np.zeros((self.pop_s,self.dim + 1))
+            
             p = np.arange(0, self.pop_s)            
             i = np.arange(self.dim)
             i,p = np.meshgrid(i,p)
@@ -215,6 +216,7 @@ class geneticalgorithm:
         return pop
         
     def run(self):
+        # inits
         pop = self.initialize_population()
 
         # Fitness of whole population at once.
@@ -246,8 +248,6 @@ class geneticalgorithm:
                 counter += 1
 
             # Normalizing objective function
-            normobj = np.zeros(self.pop_s)
-
             minobj = pop[0, self.dim]
             if minobj < 0:
                 normobj = pop[:, self.dim] + abs(minobj)
@@ -263,29 +263,17 @@ class geneticalgorithm:
             prob = normobj / sum_normobj
             cumprob = np.cumsum(prob)
 
-            # Select parents
-            par = np.array([np.zeros(self.dim + 1)] * self.par_s)
-
-            k = np.arange(self.num_elit)
-            par[k] = pop[k]
-
             # select random parents while keeping elitists.
-            k = np.arange(self.num_elit, self.par_s)
+            # works for the elitists because we sorted earlier.
             index = np.searchsorted(cumprob, np.random.random()) 
-            par[k] = pop[index]
+            pop[self.num_elit:self.par_s] = pop[index]
 
             par_count = 0
             while par_count == 0:
                 ef_par_list = np.random.random(self.par_s) <= self.prob_cross
                 par_count = np.sum(ef_par_list)
 
-            ef_par = par[ef_par_list]
-
-            # New generation
-            pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
-
-            k = np.arange(self.par_s)
-            pop[k] = par[k]
+            ef_par = pop[:self.par_s][ef_par_list]
 
             for k in range(self.par_s, self.pop_s, 2):
                 r1 = np.random.randint(0, par_count)

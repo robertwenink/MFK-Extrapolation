@@ -161,12 +161,11 @@ class OrdinaryKriging:
                 hps_init=self.hps,
                 hps_constraints=self.hps_constraints,
                 progress_bar=True,
-                convergence_curve=True,
+                convergence_curve=False,
                 reuse_pop=True
             )
         else:
             self.model.run()
-        self.model.run()
         
         t = time.time() - start
 

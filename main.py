@@ -23,8 +23,8 @@ if __name__ == "__main__":
     ok.train(X, y,True)
     
     
-    plot_kriging(setup,X, y, ok)
-    plt.show()
+    # plot_kriging(setup,X, y, ok)
+    # plt.show()
     
     if setup.SAVE_DATA:
         setup.X = X
