@@ -41,6 +41,7 @@ class geneticalgorithm:
         },
         convergence_curve=True,
         progress_bar=True,
+        reuse_pop=True,
     ):
         """
         @param function <Callable> - the given objective function to be minimized
@@ -69,7 +70,7 @@ class geneticalgorithm:
         @param convergence_curve <True/False> - Plot the convergence curve or not
         Default is True.
         @progress_bar <True/False> - Show progress bar or not. Default is True.
-
+        @reuse_po <True/False> - on a later run, do we want to re-use the last population of the previous run?
         """
         self.__name__ = geneticalgorithm
 
@@ -79,25 +80,14 @@ class geneticalgorithm:
 
         # NOTE own additions
         self.other_function_arguments = other_function_arguments
+        self.reuse_pop = reuse_pop
         
-        if hps_init is None:
-            self.hps_shape = hps_constraints.shape[:-1]
-        else:
-            assert (hps_init.ndim == 1), '\n please define hps_init as an 1d array of shape (..,)'
-            self.hps_shape = hps_init.shape
-
-        assert (hps_constraints.shape[:-1] == self.hps_shape), "\n please define hps_init and hps_constraints is similar fashion."
-
-        self.dim = self.hps_shape[0]
-
         # input variables' boundaries
         assert (
             type(hps_constraints).__module__ == "numpy"
         ), "\n hps_constraints must be numpy array"
 
-        assert (
-            len(hps_constraints) == self.dim
-        ), "\n hps_constraints must have a length equal dimension"
+        assert (hps_constraints.ndim == 2), "hps_constraints must be of dimension 2"
 
         for i in hps_constraints:
             assert (
@@ -107,6 +97,26 @@ class geneticalgorithm:
                 i[0] <= i[1]
             ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
         self.var_bound = hps_constraints
+
+        # check correctness of hps_init wrt boundaries
+        if hps_init is not None:
+            assert (hps_init.ndim == 1), '\n please define hps_init as an 1d array of shape (..,)'
+            assert (hps_constraints.shape[0] == hps_init.shape[0]), "\n please define hps_init and hps_constraints with matching shape."
+            
+            # check if the hyperparameters adhere to the constraints
+            for i in range(hps_constraints.shape[0]):
+                if not (hps_init[i] >= hps_constraints[i][0] and hps_init[i] <= hps_constraints[i][1]):
+                    print('WARNING: provided hps_init does not adhere to the constraints, falling back to default behavior.')
+                    hps_init = None
+                    break
+                    
+            self.hps_shape = hps_init.shape
+        else:
+            self.hps_shape = hps_constraints.shape[0]
+
+        self.hps_init = hps_init
+        self.dim = self.hps_shape[0]
+
         
         # convergence_curve
         self.convergence_curve = convergence_curve
@@ -157,7 +167,7 @@ class geneticalgorithm:
 
         # SET max numbers of iteration 
         if self.param["max_num_iteration"] == None:
-            self.iterate = round((10000/self.pop_s)**(((self.dim-1)/2 + 1)**(1/2))) # voor 2 decision variables prima
+            self.iterate = round(round((10000/self.pop_s)**(((self.dim-1)/2 + 1)**(1/2)))/self.pop_s)*self.pop_s # voor 2 decision variables prima
         else:
             self.iterate = int(self.param["max_num_iteration"])
 
@@ -174,25 +184,44 @@ class geneticalgorithm:
         else:
             self.mniwi = int(self.param["max_iteration_without_improv"])
 
+
         # if all correct, run
         self.run()
 
+    def initialize_population(self):
+        # do we want to re-use the previous population?
+        if hasattr(self, 'pop') and self.reuse_pop:
+            pop = self.pop
 
-    def run(self):
-        # Initial Population
-        pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
-
-        " Set initial guess here "
-        for p in range(0, self.pop_s):
+            # if so, set the max nr of iterations without improvement
+            self.mniwi = self.iterate/5
+        else:
+            # new initial Population
+            pop = np.array([np.zeros(self.dim + 1)] * self.pop_s)
+            p = np.arange(0, self.pop_s)            
             i = np.arange(self.dim)
-            pop[p,i] = self.var_bound[i,0] + np.random.random(size = self.dim) * (
+            i,p = np.meshgrid(i,p)
+            
+            pop[p,i] = self.var_bound[i,0] + np.random.random(size = (p.shape[0],self.dim)) * (
                 self.var_bound[i,1] - self.var_bound[i,0]
             )
 
+        # include hps_init if defined 
+        # if hps_init is a good solution it will end up in the elitists
+        if self.hps_init is not None:
+            # replace worst individual with hps_init, hps_init might differ from pop[0,..]
+            pop[-1,:-1] = self.hps_init
+            
+        return pop
+        
+    def run(self):
+        pop = self.initialize_population()
+
         # Fitness of whole population at once.
         pop[:,self.dim] = self.sim(pop[:,:-1])
+        pop = pop[pop[:, self.dim].argsort()]
 
-        # Report
+        # Report       
         self.report = []
         self.best_variable = pop[0,:-1]
         self.best_function = pop[0,-1]
@@ -285,10 +314,16 @@ class geneticalgorithm:
 
         # Sort
         pop = pop[pop[:, self.dim].argsort()]
+        self.pop = pop
 
         if pop[0, self.dim] < self.best_function:
             self.best_function = pop[0, self.dim]
             self.best_variable = pop[0, : self.dim]
+
+        # if we reuse the previous population in a next run,
+        # we wont use the same hps_init again next run, unless we set it explicitly.
+        if self.reuse_pop:
+            self.hps_init = None
         
         # Report
         self.best_variable = self.best_variable.reshape(self.hps_shape)

@@ -154,23 +154,29 @@ class OrdinaryKriging:
 
         # run model and time it
         start = time.time()
-        model = ga(
-            function=fitness_func,
-            other_function_arguments=other_function_arguments,
-            hps_init=self.hps,
-            hps_constraints=self.hps_constraints,
-            progress_bar=True,
-            convergence_curve=False,
-        )
+        if not hasattr(self, "model"):    
+            self.model = ga(
+                function=fitness_func,
+                other_function_arguments=other_function_arguments,
+                hps_init=self.hps,
+                hps_constraints=self.hps_constraints,
+                progress_bar=True,
+                convergence_curve=True,
+                reuse_pop=True
+            )
+        else:
+            self.model.run()
+        self.model.run()
+        
         t = time.time() - start
 
         # assign results to Kriging object
-        self.hps = model.output_dict["variable"].reshape(self.hps.shape)
+        self.hps = self.model.output_dict["variable"].reshape(self.hps.shape)
 
         # print results of tuning
         print(
             "Tuning completed with fitness {} and time {} s".format(
-                model.output_dict["function"], t
+                self.model.output_dict["function"], t
             )
         )
 
