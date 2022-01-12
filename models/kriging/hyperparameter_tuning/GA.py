@@ -5,10 +5,9 @@ import sys
 import time
 import matplotlib.pyplot as plt
 
-# TODO use this hillclimbing algorithm. id: use this only for the new parents. do this once in a while
-from scipy.optimize.lbfgsb import _minimize_lbfgsb
 from scipy.optimize import minimize
 
+from utils.data_utils import correct_format_hps
 
 class geneticalgorithm:
 
@@ -31,14 +30,14 @@ class geneticalgorithm:
     def __init__(
         self,
         function,
+        hps_init,
         hps_constraints,
-        hps_init=None,
         algorithm_parameters={
             "max_num_iteration": None,
             "population_size": 100,
-            "mutation_probability": 0.2,
+            "mutation_probability": 0.1,
             "elit_ratio": 0.02,
-            "crossover_probability": 0.6,
+            "crossover_probability": 0.5,
             "parents_portion": 0.3,
             "crossover_type": "two_point",
             "max_iteration_without_improv": None,
@@ -84,7 +83,7 @@ class geneticalgorithm:
 
         # NOTE own additions
         self.reuse_pop = reuse_pop
-        self.hillclimb_interval = 100
+        self.hillclimb_interval = 20
 
         # input variables' boundaries
         assert (
@@ -100,35 +99,25 @@ class geneticalgorithm:
             assert (
                 i[0] <= i[1]
             ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
-        self.var_bound = hps_constraints
 
-        # check correctness of hps_init wrt boundaries
-        if hps_init is not None:
-            assert (
-                hps_init.ndim == 1
-            ), "\n please define hps_init as an 1d array of shape (..,)"
-            assert (
-                hps_constraints.shape[0] == hps_init.shape[0]
-            ), "\n please define hps_init and hps_constraints with matching shape."
-
-            # check if the hyperparameters adhere to the constraints
-            for i in range(hps_constraints.shape[0]):
-                if not (
-                    hps_init[i] >= hps_constraints[i][0]
-                    and hps_init[i] <= hps_constraints[i][1]
-                ):
-                    print(
-                        "WARNING: provided hps_init does not adhere to the constraints, falling back to default behavior."
-                    )
-                    hps_init = None
-                    break
-
-            self.hps_shape = hps_init.shape
-        else:
-            self.hps_shape = hps_constraints.shape[0]
+        # check correctness  hps_init wrt boundaries
+        assert (
+            hps_init.ndim == 1
+        ), "\n please define hps_init as an 1d array of shape (..,)"
 
         self.hps_init = hps_init
-        self.dim = self.hps_shape[0]
+
+        self.dim = 0
+
+        self.hps_tune_indices = []
+        for i in range(hps_constraints.shape[0]):
+            if hps_constraints[i][0] != hps_constraints[i][1]:
+                self.hps_tune_indices.append(i)
+                self.dim += 1
+        self.hps_constraints = hps_constraints[self.hps_tune_indices]
+
+        # we might not tune all hps!!
+        self.hps_dim = hps_init.shape[0]
 
         # convergence_curve
         self.convergence_curve = convergence_curve
@@ -199,7 +188,7 @@ class geneticalgorithm:
         self.stop_mniwi = False
         if self.param["max_iteration_without_improv"] == None:
             if self.hillclimb_interval:
-                self.mniwi = min(2 * self.hillclimb_interval,max(self.iterate/20,self.hillclimb_interval))
+                self.mniwi = 4 * self.hillclimb_interval
             else:
                 self.mniwi = self.iterate + 1
         else:
@@ -223,15 +212,12 @@ class geneticalgorithm:
             i = np.arange(self.dim)
             i, p = np.meshgrid(i, p)
 
-            pop[p, i] = self.var_bound[i, 0] + np.random.random(
+            pop[p, i] = self.hps_constraints[i, 0] + np.random.random(
                 size=(p.shape[0], self.dim)
-            ) * (self.var_bound[i, 1] - self.var_bound[i, 0])
+            ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
 
-        # include hps_init if defined
-        # if hps_init is a good solution it will end up in the elitists
-        if self.hps_init is not None:
-            # replace worst individual with hps_init, hps_init might differ from pop[0,..]
-            pop[-1, : self.dim] = self.hps_init
+        # replace worst individual with hps_init, hps_init might differ from pop[0,..]
+        pop[-1, :self.dim] = self.hps_init[self.hps_tune_indices]
 
         return pop
 
@@ -266,13 +252,6 @@ class geneticalgorithm:
 
             if self.progress_bar == True:
                 self.progress(t, self.iterate, status="GA is running...")
-
-            if pop[0, self.dim] < self.best_function:
-                counter = 0
-                self.best_function = pop[0, self.dim].copy()
-                self.best_variable = pop[0, : self.dim].copy()
-            else:
-                counter += 1
 
             # Normalizing objective function
             minobj = pop[0, self.dim]
@@ -309,9 +288,9 @@ class geneticalgorithm:
 
                 ch1, ch2 = cross(pvar1, pvar2, self.dim, self.c_type)
 
-                ch1 = mut(ch1, self.var_bound, self.prob_mut, self.dim)
+                ch1 = mut(ch1, self.hps_constraints, self.prob_mut, self.dim)
                 ch2 = mutmidle(
-                    ch2, pvar1, pvar2, self.var_bound, self.prob_mut, self.dim
+                    ch2, pvar1, pvar2, self.hps_constraints, self.prob_mut, self.dim
                 )
                 pop[k : k + 2, : self.dim] = ch1, ch2
                 pop[k : k + 2, self.dim + 1] = 0
@@ -319,23 +298,30 @@ class geneticalgorithm:
             # Fitness of whole population at once.
             if (t + 1) % self.hillclimb_interval == 0:
                 # pop[:self.par_s, :] = self.hillclimbing(pop[:self.par_s, :])
-                # pop = self.hillclimbing(pop)
-                pop[self.par_s:, :] = self.hillclimbing(pop[self.par_s:, :])
+                pop = self.hillclimbing(self.rerandomize_population(pop))
+                # pop[self.par_s:, :] = self.hillclimbing(pop[self.par_s:, :])
             else:
                 pop[self.par_s :, self.dim] = self.sim(pop[self.par_s :, : self.dim])
 
             # Sort
             pop = pop[pop[:, self.dim].argsort()]
+            if pop[0, self.dim] < self.best_function:
+                counter = 0
+                self.best_function = pop[0, self.dim].copy()
+                self.best_variable = pop[0, : self.dim].copy()
+            else:
+                counter += 1
 
-    #############################################################
-    #############################################################
-            t += 1
             if counter > self.mniwi:
                 self.stop_mniwi = True
                 break
 
             # Report
             self.report.append(-pop[0, self.dim])
+            t += 1
+
+            #############################################################
+            #############################################################
 
         # Sort
         pop = pop[pop[:, self.dim].argsort()]
@@ -345,15 +331,10 @@ class geneticalgorithm:
             self.best_function = pop[0, self.dim]
             self.best_variable = pop[0, : self.dim]
 
-        # if we reuse the previous population in a next run,
-        # we wont use the same hps_init again next run, unless we set it explicitly.
-        if self.reuse_pop:
-            self.hps_init = None
-
         # Report
-        self.best_variable = self.best_variable.reshape(self.hps_shape)
+        self.best_variable =self.reform_pop(self.best_variable)
         self.output_dict = {
-            "variable": self.best_variable,
+            "variable": self.best_variable, # return the full hp!
             "function": -self.best_function,
         }
 
@@ -379,23 +360,40 @@ class geneticalgorithm:
                 + " maximum number of iterations without improvement was met!\n"
             )
 
-    def test(self, x):
-        return np.sum(x)
+    def rerandomize_population(self,pop):
+        """ With hillclimbing, we will have many points converged to the same solution, i.e. are np.allclose;
+        This happens mainly in the elitists/parents. We filter those, and introduce new random samples.
+        Multistart in ga form"""
+        d = np.arange(self.dim)
+        for i in range(1,pop.shape[0]):
+            if np.isclose(pop[i], pop[i-1]).all():
+                pop[i, d] = self.hps_constraints[d, 0] + np.random.random(
+                    size=(1, self.dim)
+                ) * (self.hps_constraints[d, 1] - self.hps_constraints[d, 0])
+        return pop
 
-    def hillclimbing(self, parents):
-        for i in range(parents.shape[0]):
-            if parents[i][self.dim + 1] == 0:
-                hps0 = parents[i][: self.dim]
+    def hillclimbing(self, individuals):
+        for i in range(individuals.shape[0]):
+            if individuals[i][self.dim + 1] == 0: # tune only those not tuned before
+                hps0 = individuals[i][: self.dim]
                 result = minimize(
-                    self.sim, hps0, method="L-BFGS-B", bounds=self.var_bound
+                    self.sim, hps0, method="L-BFGS-B", bounds=self.hps_constraints
                 )
-                parents[i][: self.dim] = result.x
-                parents[i][self.dim] = result.fun
-                parents[i][self.dim + 1] = result.success
-        return parents
+                individuals[i][: self.dim] = result.x
+                individuals[i][self.dim] = result.fun
+                individuals[i][self.dim + 1] = result.success
+        return individuals
+
+    def reform_pop(self,hps):
+        if hps.ndim == 1:
+            hps_pop = correct_format_hps(self.hps_init) # for the case population size 1
+        else:
+            hps_pop = np.ones((hps.shape[0],self.hps_dim))*self.hps_init
+        hps_pop[:,self.hps_tune_indices] = hps
+        return hps_pop
 
     def sim(self, hps):
-        obj = -self.f(hps)
+        obj = -self.f(self.reform_pop(hps))
         return obj
 
     def progress(self, count, total, status=""):
@@ -414,18 +412,18 @@ class geneticalgorithm:
 
 
 @njit(cache=True, fastmath=True)
-def mut(x, var_bound, prob_mut, dim):
+def mut(x, hps_constraints, prob_mut, dim):
     for i in range(dim):
         ran = np.random.random()
         if ran < prob_mut:
-            x[i] = var_bound[i, 0] + np.random.random() * (
-                var_bound[i, 1] - var_bound[i, 0]
+            x[i] = hps_constraints[i, 0] + np.random.random() * (
+                hps_constraints[i, 1] - hps_constraints[i, 0]
             )
     return x
 
 
 @njit(cache=True, fastmath=True)
-def mutmidle(x, p1, p2, var_bound, prob_mut, dim):
+def mutmidle(x, p1, p2, hps_constraints, prob_mut, dim):
     for i in range(dim):
         ran = np.random.random()
         if ran < prob_mut:
@@ -434,8 +432,8 @@ def mutmidle(x, p1, p2, var_bound, prob_mut, dim):
             elif p1[i] > p2[i]:
                 x[i] = p2[i] + np.random.random() * (p1[i] - p2[i])
             else:
-                x[i] = var_bound[i, 0] + np.random.random() * (
-                    var_bound[i, 1] - var_bound[i, 0]
+                x[i] = hps_constraints[i, 0] + np.random.random() * (
+                    hps_constraints[i, 1] - hps_constraints[i, 0]
                 )
     return x
 

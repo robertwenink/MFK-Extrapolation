@@ -8,10 +8,10 @@ from numba import njit
 import time
 
 from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
-from utils.data_utils import correct_formatX, correct_format_hps
+from utils.data_utils import correct_formatX
 
 
-def Kriging(setup, X, y, tuning=False, R_diagonal=None, hps_init=None, train=True):
+def Kriging(setup, X, y, tuning=False, R_diagonal=0, hps_init=None, train=True):
     """
     This method clusters and provides all the functionality required for setting up a kriging model.
     """
@@ -62,14 +62,14 @@ def _predictor(R_in, r, y, mu_hat):
     return y_hat, rtR_in
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
     # t = y - np.sum(np.dot(R_in, y)) /np.sum(R_in)
     t = y - np.sum(R_in * y) / np.sum(R_in)
     return np.dot(t.T, np.dot(R_in, t)) / n
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True)
 def _fitness_func_loop(R_in_list, y, R):
     """This function joins the left + right hand side of the concentrated log likelihood"""
     n_pop = R_in_list.shape[0]
@@ -102,11 +102,14 @@ class OrdinaryKriging:
         mse_var = _mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         return y_hat, mse_var
 
-    def train(self, X, y, tune=False, R_diagonal=None):
+    def train(self, X, y, tune=False, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X)
         self.y = y
 
+        self.diff_matrix = diff_matrix(self.X, self.X)
+        self.R_diagonal = R_diagonal
+        
         if tune:
             self.tune(R_diagonal)
 
@@ -132,28 +135,23 @@ class OrdinaryKriging:
         R_diagonal: factors determining the correlation with a point with itself.
                     0 if sampled, 0> if originating from lower level/ not sampled on current.
         """
-        hps = correct_format_hps(hps) # for the case population size 1
+
         R = corr_matrix_kriging_tune(hps, self.diff_matrix, self.R_diagonal)
     
         # computes many inverses simultaneously = somewhat faster; no njit
         R_in = np.linalg.inv(R)
+
+        # rsum = np.sum(R_in,axis=(1,2))==0
+        # if np.any(rsum):
+        #     print("sum Rin 0!! for hps {}".format(hps[rsum]))
 
         if hps.shape[0] == 1:
             return _fitness_func_loop(R_in, self.y, R).item()
         else:
             return _fitness_func_loop(R_in, self.y, R)
     
-    def tune(self, R_diagonal=None):
+    def tune(self, R_diagonal=0):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
-
-        self.diff_matrix = diff_matrix(self.X, self.X)
-
-        if R_diagonal == None:
-            self.R_diagonal = 0
-        else:
-            self.R_diagonal = R_diagonal
-        
-        # TODO implement hillclimbing
 
         # run model and time it
         start = time.time()
@@ -180,4 +178,3 @@ class OrdinaryKriging:
                 self.model.output_dict["function"], t
             )
         )
-        self.R_diagonal = None

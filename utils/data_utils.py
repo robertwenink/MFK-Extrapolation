@@ -24,11 +24,11 @@ def correct_formatX(a):
 
 def correct_format_hps(a):
     if not isinstance(a, np.ndarray):
-        a = np.array(a)
+        a = np.array(a,dtype=np.float64)
     if a.ndim == 0:
-        a = np.array([a])
+        a = np.array([a],dtype=np.float64)
     if a.ndim == 1:
-        return np.array([a])
+        return np.array([a],dtype=np.float64)
     return a
 
 

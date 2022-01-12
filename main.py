@@ -8,7 +8,7 @@ from postprocessing.plotting import plot_kriging
 from preprocessing.input import Input
 from scipy.optimize import minimize
 
-setup = Input(0)
+setup = Input(2)
 
 if __name__ == "__main__":
     doe = get_doe(setup)
