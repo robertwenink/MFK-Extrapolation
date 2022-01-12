@@ -4,11 +4,11 @@ Ordinary Kriging
 import numpy as np
 from scipy import linalg
 from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
-from numba import njit, prange
+from numba import njit
 import time
 
 from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
-from utils.data_utils import correct_formatX
+from utils.data_utils import correct_formatX, correct_format_hps
 
 
 def Kriging(setup, X, y, tuning=False, R_diagonal=None, hps_init=None, train=True):
@@ -64,9 +64,9 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True, fastmath=True)
 def _sigma_mu_hat(R_in, y, n):
-    t = y - (np.sum(np.dot(R_in, y)) / np.sum(R_in))
-    sigma_hat = np.dot(t.T, np.dot(R_in, t)) / n
-    return sigma_hat
+    # t = y - np.sum(np.dot(R_in, y)) /np.sum(R_in)
+    t = y - np.sum(R_in * y) / np.sum(R_in)
+    return np.dot(t.T, np.dot(R_in, t)) / n
 
 
 @njit(cache=True, fastmath=True)
@@ -76,26 +76,11 @@ def _fitness_func_loop(R_in_list, y, R):
     fit = np.zeros(n_pop)
     n = y.shape[0]
     for i in range(n_pop):
-        fit[i] = -n / 2 * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - (1 / 2) * np.log(
+        # MLE, omitting factor 1/2
+        fit[i] = -n * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - np.log(
             np.linalg.det(R[i])
         )
     return fit
-
-
-def fitness_func(hps, diff_matrix, y, corr, R_diagonal=0):
-    """
-    Fitness function for the tuning process. 
-
-    Regression is optionally included by adding values to the diagonal of the correlation matrix.
-    R_diagonal: factors determining the correlation with a point with itself.
-                0 if sampled, 0> if originating from lower level/ not sampled on current.
-    """
-    R = corr_matrix_kriging_tune(hps, diff_matrix, R_diagonal)
-
-    # computes many inverses simultaneously = much faster; no njit
-    R_in = np.linalg.inv(R)
-
-    return _fitness_func_loop(R_in, y, R)
 
 
 class OrdinaryKriging:
@@ -139,29 +124,46 @@ class OrdinaryKriging:
         self.mu_hat = _mu_hat(self.R_in, y)
         self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
 
+    def fitness_func(self, hps):
+        """
+        Fitness function for the tuning process. 
+    
+        Regression is optionally included by adding values to the diagonal of the correlation matrix.
+        R_diagonal: factors determining the correlation with a point with itself.
+                    0 if sampled, 0> if originating from lower level/ not sampled on current.
+        """
+        hps = correct_format_hps(hps) # for the case population size 1
+        R = corr_matrix_kriging_tune(hps, self.diff_matrix, self.R_diagonal)
+    
+        # computes many inverses simultaneously = somewhat faster; no njit
+        R_in = np.linalg.inv(R)
+
+        if hps.shape[0] == 1:
+            return _fitness_func_loop(R_in, self.y, R).item()
+        else:
+            return _fitness_func_loop(R_in, self.y, R)
+    
     def tune(self, R_diagonal=None):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
 
-        diff_m = diff_matrix(self.X, self.X)
+        self.diff_matrix = diff_matrix(self.X, self.X)
 
-        # select fitness function and arguments based on inclusion of our regression
-        if R_diagonal is None:
-            other_function_arguments = [diff_m, self.y, self.corr]
+        if R_diagonal == None:
+            self.R_diagonal = 0
         else:
-            other_function_arguments = [diff_m, self.y, self.corr, R_diagonal]
-
+            self.R_diagonal = R_diagonal
+        
         # TODO implement hillclimbing
 
         # run model and time it
         start = time.time()
         if not hasattr(self, "model"):    
             self.model = ga(
-                function=fitness_func,
-                other_function_arguments=other_function_arguments,
+                function=self.fitness_func,
                 hps_init=self.hps,
                 hps_constraints=self.hps_constraints,
                 progress_bar=True,
-                convergence_curve=False,
+                convergence_curve=True,
                 reuse_pop=True
             )
         else:
@@ -178,11 +180,4 @@ class OrdinaryKriging:
                 self.model.output_dict["function"], t
             )
         )
-
-
-# NOTE TODO
-# But I'd be amiss if I didn't point out that this is very rarely really necessary:
-# anytime you need to compute a product A−1b, you should instead solve the linear system Ax=b
-# (e.g., using numpy.linalg.solve) and use x instead -- this is much more stable, and can be done
-# (depending on the structure of the matrix A) much faster. If you need to use A−1 multiple times,
-#  you can precompute a factorization of A (which is usually the most expensive part of the solve) and reuse that later.
+        self.R_diagonal = None

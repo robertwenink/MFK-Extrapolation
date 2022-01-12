@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 
 
 def correct_formatX(a):
@@ -19,6 +20,17 @@ def correct_formatX(a):
     if a.ndim == 1:
         return np.array([a]).T
     return a
+
+
+def correct_format_hps(a):
+    if not isinstance(a, np.ndarray):
+        a = np.array(a)
+    if a.ndim == 0:
+        a = np.array([a])
+    if a.ndim == 1:
+        return np.array([a])
+    return a
+
 
 def return_unique(X):
     # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6

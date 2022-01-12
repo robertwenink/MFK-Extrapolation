@@ -8,6 +8,7 @@ For Kriging we have to use a kernel that is able to scale the dimensions accordi
 import numpy as np
 
 from numba import njit
+from utils.data_utils import correct_formatX
 
 
 def get_available_kernel_names():
@@ -36,13 +37,13 @@ def get_kernel(setup):
         # We can now externally always use >= and <= respectively.
         # hps_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
         hps_constraints = np.array(
-            [[[0, 1000]] * setup.d, [[2, 2]] * setup.d]
+            [[[0+np.finfo(np.float64).eps, 1000]] * setup.d, [[2 - np.finfo(np.float64).eps, 2]] * setup.d]
         ).reshape(-1,2)
 
         if setup.noise_regression:
             hps_constraints = np.append(hps_constraints,[[0, 0.001]], axis=0)
         else:
-            hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)        
+            hps_constraints = np.append(hps_constraints,[[0, 0+np.finfo(np.float64).eps]], axis=0)        
 
         return func, hps, hps_constraints
 

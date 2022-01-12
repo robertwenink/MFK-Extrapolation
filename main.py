@@ -6,6 +6,7 @@ from models.kriging.method.OK import OrdinaryKriging
 from postprocessing.plotting import plot_kriging
 
 from preprocessing.input import Input
+from scipy.optimize import minimize
 
 setup = Input(0)
 
@@ -23,8 +24,8 @@ if __name__ == "__main__":
     ok.train(X, y,True)
     
     
-    # plot_kriging(setup,X, y, ok)
-    # plt.show()
+    plot_kriging(setup,X, y, ok)
+    plt.show()
     
     if setup.SAVE_DATA:
         setup.X = X
