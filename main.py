@@ -15,7 +15,7 @@ if __name__ == "__main__":
     if hasattr(setup,'X'):
         X = setup.X
     else:
-        X = doe(setup, 20)
+        X = doe(setup, 10*setup.d)
     
     solver = get_solver(setup)
     y, _ = solver.solve(X,2)

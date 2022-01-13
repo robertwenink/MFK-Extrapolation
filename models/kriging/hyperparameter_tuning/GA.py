@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 
 from utils.data_utils import correct_format_hps
 
+
 class geneticalgorithm:
 
     """
@@ -34,10 +35,9 @@ class geneticalgorithm:
         hps_constraints,
         algorithm_parameters={
             "max_num_iteration": None,
-            "population_size": 100,
             "mutation_probability": 0.1,
-            "elit_ratio": 0.02,
-            "crossover_probability": 0.5,
+            "elit_ratio": 0.05,
+            "crossover_probability": 0.3,
             "parents_portion": 0.3,
             "crossover_type": "two_point",
             "max_iteration_without_improv": None,
@@ -77,44 +77,25 @@ class geneticalgorithm:
         """
         self.__name__ = geneticalgorithm
 
-        # input function
-        assert callable(function), "function must be callable"
-        self.f = function
-
-        # NOTE own additions
+        self.param = algorithm_parameters
         self.reuse_pop = reuse_pop
-        self.hillclimb_interval = 20
-
-        # input variables' boundaries
-        assert (
-            type(hps_constraints).__module__ == "numpy"
-        ), "\n hps_constraints must be numpy array"
-
-        assert hps_constraints.ndim == 2, "hps_constraints must be of dimension 2"
-
-        for i in hps_constraints:
-            assert (
-                len(i) == 2
-            ), "\n boundary for each variable must be a tuple of length two."
-            assert (
-                i[0] <= i[1]
-            ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
-
-        # check correctness  hps_init wrt boundaries
-        assert (
-            hps_init.ndim == 1
-        ), "\n please define hps_init as an 1d array of shape (..,)"
-
         self.hps_init = hps_init
 
         self.dim = 0
-
         self.hps_tune_indices = []
         for i in range(hps_constraints.shape[0]):
             if hps_constraints[i][0] != hps_constraints[i][1]:
-                self.hps_tune_indices.append(i)
+                self.hps_tune_indices.append(True)
                 self.dim += 1
+            else:
+                self.hps_tune_indices.append(False)
         self.hps_constraints = hps_constraints[self.hps_tune_indices]
+        
+        self.pop_s = min(int(10 ** np.sqrt(2*self.dim)),1000)
+
+        # assert all input
+        self.assert_input(function, hps_init, hps_constraints, progress_bar)
+
 
         # we might not tune all hps!!
         self.hps_dim = hps_init.shape[0]
@@ -126,69 +107,18 @@ class geneticalgorithm:
             self.fig, self.ax = plt.subplots()
             self.fig.set_label("GA")
 
-        # progress_bar
-        self.progress_bar = progress_bar
-
-        # input algorithm's parameters
-        self.param = algorithm_parameters
-        self.pop_s = int(self.param["population_size"])
-
-        assert (
-            self.param["parents_portion"] <= 1 and self.param["parents_portion"] >= 0
-        ), "parents_portion must be in range [0,1]"
-
-        self.par_s = int(self.param["parents_portion"] * self.pop_s)
-        if (self.pop_s - self.par_s) % 2 != 0:
-            self.par_s += 1
-
-        self.prob_mut = self.param["mutation_probability"]
-
-        assert (
-            self.prob_mut <= 1 and self.prob_mut >= 0
-        ), "mutation_probability must be in range [0,1]"
-
-        self.prob_cross = self.param["crossover_probability"]
-        assert (
-            self.prob_cross <= 1 and self.prob_cross >= 0
-        ), "mutation_probability must be in range [0,1]"
-
-        assert (
-            self.param["elit_ratio"] <= 1 and self.param["elit_ratio"] >= 0
-        ), "elit_ratio must be in range [0,1]"
-
-        trl = self.pop_s * self.param["elit_ratio"]
-        if trl < 1 and self.param["elit_ratio"] > 0:
-            self.num_elit = 1
-        else:
-            self.num_elit = int(trl)
-
-        assert (
-            self.par_s >= self.num_elit
-        ), "\n number of parents must be greater than number of elits"
-
         # SET max numbers of iteration
         if self.param["max_num_iteration"] == None:
-            self.iterate = (
-                round(
-                    round((10000 / self.pop_s) ** (((self.dim - 1) / 2 + 1) ** (1 / 2)))
-                    / self.pop_s
-                )
-                * self.pop_s
-            )  # voor 2 decision variables prima
+            self.iterate = 1000
         else:
             self.iterate = int(self.param["max_num_iteration"])
 
-        self.c_type = self.param["crossover_type"]
-        assert (
-            self.c_type == "uniform"
-            or self.c_type == "one_point"
-            or self.c_type == "two_point"
-        ), "\n crossover_type must 'uniform', 'one_point', or 'two_point' Enter string"
+        self.hillclimb_interval = int(self.iterate / 20)  # each 5 percent
 
         self.stop_mniwi = False
         if self.param["max_iteration_without_improv"] == None:
             if self.hillclimb_interval:
-                self.mniwi = 4 * self.hillclimb_interval
+                self.mniwi = 2 * self.hillclimb_interval
             else:
                 self.mniwi = self.iterate + 1
         else:
@@ -198,6 +128,9 @@ class geneticalgorithm:
         self.run()
 
     def initialize_population(self):
+        self.hps_pop = np.zeros((self.pop_s, self.hps_dim)) + self.hps_init
+        self.hps_pop[:, self.hps_tune_indices] = 0
+
         # do we want to re-use the previous population?
         if hasattr(self, "pop") and self.reuse_pop:
             pop = self.pop
@@ -217,7 +150,7 @@ class geneticalgorithm:
             ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
 
         # replace worst individual with hps_init, hps_init might differ from pop[0,..]
-        pop[-1, :self.dim] = self.hps_init[self.hps_tune_indices]
+        pop[-1, : self.dim] = self.hps_init[self.hps_tune_indices]
 
         return pop
 
@@ -306,7 +239,10 @@ class geneticalgorithm:
             # Sort
             pop = pop[pop[:, self.dim].argsort()]
             if pop[0, self.dim] < self.best_function:
-                counter = 0
+                if not np.allclose(pop[0, self.dim],self.best_function):
+                    counter = 0
+                else:
+                    counter += 1
                 self.best_function = pop[0, self.dim].copy()
                 self.best_variable = pop[0, : self.dim].copy()
             else:
@@ -332,9 +268,9 @@ class geneticalgorithm:
             self.best_variable = pop[0, : self.dim]
 
         # Report
-        self.best_variable =self.reform_pop(self.best_variable)
+        self.best_variable = self.reform_pop(self.best_variable).ravel()
         self.output_dict = {
-            "variable": self.best_variable, # return the full hp!
+            "variable": self.best_variable,  # return the full hp!
             "function": -self.best_function,
         }
 
@@ -360,13 +296,13 @@ class geneticalgorithm:
                 + " maximum number of iterations without improvement was met!\n"
             )
 
-    def rerandomize_population(self,pop):
-        """ With hillclimbing, we will have many points converged to the same solution, i.e. are np.allclose;
+    def rerandomize_population(self, pop):
+        """With hillclimbing, we will have many points converged to the same solution, i.e. are np.allclose;
         This happens mainly in the elitists/parents. We filter those, and introduce new random samples.
         Multistart in ga form"""
         d = np.arange(self.dim)
-        for i in range(1,pop.shape[0]):
-            if np.isclose(pop[i], pop[i-1]).all():
+        for i in range(1, pop.shape[0]):
+            if np.isclose(pop[i], pop[i - 1]).all():
                 pop[i, d] = self.hps_constraints[d, 0] + np.random.random(
                     size=(1, self.dim)
                 ) * (self.hps_constraints[d, 1] - self.hps_constraints[d, 0])
@@ -374,23 +310,23 @@ class geneticalgorithm:
 
     def hillclimbing(self, individuals):
         for i in range(individuals.shape[0]):
-            if individuals[i][self.dim + 1] == 0: # tune only those not tuned before
+            if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
                 hps0 = individuals[i][: self.dim]
                 result = minimize(
-                    self.sim, hps0, method="L-BFGS-B", bounds=self.hps_constraints
+                    self.sim, hps0, bounds=self.hps_constraints #, method="L-BFGS-B"
                 )
                 individuals[i][: self.dim] = result.x
                 individuals[i][self.dim] = result.fun
                 individuals[i][self.dim + 1] = result.success
         return individuals
 
-    def reform_pop(self,hps):
-        if hps.ndim == 1:
-            hps_pop = correct_format_hps(self.hps_init) # for the case population size 1
-        else:
-            hps_pop = np.ones((hps.shape[0],self.hps_dim))*self.hps_init
-        hps_pop[:,self.hps_tune_indices] = hps
-        return hps_pop
+    def reform_pop(self, hps):
+        """
+        Return the hyperparameters to full form, including the non-tuned hps.
+        """
+        new_hps = self.hps_pop[: ((hps.ndim - 1) * (hps.shape[0] - 1) + 1), :]
+        new_hps[:, self.hps_tune_indices] = hps
+        return new_hps
 
     def sim(self, hps):
         obj = -self.f(self.reform_pop(hps))
@@ -409,6 +345,75 @@ class geneticalgorithm:
 
             sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
             sys.stdout.flush()
+
+    def assert_input(self, function, hps_init, hps_constraints, progress_bar):
+        # input variables' boundaries
+        assert (
+            type(hps_constraints).__module__ == "numpy"
+        ), "\n hps_constraints must be numpy array"
+
+        assert hps_constraints.ndim == 2, "hps_constraints must be of dimension 2"
+
+        for i in hps_constraints:
+            assert (
+                len(i) == 2
+            ), "\n boundary for each variable must be a tuple of length two."
+            assert (
+                i[0] <= i[1]
+            ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
+
+        # check correctness  hps_init wrt boundaries
+        assert (
+            hps_init.ndim == 1
+        ), "\n please define hps_init as an 1d array of shape (..,)"
+
+        # input function
+        assert callable(function), "function must be callable"
+        self.f = function
+
+        # progress_bar
+        self.progress_bar = progress_bar
+
+        # input algorithm's parameters
+        assert (
+            self.param["parents_portion"] <= 1 and self.param["parents_portion"] >= 0
+        ), "parents_portion must be in range [0,1]"
+
+        self.par_s = int(self.param["parents_portion"] * self.pop_s)
+        if (self.pop_s - self.par_s) % 2 != 0:
+            self.par_s += 1
+
+        self.prob_mut = self.param["mutation_probability"]
+
+        assert (
+            self.prob_mut <= 1 and self.prob_mut >= 0
+        ), "mutation_probability must be in range [0,1]"
+
+        self.prob_cross = self.param["crossover_probability"]
+        assert (
+            self.prob_cross <= 1 and self.prob_cross >= 0
+        ), "mutation_probability must be in range [0,1]"
+
+        assert (
+            self.param["elit_ratio"] <= 1 and self.param["elit_ratio"] >= 0
+        ), "elit_ratio must be in range [0,1]"
+
+        trl = self.pop_s * self.param["elit_ratio"]
+        if trl < 1 and self.param["elit_ratio"] > 0:
+            self.num_elit = 1
+        else:
+            self.num_elit = int(trl)
+
+        assert (
+            self.par_s >= self.num_elit
+        ), "\n number of parents must be greater than number of elits"
+
+        self.c_type = self.param["crossover_type"]
+        assert (
+            self.c_type == "uniform"
+            or self.c_type == "one_point"
+            or self.c_type == "two_point"
+        ), "\n crossover_type must 'uniform', 'one_point', or 'two_point' Enter string"
 
 
 @njit(cache=True, fastmath=True)
@@ -466,28 +471,3 @@ def cross(x, y, dim, c_type):
                 ofs2[i] = x[i]
 
     return ofs1, ofs2
-
-
-"""
-
-Copyright 2020 Ryan (Mohammad) Solgi
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of 
-this software and associated documentation files (the "Software"), to deal in 
-the Software without restriction, including without limitation the rights to use, 
-copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the 
-Software, and to permit persons to whom the Software is furnished to do so, 
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
-SOFTWARE.
-
-"""

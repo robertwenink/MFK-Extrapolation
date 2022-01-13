@@ -61,7 +61,6 @@ def _predictor(R_in, r, y, mu_hat):
     y_hat = mu_hat + np.dot(rtR_in, y - mu_hat)
     return y_hat, rtR_in
 
-
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
     # t = y - np.sum(np.dot(R_in, y)) /np.sum(R_in)
@@ -77,9 +76,7 @@ def _fitness_func_loop(R_in_list, y, R):
     n = y.shape[0]
     for i in range(n_pop):
         # MLE, omitting factor 1/2
-        fit[i] = -n * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - np.log(
-            np.linalg.det(R[i])
-        )
+        fit[i] = -n * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - np.linalg.slogdet(R[i])[1]
     return fit
 
 
@@ -137,13 +134,9 @@ class OrdinaryKriging:
         """
 
         R = corr_matrix_kriging_tune(hps, self.diff_matrix, self.R_diagonal)
-    
+        
         # computes many inverses simultaneously = somewhat faster; no njit
         R_in = np.linalg.inv(R)
-
-        # rsum = np.sum(R_in,axis=(1,2))==0
-        # if np.any(rsum):
-        #     print("sum Rin 0!! for hps {}".format(hps[rsum]))
 
         if hps.shape[0] == 1:
             return _fitness_func_loop(R_in, self.y, R).item()
@@ -152,7 +145,7 @@ class OrdinaryKriging:
     
     def tune(self, R_diagonal=0):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
-
+        # self.hps = np.array([np.finfo(np.float32).eps,np.finfo(np.float32).eps,np.finfo(np.float32).eps,2,2,2,0])
         # run model and time it
         start = time.time()
         if not hasattr(self, "model"):    

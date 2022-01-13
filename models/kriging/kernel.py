@@ -37,8 +37,9 @@ def get_kernel(setup):
         # We can now externally always use >= and <= respectively.
         # hps_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
         # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
+        # further, close to 0 makes no sense.
         hps_constraints = np.array(
-            [[[0+np.finfo(np.float32).eps, 1000]] * setup.d, [[np.inf, np.inf]] * setup.d]
+            [[[0+np.finfo(np.float16).eps, 1000]] * setup.d, [[np.inf, np.inf]] * setup.d]
         ).reshape(-1,2)
 
         if setup.noise_regression:
