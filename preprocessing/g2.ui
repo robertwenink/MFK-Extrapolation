@@ -825,24 +825,17 @@
          </widget>
         </item>
         <item row="4" column="0">
-         <widget class="QLabel" name="typeOfPlotLabel">
+         <widget class="QLabel" name="includeContourplotLabel">
           <property name="text">
-           <string>Type of plot:</string>
+           <string>Plot contours? (2d only)</string>
           </property>
          </widget>
         </item>
         <item row="4" column="1">
-         <widget class="QComboBox" name="typeOfPlotComboBox">
-          <item>
-           <property name="text">
-            <string>Surface</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Contour</string>
-           </property>
-          </item>
+         <widget class="QCheckBox" name="includeContourplotCheckBox">
+          <property name="checked">
+           <bool>true</bool>
+          </property>
          </widget>
         </item>
         <item row="5" column="0">

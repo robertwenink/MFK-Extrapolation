@@ -132,9 +132,9 @@ class TestFunction(Solver):
             val = func(self, X)
             self.check_format_y(val)
 
-            if self.mf:
-                assert l != None, "l == None, define l in the multifidelity case!"
+            if self.mf and l != None:
                 cost = self.sampling_costs(l) * X.shape[0]
+                
                 " convergence profile "
                 X = self.check_format_X(X)
                 conv = self.conv_mod_func(X, l)
@@ -356,6 +356,7 @@ class Hartmann6(TestFunction):
 
 
 class XLinear(TestFunction):
+    @TestFunction._modify
     def solve(self, X):
         X = self.check_format_X(X)
 
@@ -364,6 +365,7 @@ class XLinear(TestFunction):
 
 
 class XSquared(TestFunction):
+    @TestFunction._modify
     def solve(self, X, offset=0.25):
         X = self.check_format_X(X)
 
@@ -372,6 +374,7 @@ class XSquared(TestFunction):
 
 
 class XCubed(TestFunction):
+    @TestFunction._modify
     def solve(self, X, offset=0.25):
         X = self.check_format_X(X)
 
@@ -380,6 +383,7 @@ class XCubed(TestFunction):
 
 
 class XCosine(TestFunction):
+    @TestFunction._modify
     def solve(self, X):
         X = self.check_format_X(X)
         y = np.cos(np.sum(X, axis=1))

@@ -1,145 +1,158 @@
 import numpy as np
 import math
+import itertools
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
+
 from sampling.solvers.solver import get_solver
 from sampling.solvers.internal import TestFunction
+from proposed_method import *
 
 
-def plot_kriging(setup, X, y, predictor):
-    setup.n_per_d = 50
+class Plotting():
+    def __init__(self,setup):
+        self.n_per_d = 50
+        self.d_plot = setup.d_plot
+        self.d = setup.d
+        self.plot_contour = setup.plot_contour
 
-    if setup.live_plot:
-        if setup.d == 1 or len(setup.d_plot) == 1:
-            plot_1d(setup, X, y, predictor)
+        # create self.X_plot, and X_pred
+        self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
+        self.lb = setup.search_space[1]
+        self.ub = setup.search_space[2]
+        self.create_grid()
+
+        # we can plot the exact iff our solver is a self.plot_exacttion
+        self.solver = get_solver(setup)
+        self.plot_exact = isinstance(self.solver,TestFunction)
+        self.figure_title = setup.solver_str + " {}d".format(setup.d)
+
+        if setup.live_plot:
+            if setup.d == 1 or len(setup.d_plot) == 1:
+                self.plot = self.plot_1d
+            else:                                                                 
+                self.plot = self.plot_2d
+                self.init_2d_fig()
         else:
-            plot_2d(setup, X, y, predictor)
+            self.plot = lambda X,y,predictor: None
 
+    def create_grid(self):
+        """
+        Build a (1d or 2d) grid used for plotting and sample n points in each dimension d.
+        Dimensions d are specified by the dimensions to plot in setup.d_plot.
+        Coordinates of the other dimensions are fixed in the centre of the range.
+        """
+        lin = np.linspace(self.lb[self.d_plot], self.ub[self.d_plot], self.n_per_d)
 
-def grid_plot(setup, n_per_d=None):
-    """
-    Build a (1d or 2d) grid used for plotting and sample n points in each dimension d.
-    Dimensions d are specified by the dimensions to plot in setup.d_plot.
-    Coordinates of the other dimensions are fixed in the centre of the range.
-    """
-    d = setup.d
-    d_plot = setup.d_plot
-    if n_per_d is None:
-        n_per_d = setup.n_per_d
+        # otherwise weird meshgrid of np.arrays
+        lis = [lin[:, i] for i in range(len(self.d_plot))] 
 
-    lb = setup.search_space[1]
-    ub = setup.search_space[2]
+        # create plotting meshgrid
+        self.X_plot = np.array(np.meshgrid(*lis))
+        xs=np.stack(self.X_plot, axis=-1)
 
-    lin = np.linspace(lb[d_plot], ub[d_plot], n_per_d)
-    lis = [lin[:, i] for i in range(len(d_plot))]
-    res = np.meshgrid(*lis)
-    Xx = np.stack(res, axis=-1).reshape(-1, len(d_plot))
-    X = np.ones((len(Xx), d)) * (lb + (ub - lb) / 2)
-    X[:, d_plot] = Xx
-    return X
+        # create X for prediction, including centre domain values for other dimensions.
+        self.X_pred = np.ones((self.X_plot[0].size, self.d)) * (self.lb + (self.ub - self.lb) / 2)
+        self.X_pred[:,self.d_plot] = xs.reshape(-1, len(self.d_plot))
 
+    def transform_X(self,X):
+        """Transform X to have constant values in dimensions unused for plotting."""
+        assert (X.ndim ==2), "\nProvide X in 2d shape."
+        X_t = np.ones(X.shape) * (self.lb + (self.ub - self.lb) / 2)
+        X_t[:,self.d_plot] = X[:,self.d_plot]
+        return X_t
 
-def plot_2d(setup, X, y, predictor):
-    contour = False
-
-    # retrieve the solver and check type
-    solver = get_solver(setup)
-    testfunc = False
-    if isinstance(solver,TestFunction):
-        testfunc = True
+    def init_2d_fig(self):
+        " initialise figure "
+        fig = plt.figure()
+        fig.suptitle("{}".format(self.figure_title))
         
-    # retrieve some plotting parameters    
-    d_plot = setup.d_plot
-    d = setup.d
-    n_per_d = setup.n_per_d
-    X_new = grid_plot(setup)
-    X_plot = X_new[:, d_plot].reshape(n_per_d, n_per_d, -1)
+        axes = []
+        nrows = 1 + self.plot_contour    # if contour, we need another column
+        ncols = 1 + self.plot_exact # if plot_exact, we need another column
 
-    " retrieve predictions "
-    y_hat, mse = predictor.predict(X_new)
-
-    # reshape predictions to be a grid
-    y_hat = y_hat.reshape(n_per_d, n_per_d)
-    std = np.sqrt(mse.reshape(n_per_d, n_per_d))
-
-
-    " initialise figure "
-    fig = plt.figure()
-    fig.suptitle("{}".format(setup.solver_str))  # set_title if ax
-    axes = []
-
-    nrows = 1 + contour 
-    ncols = 1 + testfunc # then we can depict the exact solution
-
-    " plot prediction surface "
-    ax = fig.add_subplot(nrows, ncols, 1, projection="3d")
-    ax.set_title("prediction surface")
-    axes.append(ax)
-
-    ax.plot_surface(X_plot[:, :, 0], X_plot[:, :, 1], y_hat, alpha=0.9)
-    ax.plot_surface(
-        X_plot[:, :, 0], X_plot[:, :, 1], y_hat - 2*std, alpha=0.4
-    )
-    ax.plot_surface(
-        X_plot[:, :, 0], X_plot[:, :, 1], y_hat + 2*std, alpha=0.4
-    )
-    ax.set_zlabel("Z")
-
-    # add samplepoints
-    ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], y)
-    ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
-
-    " plot exact surface "
-    if testfunc:    
-        " retrieve exact solution "
-        y_exact, _ = solver.solve(X_new,l=100)
-
-        # reshape predictions to be a grid
-        y_exact = y_exact.reshape(n_per_d, n_per_d)
-
-        ax = fig.add_subplot(nrows, ncols, 2, projection="3d")
-        ax.set_title("exact surface")
-        axes.append(ax)
-
-        ax.plot_surface(X_plot[:, :, 0], X_plot[:, :, 1], y_exact, alpha=0.9)
+        # predictions surface
+        ax = fig.add_subplot(nrows, ncols, 1, projection="3d")
+        ax.set_title("prediction surface")
         ax.set_zlabel("Z")
-
-        # add samplepoints
-        ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], y)
-        ax.scatter(X[:, d_plot[0]], X[:, d_plot[1]], predictor.predict(X)[0])
-
-    if contour:
-        " Plot prediction contour "
-        ax = fig.add_subplot(nrows, ncols, 3)
-        ax.set_title("prediction contour")
         axes.append(ax)
 
-        ax.set_aspect("equal")
-        ax.contour(X_plot[:, :, 0], X_plot[:, :, 1], y_hat)
-
-        " Plot exact contour "
-        if testfunc:
-            ax = fig.add_subplot(nrows, ncols, 4)
-            ax.set_title("exact contour")
+        # exact surface
+        if self.plot_exact:    
+            ax = fig.add_subplot(nrows, ncols, 2, projection="3d")
+            ax.set_title("exact surface")
+            ax.set_zlabel("Z")
             axes.append(ax)
 
+        if self.plot_contour:
+            ax = fig.add_subplot(nrows, ncols, 3)
+            ax.set_title("prediction contour")
             ax.set_aspect("equal")
-            ax.contour(X_plot[:, :, 0], X_plot[:, :, 1], y_exact)
+            axes.append(ax)
 
-    " set axes properties "
-    for ax in axes:
-            ax.set_xlabel(setup.search_space[0][d_plot[0]])
-            ax.set_ylabel(setup.search_space[0][d_plot[1]])
+            if self.plot_exact:
+                ax = fig.add_subplot(nrows, ncols, 4)
+                ax.set_title("exact contour")
+                ax.set_aspect("equal")
+                axes.append(ax)
+
+        " set axes properties "
+        for ax in axes:
+            ax.set_xlabel(self.axis_labels[0])
+            ax.set_ylabel(self.axis_labels[1])
+
+        self.fig = fig
+        self.axes = axes
 
 
-def plot_1d(setup, X, y, predictor):
-    pass
+
+    def plot_2d(self, X, predictor):
+        """
+        Plotting for surfaces and possibly contours of the predicted function in 2d.
+        Exact function values plotted if available.
+        """                        
+
+        " retrieve predictions "
+        y_hat, mse = predictor.predict(self.X_pred)
+        y,_ = self.solver.solve(self.transform_X(X))
+
+        # reshape to X_plot shape
+        y_hat = y_hat.reshape(self.X_plot[0].shape)
+        std = np.sqrt(mse.reshape(self.X_plot[0].shape))
+
+        " plot prediction surface "
+        self.axes[0].plot_surface(self.X_plot[0], self.X_plot[1], y_hat, alpha=0.9)
+        self.axes[0].plot_surface(self.X_plot[0], self.X_plot[1], y_hat - 2*std, alpha=0.4)
+        self.axes[0].plot_surface(self.X_plot[0], self.X_plot[1], y_hat + 2*std, alpha=0.4)
+
+        # add exact sampled
+        self.axes[0].scatter(X[:, self.d_plot[0]], X[:, self.d_plot[1]], y)
+
+        " plot exact surface "
+        if self.plot_exact:                
+            # retrieve exact solution
+            y_exact, _ = self.solver.solve(self.X_pred)
+            y_exact = y_exact.reshape(self.X_plot[0].shape)
+
+            # plot
+            self.axes[1].plot_surface(self.X_plot[0], self.X_plot[1], y_exact, alpha=0.9)
+
+            # add samplepoints
+            self.axes[1].scatter(X[:, self.d_plot[0]], X[:, self.d_plot[1]], y)
+
+        if self.plot_contour:
+            " Plot prediction contour "
+            self.axes[2].contour(self.X_plot[0], self.X_plot[1], y_hat)
+
+            " Plot exact contour "
+            if self.plot_exact:
+                self.axes[3].contour(self.X_plot[0], self.X_plot[1], y_exact)
 
 
-##############################################################
-from proposed_method import *
-import itertools
-import matplotlib.pyplot as plt
+    def plot_1d(setup, X, y, predictor):
+        pass
+
 
 
 def draw_convergence(solver, solver_type_text):
