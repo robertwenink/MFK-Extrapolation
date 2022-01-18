@@ -63,8 +63,8 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
-    # t = y - np.sum(np.dot(R_in, y)) /np.sum(R_in)
-    t = y - np.sum(R_in * y) / np.sum(R_in)
+    # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps
+    t = y - np.sum(R_in * y) / (np.sum(R_in)+np.finfo(np.float32).eps)
     return np.dot(t.T, np.dot(R_in, t)) / n
 
 
@@ -134,7 +134,7 @@ class OrdinaryKriging:
         """
 
         R = corr_matrix_kriging_tune(hps, self.diff_matrix, self.R_diagonal)
-        
+
         # computes many inverses simultaneously = somewhat faster; no njit
         R_in = np.linalg.inv(R)
 
@@ -145,7 +145,6 @@ class OrdinaryKriging:
     
     def tune(self, R_diagonal=0):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
-        # self.hps = np.array([np.finfo(np.float32).eps,np.finfo(np.float32).eps,np.finfo(np.float32).eps,2,2,2,0])
         # run model and time it
         start = time.time()
         if not hasattr(self, "model"):    

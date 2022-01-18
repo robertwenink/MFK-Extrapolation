@@ -8,7 +8,7 @@ from postprocessing.plotting import Plotting
 from preprocessing.input import Input
 from scipy.optimize import minimize
 
-setup = Input(2)
+setup = Input(0)
 pp = Plotting(setup)
 
 if __name__ == "__main__":
@@ -23,8 +23,12 @@ if __name__ == "__main__":
     
     ok = OrdinaryKriging(setup)
     ok.train(X, y,True)
-
     pp.plot(X,ok)
+
+    # ok2 = OrdinaryKriging(setup)
+    # ok2.train(X, y+1,True)
+    # pp.plot(X,ok2)
+
     plt.show()
 
     if setup.SAVE_DATA:

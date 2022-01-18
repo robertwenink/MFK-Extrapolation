@@ -309,6 +309,12 @@ class geneticalgorithm:
         return pop
 
     def hillclimbing(self, individuals):
+        # TODO from multiprocessing.dummy import Pool as ThreadPool
+        # pool = ThreadPool(processes=100)
+        # pool.map(process_animal, animals["animals"])
+        # pool.close()
+        # pool.join()
+
         for i in range(individuals.shape[0]):
             if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
                 hps0 = individuals[i][: self.dim]
