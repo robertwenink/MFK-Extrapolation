@@ -6,9 +6,8 @@ from models.kriging.method.OK import OrdinaryKriging
 from postprocessing.plotting import Plotting
 
 from preprocessing.input import Input
-from scipy.optimize import minimize
 
-setup = Input(0)
+setup = Input(2)
 pp = Plotting(setup)
 
 if __name__ == "__main__":

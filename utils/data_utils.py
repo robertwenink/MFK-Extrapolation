@@ -24,15 +24,15 @@ def correct_formatX(a):
 
 def correct_format_hps(a):
     if not isinstance(a, np.ndarray):
-        a = np.array(a,dtype=np.float64)
+        a = np.array(a, dtype=np.float64)
     if a.ndim == 0:
-        a = np.array([a],dtype=np.float64)
+        a = np.array([a], dtype=np.float64)
     if a.ndim == 1:
-        return np.array([a],dtype=np.float64)
+        return np.array([a], dtype=np.float64)
     return a
 
 
 def return_unique(X):
     # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
-    seq = [item for sublist in X for item in sublist]
-    return np.array(list(dict.fromkeys(seq)))
+    seq = [item.item() for sublist in X for item in sublist]
+    return correct_formatX(list(dict.fromkeys(seq)))

@@ -11,12 +11,12 @@ from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
 from utils.data_utils import correct_formatX
 
 
-def Kriging(setup, X, y, tuning=False, R_diagonal=0, hps_init=None, train=True):
+def Kriging(setup, X_l, y_l, tuning=False, R_diagonal=0, hps_init=None, train=True):
     """
     This method clusters and provides all the functionality required for setting up a kriging model.
     """
 
-    ok = OrdinaryKriging(setup,hps_init=hps)
+    ok = OrdinaryKriging(setup,hps_init=hps_init)
 
     if tuning == False:
         if hps_init is None:
@@ -153,7 +153,7 @@ class OrdinaryKriging:
                 hps_init=self.hps,
                 hps_constraints=self.hps_constraints,
                 progress_bar=True,
-                convergence_curve=True,
+                convergence_curve=False,
                 reuse_pop=True
             )
         else:

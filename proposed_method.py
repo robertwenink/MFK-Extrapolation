@@ -14,7 +14,7 @@ import numpy as np
 from sampling.initial_sampling import get_doe
 from sampling.infill.infill_criteria import EI
 from models.kriging.method.OK import Kriging
-from utils.data_utils import return_unique
+from utils.data_utils import return_unique, correct_formatX
 
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
@@ -78,7 +78,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     S2_p = abs(Exp_b1) * Var_b2 + abs(Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
 
     # get index in X_unique of x_b
-    ind = X_unique == x_b
+    ind = np.all(X_unique == x_b, axis=1)
 
     # set Z2_p to z_pred at that index
     Z2_p[ind] = z_pred
@@ -89,7 +89,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     return Z2_p, S2_p ** 2
 
 
-def weighted_prediction(X, X_unique, Z, Z_k):
+def weighted_prediction(setup, X, X_unique, Z, Z_k):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.
@@ -122,7 +122,7 @@ def weighted_prediction(X, X_unique, Z, Z_k):
     # 1) distance based: take the (tuned) Kriging correlation function
 
     hps = Z_k[-1].hps
-    km = Kriging(X_s, None, hps=hps, train=False)
+    km = Kriging(setup,X_s, None, hps_init=hps, train=False)
     c = km.corr(X_s, correct_formatX(X_unique), hps)
 
     # 2) variance based: predictions without variances involved are presumably more reliable

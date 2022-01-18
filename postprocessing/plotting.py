@@ -152,7 +152,7 @@ class Plotting:
 
         " plot prediction surface "
         ax, ind = self.axes[ind], ind + 1
-        ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color)
+        ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label)
         ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.4, color=self.color)
         ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.4, color=self.color)
 
@@ -212,13 +212,14 @@ class Plotting:
         ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.4)
         ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.4)
 
-    def draw_current_levels(self, X_l, Z_k, X_unique):
+    def draw_current_levels(self, X, Z_k, X_unique):
         """
-        @param X_l: !! 3D array, different in format, it is now an array of multiple X in the standard format
+        @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.
         @param Z_k: list of the Kriging predictors of each level
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
+        assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 3"
         # reset axes and colorcycle
         axes = self.axes
         for ax in axes:
@@ -235,7 +236,7 @@ class Plotting:
             # elevate level and plot our prediction, estimated points in black
             i += 1
             ax.scatter(
-                *X[:, self.d_plot].T,
+                *X_unique[:, self.d_plot].T,
                 Z_k[i].predict(self.transform_X(X_unique))[0],
                 c="black",
                 marker=">"
@@ -247,12 +248,12 @@ class Plotting:
             # best out of all the *sampled* locations
             Z = Z_k[-1].predict(X[-1])[0]
             best = np.argmin(Z)
-            ax.plot(X[-1][best], Z[-1][best], "*", label="current best")
+            ax.plot(X[-1][best,:], Z[best], "*", label="Current best")
 
         " plot truth "
         if self.plot_exact:
             # set correct plotting function
-            plot = ax.plot_surface if self.d == 1 else ax.plot
+            plot = ax.plot if self.d == 1 else ax.plot_wireframe
 
             # exact result of the level we try to predict
             y_pred_truth = self.solver.solve(self.X_pred, l=i)[0].reshape(
@@ -261,14 +262,17 @@ class Plotting:
             plot(
                 *self.X_plot,
                 y_pred_truth,
+                "--",
                 label="true level {}".format(i),
                 color=self.color
             )
 
             # exact hifi truth
             y_exact = self.solver.solve(self.X_pred)[0].reshape(self.X_plot[0].shape)
-            self.plot(*self.X_plot, y_exact, "--", label="truth", color="black")
-
+            plot(*self.X_plot, y_exact, "--", label="truth", color="black")
+    
+        plt.draw()
+        plt.pause(1)
 
 def draw_convergence(solver, solver_type_text):
     marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))
@@ -311,3 +315,4 @@ def draw_convergence(solver, solver_type_text):
     # ax3.set_aspect(1.0 / ax3.get_data_ratio(), adjustable="box")
 
     plt.legend()
+    

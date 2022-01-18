@@ -7,8 +7,14 @@ from preprocessing.input import Input
 from sampling.initial_sampling import get_doe
 from postprocessing.plotting import *
 
-from main import setup
+from preprocessing.input import Input
+from utils.data_utils import return_unique
 
+setup = Input(2)
+solver = get_solver(setup)
+doe = get_doe(setup)
+
+pp = Plotting(setup)
 
 " inits and settings"
 X, Z, Z_k, costs, Z_pred = [], [], [], [], []
@@ -20,7 +26,6 @@ max_level = l + 2
 " level 0 and 1 : setting 'DoE' and 'solve' "
 # level 0 DoE
 # X0 = np.arange(0, 1 + np.finfo(np.float32).eps, 1 / n_samples_l0)
-doe = get_doe(setup)
 X0 = doe(setup, n_samples_l0*setup.d)
 X.append(X0)
 
@@ -37,21 +42,19 @@ Z.append(Z_l)
 costs.append(cost_l)
 l += 1
 
-# create Krigings of levels
-# Z_k.append(Kriging(X[0], Z[0], hps=np.array([[140 / (10 / n_samples_l0)], [2]])))
-Z_k.append(Kriging(X[0], Z[0], tuning=True))
-Z_k.append(Kriging(X[1], Z[1], hps=Z_k[0].hps))
+# create Krigings of levels, same hps
+Z_k.append(Kriging(setup, X[0], Z[0], tuning=True))
+Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps))
 
 # draw result
-X_plot = np.arange(0, 1 + np.finfo(np.float32).eps, 1 / 200)
-ax = draw_current_levels(X, Z, Z_k, X0, X_plot, solver)
+pp.draw_current_levels(X, Z_k, X0)
 
 print("Initial cost: {}".format(np.sum(costs)))
-while np.sum(costs) < max_cost and l <= max_level and False:
+while np.sum(costs) < max_cost and l <= max_level:
     "sample first point at new level"
     # select best sampled (!) point of previous level and sample again there
     x_b_ind = np.argmin(Z[-1])
-    x_b = X[-1][x_b_ind]
+    x_b = correct_formatX(X[-1][x_b_ind])
 
     # sample the best location, increase costs
     z_pred, cost = solver.solve(x_b, l)
@@ -59,8 +62,8 @@ while np.sum(costs) < max_cost and l <= max_level and False:
     print("Current cost: {}".format(np.sum(costs)))
 
     # add initial sample on the level to known list of samples
-    X.append([x_b])
-    Z.append([z_pred])
+    X.append(x_b)
+    Z.append(z_pred)
 
     #  X_unique are the locations at which we will evaluate our prediction
     # NOTE return_unique does not scale well, should instead append the list each new level
@@ -68,17 +71,17 @@ while np.sum(costs) < max_cost and l <= max_level and False:
 
     " predict based on single point"
     Z_new_p, mse_new_p = Kriging_unknown_z(x_b, X_unique, z_pred, Z_k)
-    Z_k_new = Kriging(X_unique, Z_new_p, hps=Z_k[-1].hps)
+    Z_k_new = Kriging(setup, X_unique, Z_new_p, hps_init=Z_k[-1].hps)
 
     " output "
-    ax = draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique, X_plot, solver, ax)
+    pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique)
 
     " sample from the predicted distribution in EGO fashion"
     ei = 1
     ei_criterion = 2 * np.finfo(np.float32).eps
     while np.sum(costs) < max_cost:
         # select points to asses expected
-        X_infill = X_plot
+        X_infill = pp.X_pred # TODO does not work for d>2
 
         # predict and calculate Expected Improvement
         y_pred, sigma_pred = Z_k_new.predict(X_infill)
@@ -87,16 +90,17 @@ while np.sum(costs) < max_cost and l <= max_level and False:
         for i in range(len(y_pred)):
             ei[i] = EI(y_min, y_pred[i], sigma_pred[i])
 
+        # terminate if criterion met
         if np.all(ei < ei_criterion):
             break
 
         # select best point to sample
-        x_new = X_infill[np.argmax(ei)]
+        x_new =correct_formatX( X_infill[np.argmax(ei)])
 
         # sample, append lists
         z_new, cost = solver.solve(x_new, l)
-        X[-1].append(x_new)
-        Z[-1].append(z_new)
+        X[-1] = np.append(X[-1],x_new,axis=0)
+        Z[-1] = np.append(Z[-1],z_new)
         costs.append(cost)
         print("Current cost: {}".format(np.sum(costs)))
 
@@ -104,22 +108,22 @@ while np.sum(costs) < max_cost and l <= max_level and False:
         X_unique = return_unique(X)
 
         # weigh each prediction contribution according to distance to point.
-        Z_pred, mse_pred = weighted_prediction(X, X_unique, Z, Z_k)
+        Z_pred, mse_pred = weighted_prediction(setup,X, X_unique, Z, Z_k)
 
         # build new kriging based on prediction
         # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
         # NOTE for top-level we require re-interpolation if we apply noise
         if "Z_k_new_noise" not in locals():
-            Z_k_new_noise = Kriging(
+            Z_k_new_noise = Kriging(setup,
                 X_unique,
                 Z_pred,
-                R_diagonal=mse_pred / Z_k[-1].sigma_hat * f,
-                hps=Z_k[-1].hps,
+                R_diagonal=mse_pred / Z_k[-1].sigma_hat,
+                hps_init=Z_k[-1].hps,
                 tuning=True,
             )
         else:
             Z_k_new_noise.train(
-                X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat * f
+                X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
             )
 
         # NOTE noise should decrease when we increase the fidelity, therefore, extrapolate the noise of the previous levels.
@@ -131,22 +135,19 @@ while np.sum(costs) < max_cost and l <= max_level and False:
         Z_k_new_noise.hps[-1] = Z_k[-1].hps[-1]
 
         " reinterpolate upper level the non-math way "
-        Z_k_new = deepcopy(Z_k_new_noise)
-        Z_k_new.hps[-1] = 0
+        # Z_k_new = deepcopy(Z_k_new_noise)
+        Z_k_new = Z_k_new_noise
+        Z_k_new.hps[-1] = 0 # set noise to 0
         Z_k_new.train(
                 X_unique, Z_k_new_noise.predict(X_unique)[0], tune=False, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
             )
         
         # " output "
-        ax = draw_current_levels(
-            X, Z, [*Z_k, Z_k_new], X_unique, X_plot, solver, ax, Z_k_new_noise
-        )
+        pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique)
 
 
     # update kriging models of levels and discrepancies before continueing to next level
     Z_k.append(Z_k_new)
-    X[-1] = np.array(X[-1]).ravel()
-    Z[-1] = np.array(Z[-1]).ravel()
     if "Z_k_new_noise"  in locals():
         del Z_k_new_noise
 
