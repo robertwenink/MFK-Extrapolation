@@ -19,7 +19,7 @@ def conv_stable_up(l):
 
 
 def conv_stable_down(l):
-    return 1 / conv_stable_up(l, p)
+    return 1 / conv_stable_up(l)
 
 
 def conv_alternating(l):

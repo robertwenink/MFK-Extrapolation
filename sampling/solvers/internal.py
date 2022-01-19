@@ -32,7 +32,7 @@ class Solver(ABC):
         First make sure X is of the correct format.
         X always is of the form [[..,..],[..,..],..]
         """
-        X = correct_formatX(X)
+        X = correct_formatX(X, d_req==1)
 
         if d_req != None:
             assert X.shape[1] == d_req, "Dimension should be {}".format(d_req)
@@ -142,7 +142,7 @@ class TestFunction(Solver):
 
                 if self.solver_noise:
                     # add multiplicative noise that is converging together with the convergence
-                    conv *= 1 + (1 - conv) * 0.1 * (
+                    conv *= 1 + (1 - conv) * 0.01 * (
                         np.random.standard_normal(size=conv.shape) - 0.5
                     )
 

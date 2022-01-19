@@ -129,7 +129,7 @@ class GUI(qtw.QWidget, Ui_Form):
                 gui_data["conv_type"] = str(self.convergenceTypeComboBox.currentText())
     
                 # convergence modifier, contains a number as first character
-                gui_data["conv_mod"] = str(self.convergenceTypeComboBox.currentText())[0]
+                gui_data["conv_mod"] = int(str(self.convergenceModifierComboBox.currentText())[0])
         else:
             pass
             # NOTE we should not use any mf functionality, so better not set it; we will get an error then.

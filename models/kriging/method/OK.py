@@ -83,13 +83,14 @@ def _fitness_func_loop(R_in_list, y, R):
 class OrdinaryKriging:
     def __init__(self, setup, hps_init=None):
         self.corr, self.hps, self.hps_constraints = get_kernel(setup)
+        self.d = setup.d
         if hps_init is not None:
             assert self.hps.shape == hps_init.shape, "Provide hps_init of correct size!"
             self.hps = hps_init
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
-        X_new = correct_formatX(X_new)
+        X_new = correct_formatX(X_new,self.d)
 
         # NOTE correlation function for r should not involve regression terms (forrester2006).
         # Those come back through R(_in) in both sigma and the prediction.
@@ -101,7 +102,7 @@ class OrdinaryKriging:
 
     def train(self, X, y, tune=False, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
-        self.X = correct_formatX(X)
+        self.X = correct_formatX(X,self.d)
         self.y = y
 
         self.diff_matrix = diff_matrix(self.X, self.X)

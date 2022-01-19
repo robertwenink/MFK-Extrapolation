@@ -27,6 +27,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     @param X_unique: all unique previously sampled locations in X.
     @param z_pred: new level`s sampled locations.
     @param Z_k: Kriging models of the levels, should only contain known levels.
+    @return extrapolated predictions Z2_p, corresponding mse S2_p (squared!)
     """
 
     Z0_k = Z_k[-2]
@@ -65,7 +66,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
         return (b1 - Exp_b1) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
 
     y2 = var_b1(lambs)
-    Var_b1 = np.sqrt(np.trapz(y2, lambs, axis=0))
+    Var_b1 = np.sqrt(np.trapz(y2, lambs, axis=0)) # NOTE not a normal gaussian variance, but we use it as such
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
@@ -74,7 +75,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # TODO add extra term based on distance.
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging 
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    Var_b2 = (S1 + S0)
+    Var_b2 = abs(S1 - S0)
     S2_p = abs(Exp_b1) * Var_b2 + abs(Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
 
     # get index in X_unique of x_b
@@ -106,7 +107,7 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     @param Z_k: Kriging models of the levels, should only contain known levels.
     """
 
-    X_s = correct_formatX(X[-1])
+    X_s = correct_formatX(X[-1],setup.d)
     Z_s = Z[-1]
 
     " Collect new results "
@@ -123,7 +124,7 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
 
     hps = Z_k[-1].hps
     km = Kriging(setup,X_s, None, hps_init=hps, train=False)
-    c = km.corr(X_s, correct_formatX(X_unique), hps)
+    c = km.corr(X_s, correct_formatX(X_unique,setup.d), hps)
 
     # 2) variance based: predictions without variances involved are presumably more reliable
     #    we want to keep the correlation/weighing the same if there is no variance,
@@ -148,7 +149,7 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     c = c + mask  # retrieve samples exactly
 
     # Scale for Z
-    c_z = np.divide(c, np.sum(c, axis=0))
+    c_z = np.divide(c, np.sum(c, axis=0) + np.finfo(np.float64).eps) # to avoid division by (near) zero for higher d
     Z_pred = np.sum(np.multiply(D, c_z), axis=0)
 
     # Scale for mse

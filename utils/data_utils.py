@@ -2,8 +2,11 @@ import numpy as np
 from numba import njit
 
 
-def correct_formatX(a):
+def correct_formatX(a,dim):
     """
+    @param dim: dimension of a single sample. 
+        Important for the case of 1 sample, to differentiate between array of 1d samples, and single item of multiple d? 
+    
     X should be of format np.array([[..,..,..],[..,..,..],..])
     Thus:
     1.0                 -> np.array([[a]])
@@ -18,7 +21,10 @@ def correct_formatX(a):
     if a.ndim == 0:
         a = np.array([a])
     if a.ndim == 1:
-        return np.array([a]).T
+        a = np.array([a])
+        if dim == 1:
+            # then not shape (1,2) but (2,1)! so a.T
+            a = a.T
     return a
 
 
@@ -32,7 +38,15 @@ def correct_format_hps(a):
     return a
 
 
-def return_unique(X):
+def return_unique(X_list,X_exclude=[[]]):
+    """
+    @param X_list: List containing each level`s X 2d nd.array
+    @param X_exclude: X we want to exclude from our list of uniques. 
+      Often these are the sampled locations at the highest level (points we do not need to predict anymore). 
+    @return uniques including X_exclude, uniques excluding X_exclude; are equal when X_exclude = []
+    """
     # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
-    seq = [item.item() for sublist in X for item in sublist]
-    return correct_formatX(list(dict.fromkeys(seq)))
+    res = [item for sublist in X_list for item in sublist]
+    res = np.unique(res,axis=0)
+    res_exc = np.array([item for item in res if item not in X_exclude])
+    return res , res_exc

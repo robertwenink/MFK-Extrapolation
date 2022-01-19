@@ -10,7 +10,7 @@ from postprocessing.plotting import *
 from preprocessing.input import Input
 from utils.data_utils import return_unique
 
-setup = Input(2)
+setup = Input(0)
 solver = get_solver(setup)
 doe = get_doe(setup)
 
@@ -18,10 +18,10 @@ pp = Plotting(setup)
 
 " inits and settings"
 X, Z, Z_k, costs, Z_pred = [], [], [], [], []
-n_samples_l0 = 10
-max_cost = 300
+n_samples_l0 = 20
+max_cost = 1000
 l = 0
-max_level = l + 2
+max_nr_levels = 3
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
 # level 0 DoE
@@ -40,21 +40,23 @@ X.append(X0)  # X1 = X0
 Z_l, cost_l = solver.solve(X0, l)
 Z.append(Z_l)
 costs.append(cost_l)
-l += 1
+l += 3
+
+X_unique, _ = return_unique(X)
 
 # create Krigings of levels, same hps
 Z_k.append(Kriging(setup, X[0], Z[0], tuning=True))
 Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps))
 
 # draw result
-pp.draw_current_levels(X, Z_k, X0)
+pp.draw_current_levels(X, Z_k, X_unique)
 
 print("Initial cost: {}".format(np.sum(costs)))
-while np.sum(costs) < max_cost and l <= max_level:
+while np.sum(costs) < max_cost and len(X) < max_nr_levels:
     "sample first point at new level"
     # select best sampled (!) point of previous level and sample again there
     x_b_ind = np.argmin(Z[-1])
-    x_b = correct_formatX(X[-1][x_b_ind])
+    x_b = correct_formatX(X[-1][x_b_ind],setup.d)
 
     # sample the best location, increase costs
     z_pred, cost = solver.solve(x_b, l)
@@ -67,14 +69,14 @@ while np.sum(costs) < max_cost and l <= max_level:
 
     #  X_unique are the locations at which we will evaluate our prediction
     # NOTE return_unique does not scale well, should instead append the list each new level
-    X_unique = return_unique(X)
+    X_unique, X_unique_exc = return_unique(X,X[-1])
 
     " predict based on single point"
     Z_new_p, mse_new_p = Kriging_unknown_z(x_b, X_unique, z_pred, Z_k)
     Z_k_new = Kriging(setup, X_unique, Z_new_p, hps_init=Z_k[-1].hps)
 
     " output "
-    pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique)
+    pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
 
     " sample from the predicted distribution in EGO fashion"
     ei = 1
@@ -95,7 +97,7 @@ while np.sum(costs) < max_cost and l <= max_level:
             break
 
         # select best point to sample
-        x_new =correct_formatX( X_infill[np.argmax(ei)])
+        x_new = correct_formatX(X_infill[np.argmax(ei)],setup.d)
 
         # sample, append lists
         z_new, cost = solver.solve(x_new, l)
@@ -105,7 +107,7 @@ while np.sum(costs) < max_cost and l <= max_level:
         print("Current cost: {}".format(np.sum(costs)))
 
         # recalculate X_unique
-        X_unique = return_unique(X)
+        X_unique, X_unique_exc = return_unique(X,X[-1])
 
         # weigh each prediction contribution according to distance to point.
         Z_pred, mse_pred = weighted_prediction(setup,X, X_unique, Z, Z_k)
@@ -141,9 +143,10 @@ while np.sum(costs) < max_cost and l <= max_level:
         Z_k_new.train(
                 X_unique, Z_k_new_noise.predict(X_unique)[0], tune=False, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
             )
-        
+        print("Z_k_new.hps : {}".format(Z_k_new.hps))
+
         # " output "
-        pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique)
+        pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
 
 
     # update kriging models of levels and discrepancies before continueing to next level
