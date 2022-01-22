@@ -27,10 +27,12 @@ if __name__ == "__main__":
     # ok2 = OrdinaryKriging(setup)
     # ok2.train(X, y+1,True)
     # pp.plot(X,ok2)
-
-    plt.show()
-
+    
     if setup.SAVE_DATA:
         setup.X = X
         setup.create_input_file()
+
+    plt.show()
+
+
     

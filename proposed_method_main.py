@@ -13,12 +13,16 @@ from utils.data_utils import return_unique
 setup = Input(0)
 solver = get_solver(setup)
 doe = get_doe(setup)
+if hasattr(setup,'X'):
+    X = setup.X # this does not work for MF yet!
+else:
+    X = doe(setup, 10*setup.d)
 
 pp = Plotting(setup)
 
 " inits and settings"
 X, Z, Z_k, costs, Z_pred = [], [], [], [], []
-n_samples_l0 = 20
+n_samples_l0 = 10
 max_cost = 1000
 l = 0
 max_nr_levels = 3
@@ -46,7 +50,7 @@ X_unique, _ = return_unique(X)
 
 # create Krigings of levels, same hps
 Z_k.append(Kriging(setup, X[0], Z[0], tuning=True))
-Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps))
+Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps, tuning = True))
 
 # draw result
 pp.draw_current_levels(X, Z_k, X_unique)
@@ -72,7 +76,7 @@ while np.sum(costs) < max_cost and len(X) < max_nr_levels:
     X_unique, X_unique_exc = return_unique(X,X[-1])
 
     " predict based on single point"
-    Z_new_p, mse_new_p = Kriging_unknown_z(x_b, X_unique, z_pred, Z_k)
+    Z_new_p, mse_new_p, _ = Kriging_unknown_z(x_b, X_unique, z_pred, Z_k)
     Z_k_new = Kriging(setup, X_unique, Z_new_p, hps_init=Z_k[-1].hps)
 
     " output "
@@ -82,7 +86,7 @@ while np.sum(costs) < max_cost and len(X) < max_nr_levels:
     ei = 1
     ei_criterion = 2 * np.finfo(np.float32).eps
     while np.sum(costs) < max_cost:
-        # select points to asses expected
+        # select points to asses expected improvement
         X_infill = pp.X_pred # TODO does not work for d>2
 
         # predict and calculate Expected Improvement
@@ -92,12 +96,12 @@ while np.sum(costs) < max_cost and len(X) < max_nr_levels:
         for i in range(len(y_pred)):
             ei[i] = EI(y_min, y_pred[i], sigma_pred[i])
 
-        # terminate if criterion met
-        if np.all(ei < ei_criterion):
-            break
-
         # select best point to sample
         x_new = correct_formatX(X_infill[np.argmax(ei)],setup.d)
+
+        # terminate if criterion met, or for some buggy reason we revisit a point
+        if np.all(ei < ei_criterion) or x_new in X[-1]:
+            break
 
         # sample, append lists
         z_new, cost = solver.solve(x_new, l)
@@ -156,6 +160,10 @@ while np.sum(costs) < max_cost and len(X) < max_nr_levels:
 
     # moving to the next level we will be sampling at
     l += 1
+
+if setup.SAVE_DATA:
+    setup.X = X
+    setup.create_input_file()
 
 print("Simulation finished")
 show = True

@@ -43,40 +43,41 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     Z1, S1 = Z1_k.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
-    def exp_b1(lamb):
+    def exp_f(lamb):
         """get expectation of the function according to
         integration of standard normal gaussian function lamb"""
         c1 = z_pred - z1_b
         c2 = z1_b - z0_b
-        c3 = (s1_b + s0_b) # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
-        b1 = (c1 - lamb * s1_b) / (c2 + lamb * c3 + np.finfo(np.float32).eps)
+        c3 = abs(s1_b - s0_b) # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
+        f = (c1 - lamb * s1_b) / (c2 + lamb * c3 + np.finfo(np.float64).eps)
 
         # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
-        return b1 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi), b1
+        return f * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi), f
 
     # 1000 steps; evaluates norm to 0.9999994113250346
     lambs = np.arange(-5, 5, 0.01)
 
     # evaluate expectation
-    y, b1 = exp_b1(lambs)
-    Exp_b1 = np.trapz(y, lambs, axis=0)
+    Y, f = exp_f(lambs)
+    Ef = np.trapz(Y, lambs, axis=0)
 
-    def var_b1(lamb):
-        # E[(X-E[X])]
-        return (b1 - Exp_b1) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
+    def var_f(lamb):
+        # Var X = E[(X-E[X])**2]
+        # down below: random variable - exp random variable, squared, times the pdf of rho (N(0,1)); 
+        # we integrate this function and retrieve the expectation of this expression, i.e. the variance.
+        return (f - Ef) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
 
-    y2 = var_b1(lambs)
-    Var_b1 = np.sqrt(np.trapz(y2, lambs, axis=0)) # NOTE not a normal gaussian variance, but we use it as such
+    Y = var_f(lambs)
+    Sf = np.sqrt(np.trapz(Y, lambs, axis=0)) # NOTE not a normal gaussian variance, but we use it as such
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z2_p = Exp_b1 * (Z1 - Z0) + Z1
+    Z2_p = Ef * (Z1 - Z0) + Z1
 
     # TODO add extra term based on distance.
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging 
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    Var_b2 = abs(S1 - S0)
-    S2_p = abs(Exp_b1) * Var_b2 + abs(Z1 - Z0) * Var_b1 + Var_b2 * Var_b1 + S1
+    S2_p = S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf 
 
     # get index in X_unique of x_b
     ind = np.all(X_unique == x_b, axis=1)
@@ -87,7 +88,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # set S2_p to 0 at that index
     S2_p[ind] = 0
 
-    return Z2_p, S2_p ** 2
+    return Z2_p, S2_p ** 2, Sf ** 2
 
 
 def weighted_prediction(setup, X, X_unique, Z, Z_k):
@@ -113,11 +114,11 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     " Collect new results "
     # NOTE if not in X_unique, we could just add a 0 to all previous,
     # might be faster but more edge-cases
-    D, D_mse = [], []
+    D, D_mse, D_Sf = [], [], []
     for i in range(X_s.shape[0]):
-        Z_p, mse_p = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], Z_k)
-        D.append(Z_p), D_mse.append(mse_p)
-    D, D_mse = np.array(D), np.array(D_mse)
+        Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], Z_k)
+        D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
+    D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
 
     " Weighing "
     # 1) distance based: take the (tuned) Kriging correlation function
@@ -126,25 +127,26 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     km = Kriging(setup,X_s, None, hps_init=hps, train=False)
     c = km.corr(X_s, correct_formatX(X_unique,setup.d), hps)
 
-    # 2) variance based: predictions without variances involved are presumably more reliable
+    mask = c == 1.0  # then sampled point
+    idx = mask.any(axis=0)  # get columns with sampled points
+
+    # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
     #    we want to keep the correlation/weighing the same if there is no variance,
     #    and otherwise reduce it.
     #    We could simply do: sigma += 1 and divide.
     #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
     #    This decreases distance based influence if sigma > 0.
+    #    We take the variance of 
     #    NOTE TODO this is not (yet) a fully math-informed decision in terms of efffectiveness.
 
-    mult = np.exp(-D_mse)
-    c = c * mult
+    mult = np.exp(-D_Sf)
+    c = (c.T * mult).T
 
     " Scale to sum to 1; correct for sampled locations "
     # Contributions coefficients should sum up to 1.
     # Furthermore, sampled locations should be the only contribution for themselves.
     #  if we dont do this, EI does not work!
     #  however, we might get very spurious results -> we require regression!
-
-    mask = c == 1.0  # then sampled point
-    idx = mask.any(axis=0)  # get columns with sampled points
     c[:, idx] = 0  # set to zero
     c = c + mask  # retrieve samples exactly
 

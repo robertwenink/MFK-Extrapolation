@@ -72,6 +72,14 @@ class Input:
         f.write(self.filename)
         f.close()
 
+    def read_X(self):
+        if hasattr(self,'X'):
+            for i in range(len(self.X)):
+                # this implies we always should define our X here as 3d list/array
+                self.X[i] = np.array(self.X[i],dtype=np.float64)
+                assert(self.X[i].ndim == 2), "not retrieving a 2 dimensional X!"
+
+
     def read_input(self):
         """Read the json file inputs and converting it to class attributes"""
         file_path = os.path.join(INPUTS_DIR, self.filename)
@@ -85,8 +93,7 @@ class Input:
             setattr(self, key, data_dict[key])
         
         # NOTE this part is a bit of hardcoding, in order to convert some lists back to np.array    
-        if hasattr(self,'X'):
-            self.X = np.array(self.X,dtype=np.float64)
+        self.read_X()
         self.search_space[1] = np.array(self.search_space[1])
         self.search_space[2] = np.array(self.search_space[2])
         

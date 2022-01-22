@@ -63,9 +63,12 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
-    # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps
-    t = y - np.sum(R_in * y) / (np.sum(R_in)+np.finfo(np.float32).eps)
-    return np.dot(t.T, np.dot(R_in, t)) / n
+    if np.linalg.cond(R_in) < 1e8: # NOTE quite large
+        # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps
+        t = y - np.sum(R_in * y) / (np.sum(R_in)+np.finfo(np.float32).eps)
+        return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
+    else:
+        return -1e8
 
 
 @njit(cache=True)
@@ -76,7 +79,7 @@ def _fitness_func_loop(R_in_list, y, R):
     n = y.shape[0]
     for i in range(n_pop):
         # MLE, omitting factor 1/2
-        fit[i] = -n * np.log(_sigma_mu_hat(R_in_list[i], y, n)) - np.linalg.slogdet(R[i])[1]
+        fit[i] = _sigma_mu_hat(R_in_list[i], y, n) - np.linalg.slogdet(R[i])[1]
     return fit
 
 
@@ -162,7 +165,7 @@ class OrdinaryKriging:
         
         t = time.time() - start
 
-        # assign results to Kriging object
+        # assign results to Kriging object, this sets hps_init for the tuning as well.
         self.hps = self.model.output_dict["variable"].reshape(self.hps.shape)
 
         # print results of tuning

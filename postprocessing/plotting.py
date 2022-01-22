@@ -152,7 +152,7 @@ class Plotting:
 
         " plot prediction surface "
         ax, ind = self.axes[ind], ind + 1
-        ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label)
+        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label))
         ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.4, color=self.color)
         ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.4, color=self.color)
 
@@ -170,7 +170,7 @@ class Plotting:
 
             # plot
             ax, ind = self.axes[ind], ind + 1
-            ax.plot_surface(*self.X_plot, y_exact, alpha=0.9)
+            self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.9))
 
             # add samplepoints
             ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker)
@@ -212,6 +212,10 @@ class Plotting:
         ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.4)
         ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.4)
 
+    def fix_colors(self,surf):
+        surf._facecolors2d = surf._facecolor3d
+        surf._edgecolors2d = surf._edgecolor3d
+
     def draw_current_levels(self, X, Z_k, X_unique):
         """
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
@@ -234,8 +238,12 @@ class Plotting:
         " plot prediction kriging "
         # first two levels always known
         if len(X) > 2:
-            # elevate level and plot our prediction, estimated points in black
             i += 1
+
+            # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
+            self.plot(X[i], Z_k[i], label="Kriging level {}".format(i))
+            
+            # plot our prediction, estimated points in black
             self.axes[0].scatter(
                 *X_unique[:, self.d_plot].T,
                 Z_k[i].predict(self.transform_X(X_unique))[0],
@@ -244,50 +252,52 @@ class Plotting:
                 label = "Extrapolated points"
             )
 
-            # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[i], Z_k[i], label="Kriging level {}".format(i))
-
             # best out of all the *sampled* locations
             Z = Z_k[-1].predict(X[-1])[0]
             best = np.argmin(Z)
             t =  X[i][best, self.d_plot].T
             self.axes[0].scatter(*X[i][best, self.d_plot].T, Z[best], s = 60, marker = "*", color = 'red', zorder = 10, label="Current best")
 
+            if self.plot_exact:
+                # exact result of the level we try to predict
+                y_pred_truth = self.solver.solve(self.X_pred, l=i+2)[0].reshape(
+                    self.X_plot[0].shape
+                )
+                kwargs = {
+                    "label":"true level {}".format(i),
+                    "color":self.color,
+                    "alpha":0.5
+                }
+                if self.d == 1:
+                    ax=self.axes[0]
+                    ax.plot(*self.X_plot, y_pred_truth, '--', **kwargs ) 
+                else:
+                    ax=self.axes[1]
+                    self.fix_colors(ax.plot_surface(*self.X_plot, y_pred_truth, **kwargs))
+
+            
         " plot truth "
         if self.plot_exact:
-            # exact result of the level we try to predict
-            y_pred_truth = self.solver.solve(self.X_pred, l=i)[0].reshape(
-                self.X_plot[0].shape
-            )
-
             # exact hifi truth
             y_exact = self.solver.solve(self.X_pred)[0].reshape(self.X_plot[0].shape)
 
-            # use correct plotting function
-            kwargs = {
-                "label":"true level {}".format(i),
-                "color":self.color,
-                "alpha":0.5
-            }
             kwargs2 = {
                 "label":"truth", 
                 "color":"black", 
                 "alpha": 0.3
             }
+            
+            # use correct plotting function
             if self.d == 1:
                 ax=self.axes[0]
-                ax.plot(*self.X_plot, y_pred_truth, '--', **kwargs ) 
                 ax.plot(*self.X_plot, y_exact, '--', **kwargs2)
             else:
                 ax=self.axes[1]
-                ax.plot_surface(*self.X_plot, y_pred_truth, **kwargs) 
-                ax.plot_surface(*self.X_plot, y_exact, **kwargs2)
+                self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
+                
         
-        # for ax in self.axes:
-        #     for line in ax._get_lines:
-        #         line._facecolors2d=surf._facecolors3d
-        #         line._edgecolors2d=surf._edgecolors3d
-        #     ax.legend()
+        for ax in self.axes:
+            ax.legend()
 
         plt.draw()
         plt.pause(1)
