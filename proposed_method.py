@@ -136,8 +136,7 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     #    We could simply do: sigma += 1 and divide.
     #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
     #    This decreases distance based influence if sigma > 0.
-    #    We take the variance of 
-    #    NOTE TODO this is not (yet) a fully math-informed decision in terms of efffectiveness.
+    #    We take the variance of the fraction, S_f
 
     mult = np.exp(-D_Sf)
     c = (c.T * mult).T
@@ -155,7 +154,8 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     Z_pred = np.sum(np.multiply(D, c_z), axis=0)
 
     # Scale for mse
-    c_mse = c_z - mask  # always 0 variance for samples
+    # NOTE noise is added to the samples regardless of what this function returns
+    c_mse = c_z - mask  # always 0 variance for samples 
     mse = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
     return Z_pred, mse

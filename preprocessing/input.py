@@ -75,9 +75,16 @@ class Input:
     def read_X(self):
         if hasattr(self,'X'):
             for i in range(len(self.X)):
-                # this implies we always should define our X here as 3d list/array
+                # this implies we always should define our X as a list of 2d ndarray
                 self.X[i] = np.array(self.X[i],dtype=np.float64)
-                assert(self.X[i].ndim == 2), "not retrieving a 2 dimensional X!"
+                assert(self.X[i].ndim == 2), "not retrieving a 2 dimensional (sub)X!"
+    
+    def read_Z(self):
+        if hasattr(self,'Z'):
+            for i in range(len(self.Z)):
+                # this implies we always should define our Z as a list of 1d ndarray
+                self.Z[i] = np.array(self.Z[i],dtype=np.float64)
+                assert(self.Z[i].ndim == 1), "not retrieving a 1 dimensional (sub)Z!"
 
 
     def read_input(self):
@@ -94,6 +101,7 @@ class Input:
         
         # NOTE this part is a bit of hardcoding, in order to convert some lists back to np.array    
         self.read_X()
+        self.read_Z()
         self.search_space[1] = np.array(self.search_space[1])
         self.search_space[2] = np.array(self.search_space[2])
         

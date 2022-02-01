@@ -142,7 +142,7 @@ class TestFunction(Solver):
 
                 if self.solver_noise:
                     # add multiplicative noise that is converging together with the convergence
-                    conv *= 1 + (1 - conv) * 0.02 * (
+                    conv *= 1 + (1 - conv) * 0.05 * (
                         np.random.standard_normal(size=conv.shape) - 0.5
                     )
 
@@ -151,8 +151,8 @@ class TestFunction(Solver):
                 # using abs(conv - 1) is a non-linear effect, but is required for mimicking Forrester/Meliani (in which case it is not non-linear??)
                 linear_gain_mod = 2
                 A = conv
-                B = 10 * abs(conv - 1) * linear_gain_mod
-                C = -5 * abs(conv - 1) * linear_gain_mod
+                B = 10 * (conv - 1) * linear_gain_mod
+                C = -5 * (conv - 1) * linear_gain_mod
 
                 val = A * val + B * (np.sum(X, axis=1) - 0.5) + C
 

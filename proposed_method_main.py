@@ -10,38 +10,38 @@ from postprocessing.plotting import *
 from preprocessing.input import Input
 from utils.data_utils import return_unique
 
-setup = Input(0)
+setup = Input(2)
 solver = get_solver(setup)
 doe = get_doe(setup)
-if hasattr(setup,'X'):
-    X = setup.X # this does not work for MF yet!
-else:
-    X = doe(setup, 10*setup.d)
-
 pp = Plotting(setup)
 
 " inits and settings"
-X, Z, Z_k, costs, Z_pred = [], [], [], [], []
+Z, Z_k, costs, Z_pred = [], [], [], []
 n_samples_l0 = 10
 max_cost = 1000
 l = 0
 max_nr_levels = 3
+use_old_X = False
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-# level 0 DoE
-# X0 = np.arange(0, 1 + np.finfo(np.float32).eps, 1 / n_samples_l0)
-X0 = doe(setup, n_samples_l0*setup.d)
-X.append(X0)
-
+if hasattr(setup,'X') and use_old_X:
+    X = setup.X
+    # for now only keep first 2 levels
+    X = X[:2]
+else:
+    # first 2 levels DoE
+    X = []
+    X.append(doe(setup, n_samples_l0*setup.d))
+    # X.append(X[0])
+    X.append(doe(setup, n_samples_l0*setup.d))
 # sample level 0
-Z_l, cost_l = solver.solve(X0, l)
+Z_l, cost_l = solver.solve(X[0], l)
 Z.append(Z_l)
 costs.append(cost_l)
 l += 1
 
 # level 1 DoE + sampling
-X.append(X0)  # X1 = X0
-Z_l, cost_l = solver.solve(X0, l)
+Z_l, cost_l = solver.solve(X[1], l)
 Z.append(Z_l)
 costs.append(cost_l)
 l += 3
@@ -163,6 +163,7 @@ while np.sum(costs) < max_cost and len(X) < max_nr_levels:
 
 if setup.SAVE_DATA:
     setup.X = X
+    setup.Z = Z
     setup.create_input_file()
 
 print("Simulation finished")

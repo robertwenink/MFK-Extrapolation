@@ -12,7 +12,7 @@ from proposed_method import *
 
 class Plotting:
     def __init__(self, setup):
-        self.n_per_d = 64
+        self.n_per_d = 200
         self.d_plot = setup.d_plot
         self.d = setup.d
         self.plot_contour = setup.plot_contour
@@ -184,6 +184,7 @@ class Plotting:
             if self.plot_exact:
                 ax, ind = self.axes[ind], ind + 1
                 ax.contour(*self.X_plot, y_exact, colors=self.color)
+        plt.tight_layout()
 
     @iterate_color_marker
     def plot_1d(self, X, predictor, label=""):
@@ -299,6 +300,7 @@ class Plotting:
         for ax in self.axes:
             ax.legend()
 
+        plt.tight_layout()
         plt.draw()
         plt.pause(1)
 
