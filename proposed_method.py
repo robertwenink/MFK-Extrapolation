@@ -23,7 +23,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
      differences elsewhere in the domain, if we scale according to the same convergence.
      Use this to predict a location, provide an correction/expectation based on chained variances.
 
-    @param x_b: a (presumably best) location at which we have sampled the new level.
+    @param x_b: a (presumably best) location at which we have/will sample(d) the new level.
     @param X_unique: all unique previously sampled locations in X.
     @param z_pred: new level`s sampled locations.
     @param Z_k: Kriging models of the levels, should only contain known levels.
@@ -105,11 +105,15 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
            X_s = X[-1]: Locations at which we have sampled at the new level.
     @param X_unique: all unique previously sampled locations in X.
     @param Z: list of all level`s sample locations, including the new level.
-    @param Z_k: Kriging models of the levels, should only contain known levels.
+    @param Z_k: Kriging models of the levels, should only contain *known* levels.
     """
 
     X_s = correct_formatX(X[-1],setup.d)
     Z_s = Z[-1]
+
+    if len(Z_s) == 1:
+        Z_pred, mse_pred, _ = Kriging_unknown_z(X_s, X_unique, Z_s, Z_k)
+        return Z_pred, mse_pred
 
     " Collect new results "
     # NOTE if not in X_unique, we could just add a 0 to all previous,
@@ -119,7 +123,7 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
         Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], Z_k)
         D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
     D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
-
+    
     " Weighing "
     # 1) distance based: take the (tuned) Kriging correlation function
 
@@ -156,9 +160,9 @@ def weighted_prediction(setup, X, X_unique, Z, Z_k):
     # Scale for mse
     # NOTE noise is added to the samples regardless of what this function returns
     c_mse = c_z - mask  # always 0 variance for samples 
-    mse = np.sum(np.multiply(D_mse, c_mse), axis=0)
+    mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
-    return Z_pred, mse
+    return Z_pred, mse_pred
 
 
 

@@ -11,21 +11,21 @@ from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
 from utils.data_utils import correct_formatX
 
 
-def Kriging(setup, X_l, y_l, tuning=False, R_diagonal=0, hps_init=None, train=True):
+def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True):
     """
     This method clusters and provides all the functionality required for setting up a kriging model.
     """
 
     ok = OrdinaryKriging(setup,hps_init=hps_init)
 
-    if tuning == False:
+    if tune == False:
         if hps_init is None:
             raise NameError(
-                "hps_init is not defined! When tuning=False, hps_init must be defined"
+                "hps_init is not defined! When tune=False, hps_init must be defined"
             )
 
     if train:
-        ok.train(X_l, y_l, tuning, R_diagonal)
+        ok.train(X_l, y_l, tune, R_diagonal)
 
     return ok
 

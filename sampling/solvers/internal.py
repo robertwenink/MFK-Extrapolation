@@ -85,7 +85,7 @@ class TestFunction(Solver):
                 )
 
     def sampling_costs(self, l):
-        return l ** 4
+        return (l+1) ** 4
 
     def mf_conv_modifier(self, conv_base_func, conv_mod, X_acc_func):
         """this function provides a wrapper for the multi-fidelity convergence type, introducing irregular convergence.
