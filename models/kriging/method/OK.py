@@ -7,7 +7,8 @@ from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_t
 from numba import njit
 import time
 
-from models.kriging.hyperparameter_tuning.GA import geneticalgorithm as ga
+from models.kriging.hyperparameter_tuning.GA import GeneticAlgorithm as ga
+from models.kriging.hyperparameter_tuning.GA import MultistartHillclimb as ga
 from utils.data_utils import correct_formatX
 
 
@@ -16,7 +17,7 @@ def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True
     This method clusters and provides all the functionality required for setting up a kriging model.
     """
 
-    ok = OrdinaryKriging(setup,hps_init=hps_init)
+    ok = OrdinaryKriging(setup, hps_init=hps_init)
 
     if tune == False:
         if hps_init is None:
@@ -28,6 +29,7 @@ def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True
         ok.train(X_l, y_l, tune, R_diagonal)
 
     return ok
+
 
 @njit(cache=True)
 def _mu_hat(R_in, y):
@@ -61,11 +63,12 @@ def _predictor(R_in, r, y, mu_hat):
     y_hat = mu_hat + np.dot(rtR_in, y - mu_hat)
     return y_hat, rtR_in
 
+
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
-    if np.linalg.cond(R_in) < 1e8: # NOTE quite large
+    if np.linalg.cond(R_in) < 1e8:  # NOTE quite large
         # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps
-        t = y - np.sum(R_in * y) / (np.sum(R_in)+np.finfo(np.float32).eps)
+        t = y - np.sum(R_in * y) / (np.sum(R_in) + np.finfo(np.float32).eps)
         return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
     else:
         return -1e8
@@ -93,7 +96,7 @@ class OrdinaryKriging:
 
     def predict(self, X_new):
         """Predicts and returns the prediction and associated mean square error"""
-        X_new = correct_formatX(X_new,self.d)
+        X_new = correct_formatX(X_new, self.d)
 
         # NOTE correlation function for r should not involve regression terms (forrester2006).
         # Those come back through R(_in) in both sigma and the prediction.
@@ -105,12 +108,12 @@ class OrdinaryKriging:
 
     def train(self, X, y, tune=False, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
-        self.X = correct_formatX(X,self.d)
+        self.X = correct_formatX(X, self.d)
         self.y = y
 
         self.diff_matrix = diff_matrix(self.X, self.X)
         self.R_diagonal = R_diagonal
-        
+
         if tune:
             self.tune(R_diagonal)
 
@@ -130,8 +133,8 @@ class OrdinaryKriging:
 
     def fitness_func(self, hps):
         """
-        Fitness function for the tuning process. 
-    
+        Fitness function for the tuning process.
+
         Regression is optionally included by adding values to the diagonal of the correlation matrix.
         R_diagonal: factors determining the correlation with a point with itself.
                     0 if sampled, 0> if originating from lower level/ not sampled on current.
@@ -146,23 +149,22 @@ class OrdinaryKriging:
             return _fitness_func_loop(R_in, self.y, R).item()
         else:
             return _fitness_func_loop(R_in, self.y, R)
-    
+
     def tune(self, R_diagonal=0):
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
         # run model and time it
         start = time.time()
-        if not hasattr(self, "model"):    
+        if not hasattr(self, "model"):
             self.model = ga(
                 function=self.fitness_func,
                 hps_init=self.hps,
                 hps_constraints=self.hps_constraints,
                 progress_bar=True,
                 convergence_curve=False,
-                reuse_pop=True
             )
         else:
             self.model.run()
-        
+
         t = time.time() - start
 
         # assign results to Kriging object, this sets hps_init for the tuning as well.

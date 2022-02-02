@@ -5,12 +5,216 @@ import sys
 import time
 import matplotlib.pyplot as plt
 
+import tqdm
+from itertools import repeat
+import os
+import functools
+from multiprocessing.dummy import Pool as ThreadPool
+
 from scipy.optimize import minimize
+from pyDOE2 import lhs
 
 from utils.data_utils import correct_format_hps
 
 
-class geneticalgorithm:
+class Tuner:
+    def __init__(
+        self,
+        function,
+        hps_init,
+        hps_constraints,
+        progress_bar=True,
+    ):
+
+        """
+        @param function <Callable> - the given objective function to be minimized
+
+        @param hps_constraints <numpy array/None> - provide an array of tuples
+        of length two as boundaries for each variable; the length of the array must be equal dimension.
+        For example, np.array([0,100],[0,200]) determines lower boundary 0 and upper boundary 100 for first variable.
+
+        @param convergence_curve <True/False> - Plot the convergence curve or not. Default is True.
+        @progress_bar <True/False> - Show progress bar or not. Default is True.
+        """
+
+        self.assert_input(function, hps_init, hps_constraints)
+
+        self.set_hps_to_tune(hps_constraints)
+        self.hps_init = hps_init
+        self.f = function
+        self.progress_bar = progress_bar
+
+        self.report = []
+
+        self.pop_s = min(int(2 ** (2 * self.dim)), 1000)
+        print("Population size = {}".format(self.pop_s))
+
+    def set_hps_to_tune(self, hps_constraints):
+        """
+        select which hyper parameters we are going to tune.
+        if the upper and lowerbounds of the hyper parameter constraints are equal, we willnot tune them
+        """
+        self.hps_tune_indices = []
+        self.dim = 0
+
+        for i in range(hps_constraints.shape[0]):
+            if hps_constraints[i][0] != hps_constraints[i][1]:
+                self.hps_tune_indices.append(True)
+                self.dim += 1
+            else:
+                self.hps_tune_indices.append(False)
+        self.hps_constraints = hps_constraints[self.hps_tune_indices]
+
+    def assert_input(self, function, hps_init, hps_constraints):
+        # input variables' boundaries
+        assert (
+            type(hps_constraints).__module__ == "numpy"
+        ), "\n hps_constraints must be numpy array"
+
+        assert hps_constraints.ndim == 2, "hps_constraints must be of dimension 2"
+
+        for i in hps_constraints:
+            assert (
+                len(i) == 2
+            ), "\n boundary for each variable must be a tuple of length two."
+            assert (
+                i[0] <= i[1]
+            ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
+
+        # check correctness  hps_init wrt boundaries
+        assert (
+            hps_init.ndim == 1
+        ), "\n please define hps_init as an 1d array of shape (..,)"
+
+        # input function
+        assert callable(function), "function must be callable"
+
+    def initialize_population(self):
+        self.hps_pop = np.zeros((self.pop_s, self.hps_init.shape[0])) + self.hps_init
+        self.hps_pop[:, self.hps_tune_indices] = 0
+
+        # new initial Population
+        pop = np.zeros((self.pop_s, self.dim + 2))
+
+        p = np.arange(0, self.pop_s - 1)
+        i = np.arange(self.dim)
+        i, p = np.meshgrid(i, p)
+
+        # pop[p, i] = self.hps_constraints[i, 0] + np.random.random(
+        #     size=(p.shape[0], self.dim)
+        # ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
+
+        pop[p, i] = self.hps_constraints[i, 0] + lhs(
+            self.dim,
+            samples=self.pop_s-1,
+            criterion="maximin",
+            iterations=20,
+        ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
+
+        # replace worst individual with hps_init, hps_init might differ from pop[0,..]
+        pop[-1, : self.dim] = self.hps_init[self.hps_tune_indices]
+
+        return pop
+
+    def reform_pop(self, hps):
+        """
+        Return the hyperparameters to full form, including the non-tuned hps.
+        """
+        new_hps = self.hps_pop[: ((hps.ndim - 1) * (hps.shape[0] - 1) + 1), :]
+        new_hps[:, self.hps_tune_indices] = hps
+        return new_hps
+
+    def hillclimbing(self, individuals):
+        # NOTE sequentially is faster than using multithreading due to overhead.
+        for i in range(individuals.shape[0]):
+            if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
+                hps0 = individuals[i][: self.dim]
+                result = minimize(
+                    self.sim, hps0, bounds=self.hps_constraints  # , method="L-BFGS-B"
+                )
+                individuals[i][: self.dim] = result.x
+                individuals[i][self.dim] = result.fun
+                individuals[i][self.dim + 1] = result.success
+
+        return individuals
+
+    def sim(self, hps):
+        """Transform the population back to full form and negate the results to obtain a maximization problem"""
+        return -self.f(self.reform_pop(hps))
+
+    def progress(self, count, total, status=""):
+        """
+        Print the tuning progress.
+        This is a relatively expensive function due to stdout.
+        """
+        if count % (int(total / 100)) == 0:
+            bar_len = 50
+            filled_len = int(round(bar_len * count / float(total)))
+
+            percents = round(100.0 * count / float(total), 1)
+            bar = "|" * filled_len + "_" * (bar_len - filled_len)
+
+            sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
+            sys.stdout.flush()
+
+    def finalize(self, pop):
+        # Sort
+        pop = pop[pop[:, self.dim].argsort()]
+
+        if pop[0, self.dim] < self.best_function:
+            self.best_function = pop[0, self.dim]
+            self.best_variable = pop[0, : self.dim]
+
+        # Report
+        self.best_variable = self.reform_pop(self.best_variable).ravel()
+        self.output_dict = {
+            "variable": self.best_variable,  # return the full hp!
+            "function": -self.best_function,
+        }
+
+        if self.progress_bar == True:
+            # reset the bar to an empty line
+            show = " " * 100
+            sys.stdout.write("\r%s" % (" " * 100))
+
+        sys.stdout.write("\r The best solution found:\n %s" % (self.best_variable))
+        sys.stdout.write("\n\n Objective function:\n %s\n" % (-self.best_function))
+        sys.stdout.flush()
+
+
+class MultistartHillclimb(Tuner):
+    def __init__(
+        self,
+        function,
+        hps_init,
+        hps_constraints,
+        convergence_curve=True,  # TODO niet belangrijk hier
+        progress_bar=True,
+    ):
+        super().__init__(function, hps_init, hps_constraints)
+        self.pop_s *= 2  # two times as large initial pop as GA based alg.
+        self.run()
+
+    def run(self):
+        # inits
+        pop = self.initialize_population()
+
+        # do hillclimbing
+        print("Starting hillclimbing")
+        pop = self.hillclimbing(pop)
+        pop = pop[pop[:, self.dim].argsort()]
+
+        self.best_variable = pop[0, : self.dim]
+        self.best_function = pop[0, self.dim]
+        sys.stdout.write(
+            "\n hillclimbing objective function:\n %s\n" % (-self.best_function)
+        )
+        sys.stdout.flush()
+
+        self.finalize(pop)
+
+
+class GeneticAlgorithm(Tuner):
 
     """
     Elitist genetic algorithm for solving problems with
@@ -33,72 +237,23 @@ class geneticalgorithm:
         function,
         hps_init,
         hps_constraints,
-        algorithm_parameters={
-            "max_num_iteration": None,
+        convergence_curve=True,
+        progress_bar=True,
+    ):
+        self.__name__ = "Genetic Algorithm"
+        super().__init__(function, hps_init, hps_constraints, progress_bar)
+
+        self.param = {
+            "max_num_iteration": None,  # stoping criteria of the genetic algorithm (GA)
             "mutation_probability": 0.1,
             "elit_ratio": 0.05,
             "crossover_probability": 0.3,
             "parents_portion": 0.3,
-            "crossover_type": "two_point",
+            "crossover_type": "uniform",  # <string> - Default is 'uniform'; 'one_point' or 'two_point' are other options
             "max_iteration_without_improv": None,
-        },
-        convergence_curve=True,
-        progress_bar=True,
-        reuse_pop=True,
-    ):
-        """
-        @param function <Callable> - the given objective function to be minimized
-        NOTE: This implementation minimizes the given objective function.
-        (For maximization multiply function by a negative sign: the absolute
-        value of the output would be the actual objective function)
+        }
 
-        @param dimension <integer> - the number of decision variables
-
-        @param hps_constraints <numpy array/None> - provide an array of tuples
-        of length two as boundaries for each variable; the length of the array must be equal dimension.
-        For example, np.array([0,100],[0,200]) determines lower boundary 0 and upper boundary 100 for first variable.
-
-        @param algorithm_parameters:
-            @ max_num_iteration <int> - stoping criteria of the genetic algorithm (GA)
-            @ population_size <int>
-            @ mutation_probability <float in [0,1]>
-            @ elit_ration <float in [0,1]>
-            @ crossover_probability <float in [0,1]>
-            @ parents_portion <float in [0,1]>
-            @ crossover_type <string> - Default is 'uniform'; 'one_point' or
-            'two_point' are other options
-            @ max_iteration_without_improv <int> - maximum number of
-            successive iterations without improvement. If None it is ineffective
-
-        @param convergence_curve <True/False> - Plot the convergence curve or not
-        Default is True.
-        @progress_bar <True/False> - Show progress bar or not. Default is True.
-        @reuse_po <True/False> - on a later run, do we want to re-use the last population of the previous run?
-        """
-        self.__name__ = geneticalgorithm
-
-        self.param = algorithm_parameters
-        self.reuse_pop = reuse_pop
-        self.hps_init = hps_init
-
-        self.dim = 0
-        self.hps_tune_indices = []
-        for i in range(hps_constraints.shape[0]):
-            if hps_constraints[i][0] != hps_constraints[i][1]:
-                self.hps_tune_indices.append(True)
-                self.dim += 1
-            else:
-                self.hps_tune_indices.append(False)
-        self.hps_constraints = hps_constraints[self.hps_tune_indices]
-        
-        self.pop_s = min(int(10 ** np.sqrt(2*self.dim)),1000)
-
-        # assert all input
-        self.assert_input(function, hps_init, hps_constraints, progress_bar)
-
-
-        # we might not tune all hps!!
-        self.hps_dim = hps_init.shape[0]
+        self.assert_GA_parameters()
 
         # convergence_curve
         self.convergence_curve = convergence_curve
@@ -127,55 +282,19 @@ class geneticalgorithm:
         # if all correct, run
         self.run()
 
-    def initialize_population(self):
-        self.hps_pop = np.zeros((self.pop_s, self.hps_dim)) + self.hps_init
-        self.hps_pop[:, self.hps_tune_indices] = 0
-
-        # do we want to re-use the previous population?
-        if hasattr(self, "pop") and self.reuse_pop:
-            pop = self.pop
-
-            # if so, set the max nr of iterations without improvement
-            self.mniwi = self.iterate / 5
-        else:
-            # new initial Population
-            pop = np.zeros((self.pop_s, self.dim + 2))
-
-            p = np.arange(0, self.pop_s)
-            i = np.arange(self.dim)
-            i, p = np.meshgrid(i, p)
-
-            pop[p, i] = self.hps_constraints[i, 0] + np.random.random(
-                size=(p.shape[0], self.dim)
-            ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
-
-        # replace worst individual with hps_init, hps_init might differ from pop[0,..]
-        pop[-1, : self.dim] = self.hps_init[self.hps_tune_indices]
-
-        return pop
-
     def run(self):
         # inits
         pop = self.initialize_population()
 
-        # Fitness of whole population at once.
-        pop[:, self.dim] = self.sim(pop[:, : self.dim])
-        pop = pop[pop[:, self.dim].argsort()]
-
-        # Report
-        self.report = []
-        self.best_function = pop[0, self.dim]
-        sys.stdout.write("\n Initial objective function:\n %s" % (-self.best_function))
-        sys.stdout.flush()
-
         # do hillclimbing
+        print("Starting hillclimbing")
         pop = self.hillclimbing(pop)
         pop = pop[pop[:, self.dim].argsort()]
 
         self.best_variable = pop[0, : self.dim]
         self.best_function = pop[0, self.dim]
         sys.stdout.write(
-            "\n hillclimbing objective function:\n %s\n\n" % (-self.best_function)
+            "\n hillclimbing objective function:\n %s\n" % (-self.best_function)
         )
         sys.stdout.flush()
 
@@ -239,7 +358,7 @@ class geneticalgorithm:
             # Sort
             pop = pop[pop[:, self.dim].argsort()]
             if pop[0, self.dim] < self.best_function:
-                if not np.allclose(pop[0, self.dim],self.best_function):
+                if not np.allclose(pop[0, self.dim], self.best_function):
                     counter = 0
                 else:
                     counter += 1
@@ -259,42 +378,20 @@ class geneticalgorithm:
             #############################################################
             #############################################################
 
-        # Sort
-        pop = pop[pop[:, self.dim].argsort()]
-        self.pop = pop
-
-        if pop[0, self.dim] < self.best_function:
-            self.best_function = pop[0, self.dim]
-            self.best_variable = pop[0, : self.dim]
-
-        # Report
-        self.best_variable = self.reform_pop(self.best_variable).ravel()
-        self.output_dict = {
-            "variable": self.best_variable,  # return the full hp!
-            "function": -self.best_function,
-        }
-
-        if self.progress_bar == True:
-            # reset the bar to an empty line
-            show = " " * 100
-            sys.stdout.write("\r%s" % (" " * 100))
-
-        sys.stdout.write("\r The best solution found:\n %s" % (self.best_variable))
-        sys.stdout.write("\n\n Objective function:\n %s\n" % (-self.best_function))
-        sys.stdout.flush()
-
-        if self.convergence_curve == True:
-            self.ax.plot(self.report, label="Objective function")
-            self.ax.set_xlabel("Iteration")
-            self.ax.set_ylabel("log likelihood")
-            self.fig.suptitle("Genetic Algorithm")
-            plt.draw()
+        self.finalize(pop)
 
         if self.stop_mniwi == True:
             sys.stdout.write(
                 "\nGA is terminated due to the"
                 + " maximum number of iterations without improvement was met!\n"
             )
+
+        if self.convergence_curve == True:
+            self.ax.plot(self.report, label="Objective function")
+            self.ax.set_xlabel("Iteration")
+            self.ax.set_ylabel("log likelihood")
+            self.fig.suptitle(self.__name__)
+            plt.draw()
 
     def rerandomize_population(self, pop):
         """With hillclimbing, we will have many points converged to the same solution, i.e. are np.allclose;
@@ -308,78 +405,7 @@ class geneticalgorithm:
                 ) * (self.hps_constraints[d, 1] - self.hps_constraints[d, 0])
         return pop
 
-    def hillclimbing(self, individuals):
-        # TODO from multiprocessing.dummy import Pool as ThreadPool
-        # pool = ThreadPool(processes=100)
-        # pool.map(process_animal, animals["animals"])
-        # pool.close()
-        # pool.join()
-
-        for i in range(individuals.shape[0]):
-            if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
-                hps0 = individuals[i][: self.dim]
-                result = minimize(
-                    self.sim, hps0, bounds=self.hps_constraints #, method="L-BFGS-B"
-                )
-                individuals[i][: self.dim] = result.x
-                individuals[i][self.dim] = result.fun
-                individuals[i][self.dim + 1] = result.success
-        return individuals
-
-    def reform_pop(self, hps):
-        """
-        Return the hyperparameters to full form, including the non-tuned hps.
-        """
-        new_hps = self.hps_pop[: ((hps.ndim - 1) * (hps.shape[0] - 1) + 1), :]
-        new_hps[:, self.hps_tune_indices] = hps
-        return new_hps
-
-    def sim(self, hps):
-        obj = -self.f(self.reform_pop(hps))
-        return obj
-
-    def progress(self, count, total, status=""):
-        """
-        This is a relatively expensive function due to stdout.
-        """
-        if count % (int(total / 100)) == 0:
-            bar_len = 50
-            filled_len = int(round(bar_len * count / float(total)))
-
-            percents = round(100.0 * count / float(total), 1)
-            bar = "|" * filled_len + "_" * (bar_len - filled_len)
-
-            sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
-            sys.stdout.flush()
-
-    def assert_input(self, function, hps_init, hps_constraints, progress_bar):
-        # input variables' boundaries
-        assert (
-            type(hps_constraints).__module__ == "numpy"
-        ), "\n hps_constraints must be numpy array"
-
-        assert hps_constraints.ndim == 2, "hps_constraints must be of dimension 2"
-
-        for i in hps_constraints:
-            assert (
-                len(i) == 2
-            ), "\n boundary for each variable must be a tuple of length two."
-            assert (
-                i[0] <= i[1]
-            ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
-
-        # check correctness  hps_init wrt boundaries
-        assert (
-            hps_init.ndim == 1
-        ), "\n please define hps_init as an 1d array of shape (..,)"
-
-        # input function
-        assert callable(function), "function must be callable"
-        self.f = function
-
-        # progress_bar
-        self.progress_bar = progress_bar
-
+    def assert_GA_parameters(self):
         # input algorithm's parameters
         assert (
             self.param["parents_portion"] <= 1 and self.param["parents_portion"] >= 0

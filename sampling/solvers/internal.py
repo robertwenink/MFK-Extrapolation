@@ -32,7 +32,7 @@ class Solver(ABC):
         First make sure X is of the correct format.
         X always is of the form [[..,..],[..,..],..]
         """
-        X = correct_formatX(X, d_req==1)
+        X = correct_formatX(X, d_req == 1)
 
         if d_req != None:
             assert X.shape[1] == d_req, "Dimension should be {}".format(d_req)
@@ -58,7 +58,7 @@ class TestFunction(Solver):
 
     def __init__(self, setup=None):
         """
-        setup must be None; we do not always require the use of a setup, 
+        setup must be None; we do not always require the use of a setup,
         as this class is used in creation of the setup object/ GUI for retrieving min_d, max_d.
         """
         if setup is not None:
@@ -85,7 +85,7 @@ class TestFunction(Solver):
                 )
 
     def sampling_costs(self, l):
-        return (l+1) ** 4
+        return (l + 1) ** 4
 
     def mf_conv_modifier(self, conv_base_func, conv_mod, X_acc_func):
         """this function provides a wrapper for the multi-fidelity convergence type, introducing irregular convergence.
@@ -117,7 +117,7 @@ class TestFunction(Solver):
             )
         elif conv_mod == 3:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                0.5 + np.sin(conv_base_func(l) * X * 2 * np.pi)
+                0.5 + np.sin(conv_base_func(l) * X_acc_func(X) * 2 * np.pi)
             )
         else:
             return lambda X, l: conv_base_func(l) * np.ones(X.shape[0])
@@ -134,7 +134,7 @@ class TestFunction(Solver):
 
             if self.mf and l != None:
                 cost = self.sampling_costs(l) * X.shape[0]
-                
+
                 " convergence profile "
                 X = self.check_format_X(X)
                 conv = self.conv_mod_func(X, l)
@@ -161,7 +161,7 @@ class TestFunction(Solver):
                 # NOTE hard coded std /amplitude of e-3
                 val *= 1 + 0.001 * (np.random.standard_normal(size=val.shape) - 0.5)
 
-            return val, cost 
+            return val, cost
 
         return wrapper
 
