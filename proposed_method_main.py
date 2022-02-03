@@ -32,7 +32,8 @@ reuse_values = False
 ei = 1
 ei_criterion = 2 * np.finfo(np.float32).eps
 
-Z_k, costs, Z_pred = [], [], []
+Z_k, Z_pred = [], []
+costs, costs_tot = [[] for _ in range(len(L))], 0
 
 ###############################
 # helper functions
@@ -44,13 +45,15 @@ def sample(l, x_new):
     lists X, Z, and costs are changed inplace by reference
     x_new is the value / an np.ndarray of to sample location(s)
     """
+    global costs_tot
     # check if not already sampled at this level
     if x_new not in X[l]:
         z_new, cost = solver.solve(x_new, L[l])
         X[l] = np.append(X[l], x_new, axis=0)
         Z[l] = np.append(Z[l], z_new)
-        costs.append(cost)
-        print("Current cost: {}".format(np.sum(costs)))
+        costs[l].append(cost)
+        costs_tot += cost
+        print("Current cost: {}".format(costs_tot))
 
 
 def sample_nested(l, x_new):
@@ -88,8 +91,9 @@ else:
     for l in range(2):
         z_new, cost = solver.solve(X[l], L[l])
         Z.append(z_new)
-        costs.append(cost)
-        print("Current cost: {}".format(np.sum(costs)))
+        costs[l].append(cost)
+        costs_tot += cost
+        print("Current cost: {}".format(costs_tot))
 
 
 # create Krigings of levels, same initial hps
@@ -108,8 +112,9 @@ if len(Z) == 2: # then we do not have a sample on level 2 yet.
     z_pred, cost = solver.solve(x_b, L[l])
     X.append(x_b)
     Z.append(z_pred)
-    costs.append(cost)
-    print("Current cost: {}".format(np.sum(costs)))
+    costs[l].append(cost)
+    costs_tot += cost
+    print("Current cost: {}".format(costs_tot))
 
     sample_nested(l, x_b)
 
@@ -126,7 +131,7 @@ pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
 
 
 " sample from the predicted distribution in EGO fashion"
-while np.sum(costs) < max_cost:
+while costs_tot < max_cost:
     # select points to asses expected improvement
     X_infill = pp.X_pred  # TODO does not work for d>2
 

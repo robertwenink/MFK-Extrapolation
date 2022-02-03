@@ -1,9 +1,3 @@
-# RESEARCH QUESTIONS:
-# - Can we improve the effective sample efficiency/costs in multi fidelity Kriging by assuming correlation/dependence between fidelity levels?
-#   - can we make accurate predictions about unseen higher fidelity levels based upon this assumption?
-#   - can we avoid sampling the most expensive high fidelity levels based upon this assumption in a efficient global optimization setting?
-
-
 """
 A 'solver' with the property of grid convergence; i.e. a converging function.
 We could use it as well as modifier for transformed MF testcases.
@@ -15,7 +9,7 @@ from sampling.initial_sampling import get_doe
 from sampling.infill.infill_criteria import EI
 from models.kriging.method.OK import Kriging
 from utils.data_utils import return_unique, correct_formatX
-
+    
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     """
@@ -43,41 +37,51 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     Z1, S1 = Z1_k.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
-    def exp_f(lamb):
+    def exp_f(lamb1,lamb2):
         """get expectation of the function according to
         integration of standard normal gaussian function lamb"""
         c1 = z_pred - z1_b
         c2 = z1_b - z0_b
         c3 = abs(s1_b - s0_b) # NOTE should be s1_b - s0_b if they are assumed to move in the same direction
-        f = (c1 - lamb * s1_b) / (c2 + lamb * c3 + np.finfo(np.float64).eps)
+        f = (c1 - lamb1 * s1_b) / (c2 + lamb1 * s1_b + lamb2 * s0_b + np.finfo(np.float64).eps)
 
         # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
-        return f * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi), f
+        # bivariate : https://mathworld.wolfram.com/BivariateNormalDistribution.html
+        return f * np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi), f
 
     # 1000 steps; evaluates norm to 0.9999994113250346
     lambs = np.arange(-5, 5, 0.01)
+    lamb1,lamb2 = np.meshgrid(lambs,lambs)
 
     # evaluate expectation
-    Y, f = exp_f(lambs)
-    Ef = np.trapz(Y, lambs, axis=0)
+    Y, f = exp_f(lamb1,lamb2)
+    Ef = np.trapz(np.trapz(Y, lambs, axis=0), lambs, axis=0) # axis=0 because the last axis (default) are the dimensions.
 
-    def var_f(lamb):
+    def var_f(lamb1,lamb2):
         # Var X = E[(X-E[X])**2]
         # down below: random variable - exp random variable, squared, times the pdf of rho (N(0,1)); 
         # we integrate this function and retrieve the expectation of this expression, i.e. the variance.
-        return (f - Ef) ** 2 * np.exp(-(lamb ** 2) / 2) / np.sqrt(2 * np.pi)
+        return (f - Ef) ** 2 * np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi)
 
-    Y = var_f(lambs)
-    Sf = np.sqrt(np.trapz(Y, lambs, axis=0)) # NOTE not a normal gaussian variance, but we use it as such
+    Y = var_f(lamb1,lamb2)
+    Sf = np.sqrt(np.trapz(np.trapz(Y, lambs, axis=0), lambs, axis=0)) # NOTE not a normal gaussian variance, but we use it as such
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
     Z2_p = Ef * (Z1 - Z0) + Z1
 
-    # TODO add extra term based on distance.
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging 
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
     S2_p = S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf 
+
+    # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
+    # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance. 
+    # i.e. above might not be equal to that. 
+    # NOTE new idea for checking assumption? i.e. if estimated variance deviates too much from kriged variance?
+    # 
+    # we might include as well the expected improvement, i.e. if the variance is reduced, 
+    # do we expect to still see an ei?
+    # Further, even if S1 contributes most, if this is the case, we might only want to sample S0.  
 
     # get index in X_unique of x_b
     ind = np.all(X_unique == x_b, axis=1)
@@ -85,7 +89,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # set Z2_p to z_pred at that index
     Z2_p[ind] = z_pred
 
-    # set S2_p to 0 at that index
+    # set S2_p to 0 at that index, we will later include variance from noise.
     S2_p[ind] = 0
 
     return Z2_p, S2_p ** 2, Sf ** 2
