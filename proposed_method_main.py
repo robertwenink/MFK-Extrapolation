@@ -6,10 +6,11 @@ import os
 
 from proposed_method import *
 from linearity_check import *
-from preprocessing.input import Input
-from sampling.initial_sampling import get_doe
 from postprocessing.plotting import *
 
+from preprocessing.input import Input
+from sampling.initial_sampling import get_doe
+from models.kriging.kernel import dist_matrix
 from preprocessing.input import Input
 from utils.data_utils import return_unique
 
@@ -81,14 +82,23 @@ def sample_nested(l, x_new):
 
 def LHS_subset(X_unique,x_init,amount):
     """
-    TODO the result should be sampled via some maximin criterion again including boundaries. For now just random.
+    TODO the result should be sampled via maximin criterion again including boundaries. 
+    Now done greedily.
     """ 
-    X_list = [x_init]
-    while len(X_list) < amount:
-        item = X_unique[np.random.randint(0,X_unique.shape[0])]
-        if item not in X_list:
-            X_list.append(item)
-    return np.array(X_list)
+    assert amount <= X_unique.shape[0]
+
+    ind = np.where(x_init == X_unique)[0].item()
+    ind_list = [ind]
+
+    dist_mat = dist_matrix(X_unique, X_unique)
+    while len(ind_list) < amount:
+        # add distances of a point to current chose points, take one with highest minimum distance.
+        sub = dist_mat[ind_list]
+        s=np.min(sub,axis=0)
+        ind_next = np.argmax(s)
+        if ind_next not in ind_list:
+            ind_list.append(ind_next)
+    return X_unique[ind_list]
 
 
 def sample_initial_hifi(X,Z,X_unique):

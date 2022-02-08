@@ -58,6 +58,16 @@ def _dist_matrix(X):
     """
     return np.power(np.sum(np.power(X[:, np.newaxis, :] - X, 2), axis=2), 1 / 2)
 
+@njit(cache=True)
+def dist_matrix(X,X_other):
+    " Euclidian pairwise distance "
+    diff_mat = diff_matrix(X,X_other)
+    arr = np.zeros((diff_mat.shape[:-1]))
+    i = np.arange(diff_mat.shape[0])
+    for d in range(diff_mat.shape[-1]):
+        arr[i, :] += diff_mat[i, :, d] ** 2
+    return np.sqrt(arr)
+
 
 @njit(cache=True, fastmath=True)
 def diff_matrix(X, X_other):
