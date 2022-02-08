@@ -11,6 +11,7 @@ from sampling.infill.infill_criteria import EI
 from models.kriging.method.OK import Kriging
 from utils.data_utils import return_unique, correct_formatX
 
+
 def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     """
     Assume the relative differences at one location are representative for the

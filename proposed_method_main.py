@@ -153,7 +153,8 @@ if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
-Z_k_new = Kriging(setup, X_unique, Z_pred, hps_init=Z_k[-1].hps, tune = True)
+Z_k_new = Kriging(setup, X_unique, Z_pred, hps_init=Z_k[-1].hps, tune = True, R_diagonal=mse_pred / Z_k[-1].sigma_hat)
+Z_k_new.reinterpolate()
 
 # draw the result
 pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
@@ -186,6 +187,7 @@ while np.sum(costs) < max_cost:
     sample_nested(l, x_new)
 
     # TODO retrain all sampled levels.
+    # NOTE training != tuning necessarily
 
     # recalculate X_unique
     X_unique, X_unique_exc = return_unique(X, X[-1])
@@ -196,38 +198,11 @@ while np.sum(costs) < max_cost:
     # build new kriging based on prediction
     # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
     # NOTE for top-level we require re-interpolation if we apply noise
-    if "Z_k_new_noise" not in locals():
-        Z_k_new_noise = Kriging(
-            setup,
-            X_unique,
-            Z_pred,
-            R_diagonal=mse_pred / Z_k[-1].sigma_hat,
-            hps_init=Z_k[-1].hps,
-            tune=True,
-        )
-    else:
-        Z_k_new_noise.train(
-            X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new_noise.sigma_hat
-        )
 
-    # NOTE noise should decrease when we increase the fidelity, therefore, extrapolate the noise of the previous levels.
-    # in a real case this should be something like a log over the resolution, here we just take the previous result.
-    # furthermore, points closeby will always have benefit from a larger noise + the predictions we make build upon the noise -> more noise.
-    # at the same time, for points closeby, if there is little noise, we will require little noise.
-    # we should thus not tune for noise at the prediction level, but maybe re-use a previous estimate in some way.
-    # TODO maybe only tune the noise bases on the sampled points?? i.e. exclude the prediction points as Kriging points.
-    Z_k_new_noise.hps[-1] = Z_k[-1].hps[-1]
-
-    " reinterpolate upper level the non-math way "
-    Z_k_new = Z_k_new_noise
-    Z_k_new.hps[-1] = 0  # set noise to 0
     Z_k_new.train(
-        X_unique,
-        Z_k_new_noise.predict(X_unique)[0],
-        tune=False,
-        R_diagonal=mse_pred / Z_k_new_noise.sigma_hat,
+        X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new.sigma_hat
     )
-    print("Z_k_new.hps : {}".format(Z_k_new.hps))
+    Z_k_new.reinterpolate()
 
     # " output "
     pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)

@@ -37,11 +37,13 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
     print("### Checking linearity")
     assert Z[-1].shape[0] >= 2, "\nMinimum of 2 samples at highest level required"
+    
 
     # need the list without X[-1] too
 
     Z_pred_full, mse_pred_full = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
-    Z_k_full = Kriging(setup, X_unique, Z_pred_full, hps_init=Z_k[-1].hps, tune=True)
+    Z_k_full = Kriging(setup, X_unique, Z_pred_full, hps_init=Z_k[-1].hps, tune = True, R_diagonal=mse_pred_full / Z_k[-1].sigma_hat)
+    Z_k_full.reinterpolate()
 
     Z_interval = np.max(Z_pred_full) - np.min(Z_pred_full)
     deviation_allowed = .1 * Z_interval # 5 percent noise/deviation allowed in absolute value
@@ -70,13 +72,14 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
             Z_k,
         )
 
+        # TODO fault: mse_pred is not the prediction mse!!! maakt dit uit?
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        # draw the result
         Z_k_partial = Kriging(
-            setup, X_unique, Z_pred_partial, hps_init=Z_k[-1].hps, tune=True
+            setup, X_unique, Z_pred_partial, hps_init=Z_k_full.hps, tune = False, R_diagonal=mse_pred_partial / Z_k_full.sigma_hat
         )
+        Z_k_partial.reinterpolate()
 
         # 0.5 corresponds with a fraction representing one side of the 100% confidence interval
         # i_include are sampeled points, so we exclude them ...
@@ -84,9 +87,11 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
             overlap_amount(start_full, end_full, start_partial, end_partial), i_include
         )
         difference = np.abs(Z_pred_full-Z_pred_partial)
-        if np.any(overlap < 0.5) and any(difference > deviation_allowed):
+        if not (np.all(overlap > 0.5) or all(difference < deviation_allowed)):
             linear = False
             print("NOT LINEAR ENOUGH")
+        
+        # draw the result
         pp.draw_current_levels(X, [*Z_k, Z_k_partial, Z_k_full], X_unique)
     
     return linear

@@ -132,6 +132,22 @@ class OrdinaryKriging:
         self.mu_hat = _mu_hat(self.R_in, y)
         self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
 
+    def reinterpolate(self):
+        # retrieve the noisy predictions
+        y_noise = self.predict(self.X)[0]
+
+        # set noise to 0
+        self.hps[-1] = 0  
+        
+        # retrain
+        self.train(
+            self.X,
+            y_noise,
+            tune=False,
+            R_diagonal=self.R_diagonal,
+        )
+        
+
     def fitness_func(self, hps):
         """
         Fitness function for the tuning process.
