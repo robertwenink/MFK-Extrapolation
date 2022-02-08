@@ -19,6 +19,7 @@ class Plotting:
 
         # create self.X_plot, and X_pred
         self.axes = []
+        self.markers = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
         self.lb = setup.search_space[1]
         self.ub = setup.search_space[2]
@@ -40,10 +41,8 @@ class Plotting:
             self.plot = lambda X, y, predictor: None
 
     def iterate_color_marker(func):
-        markers = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
-
         def wrapper(self, *args, **kwargs):
-            self.marker = next(markers)
+            self.marker = next(self.markers)
             self.color = next(self.axes[0]._get_lines.prop_cycler)["color"]
             func(self, *args, **kwargs)
 
@@ -228,26 +227,27 @@ class Plotting:
         assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 3"
         # reset axes and colorcycle
         axes = self.axes
+        self.markers = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
         for ax in axes:
             ax.clear()
             ax._get_lines.set_prop_cycle(None)
 
         " plot known kriging levels"
-        for i in range(max(len(X) - 1, 2)):
-            self.plot(X[i], Z_k[i], label="Kriging level {}".format(i))
+        for l in range(max(len(X) - 1, 2)):
+            self.plot(X[l], Z_k[l], label="Kriging level {}".format(l))
 
         " plot prediction kriging "
         # first two levels always known
         if len(X) > 2:
-            i += 1
+            l += 1
 
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[i], Z_k[i], label="Kriging level {}".format(i))
+            self.plot(X[l], Z_k[l], label="Kriging level {}".format(l))
             
             # plot our prediction, estimated points in black
             self.axes[0].scatter(
                 *X_unique[:, self.d_plot].T,
-                Z_k[i].predict(self.transform_X(X_unique))[0],
+                Z_k[l].predict(self.transform_X(X_unique))[0],
                 c="black",
                 marker=">",
                 label = "Extrapolated points"
@@ -256,16 +256,16 @@ class Plotting:
             # best out of all the *sampled* locations
             Z = Z_k[-1].predict(X[-1])[0]
             best = np.argmin(Z)
-            t =  X[i][best, self.d_plot].T
-            self.axes[0].scatter(*X[i][best, self.d_plot].T, Z[best], s = 60, marker = "*", color = 'red', zorder = 10, label="Current best")
+            t =  X[l][best, self.d_plot].T
+            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[best], s = 60, marker = "*", color = 'red', zorder = 10, label="Current best")
 
             if self.plot_exact:
                 # exact result of the level we try to predict
-                y_pred_truth = self.solver.solve(self.X_pred, l=i+2)[0].reshape(
+                y_pred_truth = self.solver.solve(self.X_pred, l=3)[0].reshape(
                     self.X_plot[0].shape
                 )
                 kwargs = {
-                    "label":"true level {}".format(i),
+                    "label":"true level {}".format(l),
                     "color":self.color,
                     "alpha":0.5
                 }
@@ -295,7 +295,10 @@ class Plotting:
             else:
                 ax=self.axes[1]
                 self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
-                
+        
+        " plot 'full' Kriging level in case of linearity check"
+        if len(Z_k)>3:
+            self.plot(X[-1], Z_k[-1], label="Full Kriging (linearity check)")
         
         for ax in self.axes:
             ax.legend()

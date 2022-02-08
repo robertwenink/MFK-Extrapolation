@@ -6,6 +6,7 @@ from scipy import linalg
 from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
 from numba import njit
 import time
+import sys
 
 from models.kriging.hyperparameter_tuning.GA import GeneticAlgorithm as ga
 from models.kriging.hyperparameter_tuning.GA import MultistartHillclimb as ga
@@ -66,8 +67,8 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
-    if np.linalg.cond(R_in) < 1e8:  # NOTE quite large
-        # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps
+    if np.linalg.cond(R_in) < 1e8:  # NOTE quite large but numerically still stable
+        # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps bcs constant factor
         t = y - np.sum(R_in * y) / (np.sum(R_in) + np.finfo(np.float32).eps)
         return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
     else:
@@ -154,6 +155,7 @@ class OrdinaryKriging:
         """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
         # run model and time it
         start = time.time()
+
         if not hasattr(self, "model"):
             self.model = ga(
                 function=self.fitness_func,
@@ -168,11 +170,13 @@ class OrdinaryKriging:
         t = time.time() - start
 
         # assign results to Kriging object, this sets hps_init for the tuning as well.
-        self.hps = self.model.output_dict["variable"].reshape(self.hps.shape)
+        self.hps = self.model.output_dict["hps"].reshape(self.hps.shape)
 
         # print results of tuning
+        sys.stdout.write("\r\tTuned hps: %s\n" % (self.model.best_hps))
+        sys.stdout.flush()
         print(
-            "Tuning completed with fitness {} and time {} s".format(
-                self.model.output_dict["function"], t
+            "\tTuned in {} s with fitness {}".format(t,
+                self.model.output_dict["function"]
             )
         )

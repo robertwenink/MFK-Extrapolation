@@ -30,8 +30,8 @@ class Tuner:
         @param function <Callable> - the given objective function to be minimized
 
         @param hps_constraints <numpy array/None> - provide an array of tuples
-        of length two as boundaries for each variable; the length of the array must be equal dimension.
-        For example, np.array([0,100],[0,200]) determines lower boundary 0 and upper boundary 100 for first variable.
+        of length two as boundaries for each hps; the length of the array must be equal dimension.
+        For example, np.array([0,100],[0,200]) determines lower boundary 0 and upper boundary 100 for first hps.
 
         @param convergence_curve <True/False> - Plot the convergence curve or not. Default is True.
         @progress_bar <True/False> - Show progress bar or not. Default is True.
@@ -47,7 +47,7 @@ class Tuner:
         self.report = []
 
         self.pop_s = min(int(2 ** (2 * self.dim)), 1000)
-        print("Population size = {}".format(self.pop_s))
+        # print("Population size = {}".format(self.pop_s))
 
     def set_hps_to_tune(self, hps_constraints):
         """
@@ -66,7 +66,7 @@ class Tuner:
         self.hps_constraints = hps_constraints[self.hps_tune_indices]
 
     def assert_input(self, function, hps_init, hps_constraints):
-        # input variables' boundaries
+        # input hpss' boundaries
         assert (
             type(hps_constraints).__module__ == "numpy"
         ), "\n hps_constraints must be numpy array"
@@ -76,7 +76,7 @@ class Tuner:
         for i in hps_constraints:
             assert (
                 len(i) == 2
-            ), "\n boundary for each variable must be a tuple of length two."
+            ), "\n boundary for each hps must be a tuple of length two."
             assert (
                 i[0] <= i[1]
             ), "\n lower_boundaries must be smaller than upper_boundaries [lower,upper]"
@@ -125,6 +125,8 @@ class Tuner:
         return new_hps
 
     def hillclimbing(self, individuals):
+        sys.stdout.write("\rRunning hillclimbing ...")
+        sys.stdout.flush()
         # NOTE sequentially is faster than using multithreading due to overhead.
         for i in range(individuals.shape[0]):
             if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
@@ -135,7 +137,7 @@ class Tuner:
                 individuals[i][: self.dim] = result.x
                 individuals[i][self.dim] = result.fun
                 individuals[i][self.dim + 1] = result.success
-
+        sys.stdout.write(" " * 100)
         return individuals
 
     def sim(self, hps):
@@ -163,23 +165,18 @@ class Tuner:
 
         if pop[0, self.dim] < self.best_function:
             self.best_function = pop[0, self.dim]
-            self.best_variable = pop[0, : self.dim]
+            self.best_hps = pop[0, : self.dim]
 
         # Report
-        self.best_variable = self.reform_pop(self.best_variable).ravel()
+        self.best_hps = self.reform_pop(self.best_hps).ravel()
         self.output_dict = {
-            "variable": self.best_variable,  # return the full hp!
+            "hps": self.best_hps,  # return the full hp!
             "function": -self.best_function,
         }
 
         if self.progress_bar == True:
             # reset the bar to an empty line
-            show = " " * 100
             sys.stdout.write("\r%s" % (" " * 100))
-
-        sys.stdout.write("\r The best solution found:\n %s" % (self.best_variable))
-        sys.stdout.write("\n\n Objective function:\n %s\n" % (-self.best_function))
-        sys.stdout.flush()
 
 
 class MultistartHillclimb(Tuner):
@@ -199,17 +196,11 @@ class MultistartHillclimb(Tuner):
         # inits
         pop = self.initialize_population()
 
-        # do hillclimbing
-        print("Starting hillclimbing")
         pop = self.hillclimbing(pop)
         pop = pop[pop[:, self.dim].argsort()]
 
-        self.best_variable = pop[0, : self.dim]
+        self.best_hps = pop[0, : self.dim]
         self.best_function = pop[0, self.dim]
-        sys.stdout.write(
-            "\n hillclimbing objective function:\n %s\n" % (-self.best_function)
-        )
-        sys.stdout.flush()
 
         self.finalize(pop)
 
@@ -218,14 +209,14 @@ class GeneticAlgorithm(Tuner):
 
     """
     Elitist genetic algorithm for solving problems with
-    continuous variables.
+    continuous hpss.
 
     run(): implements the genetic algorithm
 
     outputs:
-            output_dict:  a dictionary including the best set of variables
+            output_dict:  a dictionary including the best set of hpss
         found and the value of the given function associated to it.
-        {'variable': , 'function': }
+        {'hps': , 'function': }
 
             report: a list including the record of the progress of the
             algorithm over iterations
@@ -287,16 +278,11 @@ class GeneticAlgorithm(Tuner):
         pop = self.initialize_population()
 
         # do hillclimbing
-        print("Starting hillclimbing")
         pop = self.hillclimbing(pop)
         pop = pop[pop[:, self.dim].argsort()]
 
-        self.best_variable = pop[0, : self.dim]
+        self.best_hps = pop[0, : self.dim]
         self.best_function = pop[0, self.dim]
-        sys.stdout.write(
-            "\n hillclimbing objective function:\n %s\n" % (-self.best_function)
-        )
-        sys.stdout.flush()
 
         t = 0
         counter = 0
@@ -363,7 +349,7 @@ class GeneticAlgorithm(Tuner):
                 else:
                     counter += 1
                 self.best_function = pop[0, self.dim].copy()
-                self.best_variable = pop[0, : self.dim].copy()
+                self.best_hps = pop[0, : self.dim].copy()
             else:
                 counter += 1
 
@@ -382,8 +368,7 @@ class GeneticAlgorithm(Tuner):
 
         if self.stop_mniwi == True:
             sys.stdout.write(
-                "\nGA is terminated due to the"
-                + " maximum number of iterations without improvement was met!\n"
+                "\r\tGA terminated due to not improving for a maximum number of iterations.\n"
             )
 
         if self.convergence_curve == True:
