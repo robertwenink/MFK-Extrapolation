@@ -9,8 +9,7 @@ from linearity_check import *
 from postprocessing.plotting import *
 
 from preprocessing.input import Input
-from sampling.initial_sampling import get_doe
-from models.kriging.kernel import dist_matrix
+from sampling.initial_sampling import get_doe, LHS_subset
 from preprocessing.input import Input
 from utils.data_utils import return_unique
 
@@ -67,7 +66,7 @@ def sample(l, x_new):
         Z[l] = np.append(Z[l], z_new)
         update_costs(cost, X, l)
 
-def sample_nested(l, x_new):
+def sample_nested(l, x_new, X, Z, Z_k):
     """
     Function that does all required actions for nested sampling.
     """
@@ -75,47 +74,34 @@ def sample_nested(l, x_new):
     # Sampled HIFI location should be sampled at all lower levels as well, i.e. nested DoE; this because of Sf and optimally making use of the hifi point.
     # TODO do this for all levels? i.e. only the for loop?
     # NOTE leave for loop out to only sample the highest level
+    sampled_levels = [l]
     sample(l, x_new)
     if l == len(L) - 1:
         for i in range(l):
             sample(i, x_new)
-
-def LHS_subset(X_unique,x_init,amount):
-    """
-    TODO the result should be sampled via maximin criterion again including boundaries. 
-    Now done greedily.
-    """ 
-    assert amount <= X_unique.shape[0]
-
-    ind = np.where(x_init == X_unique)[0].item()
-    ind_list = [ind]
-
-    dist_mat = dist_matrix(X_unique, X_unique)
-    while len(ind_list) < amount:
-        # add distances of a point to current chose points, take one with highest minimum distance.
-        sub = dist_mat[ind_list]
-        s=np.min(sub,axis=0)
-        ind_next = np.argmax(s)
-        if ind_next not in ind_list:
-            ind_list.append(ind_next)
-    return X_unique[ind_list]
+            sampled_levels.append(i)
+    
+    # retrain the sampled levels with the newly added sample.
+    for i in sampled_levels:
+        if i != 2:
+            Z_k[i].train(X[i], Z[i])
 
 
-def sample_initial_hifi(X,Z,X_unique):
+def sample_initial_hifi(setup, X,Z,X_unique):
     # select best sampled (!) point of previous level and sample again there
     x_b = X[-1][np.argmin(Z[-1])]
 
     # select other points for cross validation, in LHS style
     amount = os.cpu_count()
     amount = 3
-    X_hifi = correct_formatX(LHS_subset(X_unique, x_b, amount),setup.d)
+    X_hifi = correct_formatX(LHS_subset(setup, X_unique, x_b, amount),setup.d)
 
     Z_pred, cost = solver.solve(X_hifi, L[l])
     X.append(X_hifi)
     Z.append(Z_pred)
     update_costs(cost, X, l)
 
-    sample_nested(l, X_hifi)
+    sample_nested(l, X_hifi, X, Z, Z_k)
 
 ###############################
 # main
@@ -142,8 +128,9 @@ else:
 
 
 # create Krigings of levels, same initial hps
+tune = False
 Z_k.append(Kriging(setup, X[0], Z[0], tune=True))
-Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps, tune=True))
+Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps, tune=tune))
 
 
 " level 2 initialisation "
@@ -155,10 +142,10 @@ l = 2
 X_unique, X_unique_exc = return_unique(X)
 
 if len(Z) == 2: # then we do not have a sample on level 2 yet.
-    sample_initial_hifi(X, Z, X_unique)
+    sample_initial_hifi(setup, X, Z, X_unique)
 
 if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
-    plt.pause(10)
+    plt.pause(5)
     sys.exit()
 
 " initial prediction "
@@ -180,7 +167,7 @@ while np.sum(costs) < max_cost:
     y_min = np.min(Z[-1])
     ei = np.zeros(X_infill.shape[0])
     for i in range(len(y_pred)):
-        ei[i] = EI(y_min, y_pred[i], sigma_pred[i])
+        ei[i] = EI(y_min, y_pred[i], np.sqrt(sigma_pred[i]))
 
     # select best point to sample
     x_new = correct_formatX(X_infill[np.argmax(ei)], setup.d)
@@ -194,10 +181,13 @@ while np.sum(costs) < max_cost:
     # source of uncertainty is from each component in proposed method which already includes approximated noise levels.
     # in practice this means: only for small S1 will we sample S0, otherwise S1. Nested DoE not required.
 
-    sample_nested(l, x_new)
-
-    # TODO retrain all sampled levels.
-    # NOTE training != tuning necessarily
+    # 1) check of de kriging variances gelijk zijn, aka of de predicted variances van de kriging toplevel 
+    # ongeveer overeenkomen met de prediction gebaseerd op lagere levels. Dus punt x_new virtueel aan X_unique voor weighted_prediction toevoegen en vergelijken.
+    # 1) variances van Kriging unknown scheiden
+    # 2) meenemen in de weighing
+    # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
+        
+    sample_nested(l, x_new, X, Z, Z_k)
 
     # recalculate X_unique
     X_unique, X_unique_exc = return_unique(X, X[-1])
@@ -210,7 +200,7 @@ while np.sum(costs) < max_cost:
     # NOTE for top-level we require re-interpolation if we apply noise
 
     Z_k_new.train(
-        X_unique, Z_pred, tune=True, R_diagonal=mse_pred / Z_k_new.sigma_hat
+        X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / Z_k_new.sigma_hat
     )
     Z_k_new.reinterpolate()
 

@@ -144,11 +144,11 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
 
     " Weighing "
     # 1) distance based: take the (tuned) Kriging correlation function
-
-    hps = Z_k[-1].hps
-    km = Kriging(setup, X_s, None, hps_init=hps, train=False)
-    c = km.corr(X_s, correct_formatX(X_unique, setup.d), hps)
-
+    # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
+    # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
+    km = Kriging(setup, X_s, Z_s, hps_init=Z_k[-1].hps, train=False)
+    c = km.corr(X_s, correct_formatX(X_unique, setup.d), km.hps)
+ 
     mask = c == 1.0  # then sampled point
     idx = mask.any(axis=0)  # get columns with sampled points
 

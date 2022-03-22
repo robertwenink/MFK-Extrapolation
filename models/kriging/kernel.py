@@ -39,7 +39,7 @@ def get_kernel(setup):
         # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
         # further, close to 0 makes no sense.
         hps_constraints = np.array(
-            [[[0+np.finfo(np.float16).eps, 100]] * setup.d, [[np.inf, np.inf]] * setup.d]
+            [[[-10, 2]] * setup.d, [[np.inf, np.inf]] * setup.d]
         ).reshape(-1,2)
 
         if setup.noise_regression:
@@ -112,7 +112,7 @@ def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     arr = np.zeros((diff_matrix.shape[:-1]))
     i = np.arange(diff_matrix.shape[0])
     for d in range(diff_matrix.shape[-1]):
-        arr[i, :] += theta[d] * diff_matrix[i, :, d] ** p[d]
+        arr[i, :] += 10**theta[d] * diff_matrix[i, :, d] ** p[d]
     return np.exp(-arr)
 
 
@@ -135,5 +135,5 @@ def corr_matrix_kriging(X, X_other, hps):
     for i in range(X_other.shape[0]):
         diff = np.abs(X - X_other[i, :])
         for di in range(d):
-            arr[:, i] += theta[di] * diff[:, di] ** p[di]
+            arr[:, i] += 10**theta[di] * diff[:, di] ** p[di]
     return np.exp(-arr)

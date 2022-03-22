@@ -46,7 +46,7 @@ class Tuner:
 
         self.report = []
 
-        self.pop_s = min(int(2 ** (2 * self.dim)), 1000)
+        self.pop_s = min(int(2 ** (2 + 2 * self.dim)), 1000)
         # print("Population size = {}".format(self.pop_s))
 
     def set_hps_to_tune(self, hps_constraints):

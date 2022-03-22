@@ -48,8 +48,8 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
     Z_interval = np.max(Z_pred_full) - np.min(Z_pred_full)
     deviation_allowed = .1 * Z_interval # 5 percent noise/deviation allowed in absolute value
 
-    start_full = Z_pred_full - 4 * mse_pred_full
-    end_full = Z_pred_full + 4 * mse_pred_full
+    start_full = Z_pred_full - 5 * mse_pred_full
+    end_full = Z_pred_full + 5 * mse_pred_full
 
     # TODO extremely ugly
     inds = [
@@ -87,7 +87,14 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
             overlap_amount(start_full, end_full, start_partial, end_partial), i_include
         )
         difference = np.abs(Z_pred_full-Z_pred_partial)
-        if not (np.all(overlap > 0.5) or all(difference < deviation_allowed)):
+        ov = np.any(overlap < 0.25)
+        if ov:
+            print("Too little overlap!")
+        diff = np.any(difference > deviation_allowed)
+        if diff:
+            print("Too large absolute difference!")
+
+        if ov and diff:
             linear = False
             print("NOT LINEAR ENOUGH")
         

@@ -51,7 +51,7 @@ def _mse(R_in, r, rtR_in, sigma_hat):
     # hiervan willen we de mse allen op de diagonaal, i.e. de mse van een punt naar een ander onsampled punt is niet onze interesse.
     # t0 = 1 - np.diag(np.dot(rtR_in , r)) # to make this faster we only need to calculates the columns/rows corresponding to the diagonals.
     t = 1 - np.sum(np.multiply(rtR_in, r.T), axis=-1)
-
+    # t2 = 1 - np.sum(rtR_in,axis=-1)
     # np.abs because numbers close to zero / e-13 can get negative due to rounding errors (in R_in?)
     mse = np.abs(sigma_hat * (t + t ** 2 / np.sum(R_in)))
     return mse
@@ -107,6 +107,7 @@ class OrdinaryKriging:
         mse_var = _mse(self.R_in, self.r, rtR_in, self.sigma_hat)
         return y_hat, mse_var
 
+
     def train(self, X, y, tune=False, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X, self.d)
@@ -131,6 +132,7 @@ class OrdinaryKriging:
         self.R_in = linalg.inv(R)
         self.mu_hat = _mu_hat(self.R_in, y)
         self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
+        
 
     def reinterpolate(self):
         # retrieve the noisy predictions

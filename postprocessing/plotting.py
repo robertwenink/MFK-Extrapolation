@@ -305,7 +305,7 @@ class Plotting:
 
         plt.tight_layout()
         plt.draw()
-        plt.pause(1)
+        plt.pause(1000)
 
 def draw_convergence(solver, solver_type_text):
     marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))

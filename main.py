@@ -1,4 +1,4 @@
-from sampling.initial_sampling import get_doe
+from sampling.initial_sampling import get_doe, plot_doe
 import numpy as np
 import matplotlib.pyplot as plt
 from sampling.solvers.solver import get_solver
@@ -6,6 +6,8 @@ from models.kriging.method.OK import OrdinaryKriging
 from postprocessing.plotting import Plotting
 
 from preprocessing.input import Input
+
+plot_doe()
 
 setup = Input(2)
 pp = Plotting(setup)
