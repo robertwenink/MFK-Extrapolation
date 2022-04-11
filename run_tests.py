@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sampling.initial_sampling import get_doe
+from sampling.DoE import get_doe
 from sampling.solvers.solver import get_solver
 from models.kriging.method.OK import *
 from postprocessing.plotting import plot_kriging

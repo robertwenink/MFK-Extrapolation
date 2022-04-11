@@ -13,7 +13,7 @@ if __name__ == "__main__":
 from preprocessing.GUIbase import Ui_Form
 
 from sampling.solvers.solver import get_solver_name_list, get_solver
-from sampling.initial_sampling import get_doe_name_list
+from sampling.DoE import get_doe_name_list
 from models.kriging.kernel import get_available_kernel_names
 
 

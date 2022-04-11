@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numba import vectorize, float64
 
-from sampling.initial_sampling import get_doe
+from sampling.DoE import get_doe
 from sampling.infill.infill_criteria import EI
 from models.kriging.method.OK import Kriging
 from utils.data_utils import return_unique, correct_formatX

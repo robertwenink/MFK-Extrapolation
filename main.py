@@ -1,4 +1,4 @@
-from sampling.initial_sampling import get_doe, plot_doe
+from sampling.DoE import get_doe, plot_doe
 import numpy as np
 import matplotlib.pyplot as plt
 from sampling.solvers.solver import get_solver

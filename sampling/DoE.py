@@ -22,7 +22,7 @@ def get_doe_name_list():
 
 def grid(setup, n=None, n_per_d=None):
     """
-    Build a grid and sample n points in each dimension d.
+    Build a grid/ full factorial DoE and sample n points in each dimension d.
     Be aware that each column/ row is linearly dependent and thus correlation matrix R is (nearly) invertable.
     """
     if n is not None and n_per_d is None:
@@ -32,6 +32,19 @@ def grid(setup, n=None, n_per_d=None):
     ub = setup.search_space[2]
     lin = np.linspace(lb, ub, n_per_d)
     lis = [lin[:, i] for i in range(d)]
+    res = np.meshgrid(*lis)
+    X = np.stack(res, axis=-1).reshape(-1, d)
+    return X
+
+def grid_unit_hypercube(d, n=None, n_per_d=None):
+    """
+    Build a grid/ full factorial DoE and sample n points in each dimension d for a unit hypercube.
+    Be aware that each column/ row is linearly dependent and thus correlation matrix R is (nearly) invertable.
+    """
+    if n is not None and n_per_d is None:
+        n_per_d = int(round(n ** (1 / d)))
+    lin = np.linspace(0, 1, n_per_d)
+    lis = [lin for i in range(d)]
     res = np.meshgrid(*lis)
     X = np.stack(res, axis=-1).reshape(-1, d)
     return X

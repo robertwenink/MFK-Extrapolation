@@ -9,7 +9,7 @@ from linearity_check import *
 from postprocessing.plotting import *
 
 from preprocessing.input import Input
-from sampling.initial_sampling import get_doe, LHS_subset
+from sampling.DoE import get_doe, LHS_subset
 from preprocessing.input import Input
 from utils.data_utils import return_unique
 
