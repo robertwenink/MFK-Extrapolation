@@ -17,15 +17,15 @@ class Solver(ABC):
     max_d = 10
     min_d = 1
 
+    input_parameter_list = ["xi"]
+    output_parameter_list = ["z"]
+
     def __init__(self, setup=None):
         pass
 
     @abstractmethod
     def solve(self):
-        pass
-
-    def get_preferred_search_space(self, d):
-        pass
+        raise NotImplementedError("Implement the solve method")
 
     def check_format_X(self, X, d_req=None):
         """
@@ -44,6 +44,12 @@ class Solver(ABC):
         assert y.ndim == 1, "y should be 1 dimensional"
         return y
 
+    def get_preferred_search_space(self, d):
+        """
+        This defines and passes the names and ranges of the design space variables to the GUI and further backend.
+        """
+        return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]
+
 
 class TestFunction(Solver):
     """
@@ -52,9 +58,11 @@ class TestFunction(Solver):
     X.shape[1] is the number of dimensions of the sample.
     """
 
-    input_parameter_list = ["xi"]
-    output_parameter_list = ["z"]
     objective_function = lambda z: np.min(z)
+
+    @abstractmethod
+    def get_preferred_search_space(self, d):
+        pass
 
     def __init__(self, setup=None):
         """

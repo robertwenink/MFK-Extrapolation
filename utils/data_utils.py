@@ -28,6 +28,16 @@ def correct_formatX(a,dim):
     return a
 
 
+def correct_fileformatX(X):
+    """
+    Assumes corrects input of X according to function correct_formatX.
+    Makes sure X is stored as list of np arrays such that SF and MF use same format.
+    """
+    if not isinstance(X, list):
+        return [X]
+    return X
+
+
 def correct_format_hps(a):
     if not isinstance(a, np.ndarray):
         a = np.array(a, dtype=np.float64)

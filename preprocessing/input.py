@@ -16,6 +16,7 @@ from preprocessing.GUIfunctions import GUI
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtCore as qtc
 
+from utils.data_utils import correct_fileformatX
 
 INPUTS_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 
@@ -73,19 +74,31 @@ class Input:
         f.close()
 
     def read_X(self):
+        """
+        Function that converts input X of the json file from a list of lists to a nested list of nd.arrays.
+        If length of the resulting list is 1, we have a single fidelity solution.
+        """
         if hasattr(self,'X'):
             for i in range(len(self.X)):
                 # this implies we always should define our X as a list of 2d ndarray
                 self.X[i] = np.array(self.X[i],dtype=np.float64)
-                assert(self.X[i].ndim == 2), "not retrieving a 2 dimensional (sub)X!"
-    
+                assert self.X[i].ndim == 2, "not retrieving a 2 dimensional (sub)X!"
+
+            if len(self.X) == 1:
+                self.X = self.X[0]
+
     def read_Z(self):
+        """
+        See docstring of read_X.
+        """
         if hasattr(self,'Z'):
             for i in range(len(self.Z)):
                 # this implies we always should define our Z as a list of 1d ndarray
                 self.Z[i] = np.array(self.Z[i],dtype=np.float64)
-                assert(self.Z[i].ndim == 1), "not retrieving a 1 dimensional (sub)Z!"
-
+                assert self.Z[i].ndim == 1, "not retrieving a 1 dimensional (sub)Z!"
+                
+            if len(self.Z) == 1:
+                self.Z = self.Z[0]
 
     def read_input(self):
         """Read the json file inputs and converting it to class attributes"""
@@ -115,6 +128,13 @@ class Input:
     
     def create_input_file(self):
         """Can be used to create or update the input file according to the contents of __dict__"""
+
+        if hasattr(self,'X'):
+            self.X = correct_fileformatX(self.X)
+
+        if hasattr(self,'Z'):
+            self.Z = correct_fileformatX(self.Z)
+            
         # dumping
         json.dump(
             self.__dict__, open(os.path.join(INPUTS_DIR, self.filename), "w"), default=convert_np_to_list, indent=4

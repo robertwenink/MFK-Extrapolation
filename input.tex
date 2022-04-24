@@ -1,0 +1,248 @@
+## Input for the code
+
+# Name file (between ' with spaces on both sides and no spaces in name)
+' Wedge_optimization '
+
+## PARAMETERS
+
+# Density air [kg/m^3] | Density water [kg/m^3] | Dynamic viscosity air [kg/ms] | Dynamic viscosity water [kg/ms]
+1.334 1027 0 0
+
+# Gravitational constant [x, y]
+0 -9.81
+
+# Surface tension coefficient | Atmospheric pressure [N/m^2] | Gamma air [-]	| Speed of sound water [m/s]
+0.0 	1e5 	1.4		1500
+
+# Position of definition of atmospheric pressure [pos, x_0, x_1]
+# Atmospheric opens the wall automatic
+# pos: Top (1)	| Bottom (3)	| Right (2)		| Left (4)
+# Distance x_0 and x_1
+1 0 10
+
+#-------------------
+## DOMAIN
+
+# Domain dimension [x, z] [m]
+1.1 0.9
+
+# Grid size and geometrical progression ratio [Nx, Nz, Rx, Rz]
+# DETAIL 0 10 50 1.0000 1.0000 4 7 45 1.0141 1.0141
+SIMPLE 64 64 1 1
+
+
+#-------------------
+## CASE
+# For wave no body can be applied yet !
+# Free flow (0)	| Wave (1)
+0
+
+## WAVE
+# Amplitude [m] | Height [m]	| Wave length [m]	| Phase *pi
+0.05 	0.50		1		0
+
+# Cosine (1)	| Sine (0)
+1
+
+# Direction filled: north (1)	| east (2)	|	south (3)	| west (4)
+3
+
+## FREE FLOW
+# Way of filling
+# [1] Circle        [x_center, z_center, radius]
+# [2] Wedge         [x_left, x_right, z_entry, a_degree]
+# [3] Rectangle     [x_left, x_right, z_bottom, z_top]
+# [4] Wedgeblock    [x_left, x_right, z_entry, a_degree, h_block]
+# [5] Picture		[picture relative address, x_centre, y_centre, scale ( standard: 1 pxl = 1 mm)]
+
+# PART 1:
+# Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
+0 0 0 0 0 0
+
+# PART 2 (Using Geometry.py module):
+# Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
+0 NONE
+
+# PART 3 (Using Geometry.py module):
+# Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
+0 HEIGHT_Z 0.5
+
+#-------------------
+## BODY DEFINITION (single body for now)
+# Input per body:
+# - dimensions      [way of filling]
+# - velocity        [initial velocity (u0, v0), external acceleration (ax, ay)]
+# - mass            [mass/density (0/1) + value (m/rho), center of gravity (xg, yg)]
+# - motion          [coupled (0) + in direction (cx, cy), around reference (1) + position (px, py)]
+
+# BODY 1:
+# Dimensions of body [way, param1, param2, param3, ...] [m]
+5 NURBS.png 5.0 5.0 5
+
+# Initial velocity of body [u0, v0, ax, ay]
+0 -6.65 0 0
+
+# Mass of body [m/rho, value, xg, yg]
+0 16.8 0 0
+
+# Motion of body [uncoupled: 0 0 0, coupled: 0 1 1, pendulum: 1 px py]
+0 0 1
+
+#-------------------
+## INFLOW OF WATER
+# Types of inflow:
+# [0] Closed                [-]
+# [1] Inflow                [velocity (positive = inflow) (m/s), x_begin (m), x_end (m)]
+# [2] Wave in (LEFT/RIGHT)  [mean surface level (m)] (reads waveparam.csv)
+# [3] Periodic (L/R)        [-] (Set at left and right!)
+# [4] Open boundary         [x_begin(m), x_end(m)]
+#     by con. pressure ext.
+
+# Start time [s] | End time [s] | Ramp time [s] (Only works for steady inflow)
+0 0 0
+
+# Top wall
+# Inflow type | [param1, param2, ...]
+0
+
+# Right wall
+# Inflow type | [param1, param2, ...]
+0
+
+# Bottom wall
+# Inflow type | [param1, param2, ...]
+0
+
+# Left wall
+# Inflow type | [param1, param2, ...]
+0
+
+#-------------------
+## TIME
+# Time duration [s]	| Time step initial [s]		| Time step min [s]	| Time step max [s] | Iter initial condition
+1 0.01 0.0 0.001 0
+
+# CFL_max | Eps_max error | Omega_0 relaxation Aitken
+0.25		1e-10	        1
+
+# CFL crit
+# - Only inertial (1)
+# - Inertial + capillary + viscous (0)
+1
+
+#-------------------
+
+## SIMULATION TYPE
+# Second order upwind (1)	| First order upwind (0) (second-order does not work for one-phase)
+0
+
+# Adam-Bashforth (1)	| Forward Euler (0) (both for the convective as well as diffusive term)
+0
+
+# Height function (1)	| Height function original (2) | None (0)
+0
+
+# Quarter-cell based (2) | Gravity-consistent interpolation (1)	|	Central-weighted averaging (0) (not needed for one-phase)
+2
+
+# PLIC Youngs (1)	| SLIC Hirt Nichols (0) | PLIC HF (2) | PLIC HF/Youngs (3)
+1
+
+# Stamping (1)	| None (0)
+0
+
+# Incompressible (0)	| Air compressible (1)	| Compressible (2) | One-phase (3)
+2
+
+# Correcting divergence term transport (2) | Correcting divergence term transport with pressure (1) | None (0)
+1
+
+# Scheme fluid flux: Macho scheme (1)	|  Cosmic (0) | No-split (2)
+0
+
+# No-slip at wall (-1)	| Free-slip (1)
+1
+
+# Weighted (1) | Baraldi (0)
+0
+
+# Labelling Kleefsman (1) | Labelling alternative (0) (Recommended in case of using Body (Same labelling))
+0
+
+# SE velocities constant extrapolation (1) | divergence free (0)
+1
+
+# Conservative (1) | Non-conservative (0)
+1
+
+# Scheme body flux: Macho scheme (1) (only when same labelling) | Cosmic (0) (only when same labelling) | No-split (2)
+1
+
+# Body coupling: [none (0), 1way (1), 2way (2)] | Time integration of force: [BEuler (0), Crank Nicolson (1)]
+0 0
+
+# Curvature based on 5x5 (1) | 3x3 (0)
+0
+
+# Cell merging: yes(1) no(0) | Value
+0 0.01
+
+# Angle body [deg] (0 works)
+90.0
+
+#-------------------
+
+## INITIAL CONDITIONS
+# Load initial conditions for (1 [xlsx] / 2 [csv]) or default (0): (fraction overwrites other fraction inputs)
+# Pressure 		| Velocity		| Density		| Fraction
+0   0   0   0
+
+# Pressure (yes/no (1/0), value, x_min, x_max, y_min, y_max)
+0 0 0 0 0 0
+
+# Velocity (yes/no (1/0), value_x, value_y)
+0 10 10
+
+#-------------------
+
+## AERATION INITIAL
+# Initial volume fraction
+0.001
+
+#-------------------
+
+## POSTPROCESSING
+# dir = 1 when you want to measure on position x in height y
+# dir = 0 when you want to measure on position y in height x
+# When value of x/y is negative, measuring from another direction
+# Measurement of water: yes (1)/no (0), (x/y, dir) h1, (x/y, dir) h2, (x/y, dir) h3, (x/y, dir) h4 [m]
+0   0.01 1  0.4 1  0.6 1  0.99 1
+
+# Measurement of pressure: yes (1)/no (0), (x, y) p1, (x, y) p2, (x, y) p3, (x, y) p4
+0	10 8	20 8     30 8	40 8
+
+# Measurement of body_force and position: yes (1)/no (0), number (1, 2, 3)
+# Saved in horizontal, vertical, x, y, speed x, speed y
+0 1
+
+# Measurement force on wall
+# yes/no, Position 1, 2, 3, 4
+1 2
+
+# Measurement of mass conservation: yes (1)/no (0) | Energy conservation and momentum: yes (1)/no (0)
+1 1
+
+# Save data: yes (1)/no (0), amount of steps,
+# [(fake)fraction, velocity, inter_vel, density, pressure, cell, reconstr, fracB]
+0	5	1 0 0 0 1 0 0 0 0
+
+# Save figures: yes (1)/no (0), amount of steps, [fraction, velocity, density, pressure, cell], alpha
+# alpha = 0.0: No visible object in plot
+# alpha = 1.0: Only visible object in plot
+1 	10	1 1 0 1 0	0.5
+
+# Save VTK: yes (1)/no (0), amount of steps[dt], [(fake)fraction, velocity, density, pressure, cell, body]
+0 	0.000001	1 1 0 1 1 1
+
+# Save pressure profile around object: yes (1)/no (0), amount of steps[dt]
+0  0.0001

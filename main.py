@@ -7,9 +7,9 @@ from postprocessing.plotting import Plotting
 
 from preprocessing.input import Input
 
-plot_doe()
+# plot_doe()
 
-setup = Input(2)
+setup = Input(0)
 pp = Plotting(setup)
 
 if __name__ == "__main__":
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     if hasattr(setup,'X'):
         X = setup.X
     else:
-        X = doe(setup, 10*setup.d)
+        X = doe(setup, 2*setup.d)
     # X = np.append(X,[[2,2,2]],axis=0)
     solver = get_solver(setup)
     y, _ = solver.solve(X)
@@ -32,6 +32,7 @@ if __name__ == "__main__":
     
     if setup.SAVE_DATA:
         setup.X = X
+
         setup.create_input_file()
 
     plt.show()
