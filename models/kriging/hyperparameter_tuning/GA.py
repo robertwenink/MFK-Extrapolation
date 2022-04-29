@@ -14,7 +14,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 from scipy.optimize import minimize
 from pyDOE2 import lhs
 
-from utils.data_utils import correct_format_hps
+from utils.formatting_utils import correct_format_hps
 
 
 class Tuner:

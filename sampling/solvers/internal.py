@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
 from abc import ABC, abstractmethod
-from utils.data_utils import correct_formatX
+from utils.formatting_utils import correct_formatX
 from sampling.solvers.convergence_base_models import *
 
 

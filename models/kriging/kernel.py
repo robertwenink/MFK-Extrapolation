@@ -8,7 +8,7 @@ For Kriging we have to use a kernel that is able to scale the dimensions accordi
 import numpy as np
 
 from numba import njit
-from utils.data_utils import correct_formatX
+from utils.formatting_utils import correct_formatX
 
 
 def get_available_kernel_names():
@@ -43,7 +43,7 @@ def get_kernel(setup):
         ).reshape(-1,2)
 
         if setup.noise_regression:
-            hps_constraints = np.append(hps_constraints,[[0, 0.01]], axis=0)  
+            hps_constraints = np.append(hps_constraints,[[0, 0.2]], axis=0)  
         else:
             hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)  
 

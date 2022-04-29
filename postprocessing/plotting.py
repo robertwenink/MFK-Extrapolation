@@ -135,11 +135,16 @@ class Plotting:
         self.axes.append(ax)
 
     @iterate_color_marker
-    def plot_2d(self, X, predictor, label=""):
+    def plot_2d(self, X, y, predictor, label=""):
         """
         Plotting for surfaces and possibly contours of the predicted function in 2d.
         Exact function values plotted if available.
-        """
+        @param label: define a custom label for the prediction surface. If given, all other labels will not be used. 
+        """      
+
+        if label == "":
+            plt.legend()
+
         ind = 0
 
         " retrieve predictions "
@@ -151,14 +156,20 @@ class Plotting:
 
         " plot prediction surface "
         ax, ind = self.axes[ind], ind + 1
-        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label))
+        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label if label != "" else "Prediction surface"))
         ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.4, color=self.color)
         ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.4, color=self.color)
 
-        # add sample locations (prediction!!)
-        y, _ = predictor.predict(self.transform_X(X))
-        ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker)
+        # add sample locations
+        # y, _ = predictor.predict(self.transform_X(X))
+        ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label =="" else "Samples")
 
+        if label == "":
+            # then provide minimum location as well.
+            
+
+            ax.legend()
+        
         " plot exact surface "
         if self.plot_exact:
 
@@ -178,6 +189,7 @@ class Plotting:
             "Plot prediction contour"
             ax, ind = self.axes[ind], ind + 1
             ax.contour(*self.X_plot, y_hat, colors=self.color)
+            ax.scatter(*X[:, self.d_plot].T, c=self.color, marker=self.marker)
 
             " Plot exact contour "
             if self.plot_exact:
@@ -186,7 +198,7 @@ class Plotting:
         plt.tight_layout()
 
     @iterate_color_marker
-    def plot_1d(self, X, predictor, label=""):
+    def plot_1d(self, X, y, predictor, label=""):
         """
         X : X where we have actually sampled
         predictor : Z_k
@@ -196,11 +208,12 @@ class Plotting:
         # plot sample points
         ax.plot(
             X,
-            predictor.predict(self.transform_X(X))[0],
+            y,
             linestyle="",
             markeredgecolor="none",
             marker=self.marker,
             color=self.color,
+            label="" if label =="" else "Samples",
         )
 
         # retrieve predictions
@@ -216,10 +229,11 @@ class Plotting:
         surf._facecolors2d = surf._facecolor3d
         surf._edgecolors2d = surf._edgecolor3d
 
-    def draw_current_levels(self, X, Z_k, X_unique):
+    def draw_current_levels(self, X, Z, Z_k, X_unique):
         """
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.
+        @param Z: list of the sampled z (or y) values; these can be different than the predictions when noise is involved.
         @param Z_k: list of the Kriging predictors of each level
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
@@ -234,7 +248,7 @@ class Plotting:
 
         " plot known kriging levels"
         for l in range(max(len(X) - 1, 2)):
-            self.plot(X[l], Z_k[l], label="Kriging level {}".format(l))
+            self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
 
         " plot prediction kriging "
         # first two levels always known
@@ -242,7 +256,7 @@ class Plotting:
             l += 1
 
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[l], Z_k[l], label="Kriging level {}".format(l))
+            self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
             
             # plot our prediction, estimated points in black
             self.axes[0].scatter(

@@ -8,9 +8,9 @@ from numba import njit
 import time
 import sys
 
-from models.kriging.hyperparameter_tuning.GA import GeneticAlgorithm as ga
+# from models.kriging.hyperparameter_tuning.GA import GeneticAlgorithm as ga
 from models.kriging.hyperparameter_tuning.GA import MultistartHillclimb as ga
-from utils.data_utils import correct_formatX
+from utils.formatting_utils import correct_formatX
 
 
 def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True):

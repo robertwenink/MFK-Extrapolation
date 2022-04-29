@@ -136,3 +136,4 @@ input_files/
 *.gz
 *.tar.gz
 *.png
+EVA_results/

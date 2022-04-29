@@ -11,7 +11,7 @@ from postprocessing.plotting import *
 from preprocessing.input import Input
 from sampling.DoE import get_doe, LHS_subset
 from preprocessing.input import Input
-from utils.data_utils import return_unique
+from utils.formatting_utils import return_unique
 
 setup = Input(0)
 solver = get_solver(setup)

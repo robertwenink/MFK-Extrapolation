@@ -59,8 +59,11 @@ def interpolating_curve(x, path=None):
     # define two diagonal lines to fix the angle at the end
     # if we dont do this we might 'sway' outside the breadth
     r0, r1 = 0.01, 0.02
-    x0_x0 = np.sin(x0 * 1 / 2 * np.pi) * r0
-    x0_y0 = 1 - np.cos(x0 * 1 / 2 * np.pi) * r0
+    max_ang = 90 / 180 * np.pi
+    min_ang = 20 / 180 * np.pi
+    max_diff = max_ang - min_ang
+    x0_x0 = np.sin(x0 * max_diff + min_ang) * r0
+    x0_y0 = 1 - np.cos(x0 * max_diff + min_ang) * r0
     # x0_x1 = np.sin(x0 * 1/2 *np.pi) * r1
     # x0_y1 = 1 - np.cos(x0 * 1/2 *np.pi) * r1
 

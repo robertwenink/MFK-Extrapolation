@@ -16,7 +16,7 @@ from preprocessing.GUIfunctions import GUI
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtCore as qtc
 
-from utils.data_utils import correct_fileformatX
+from utils.formatting_utils import correct_fileformatX
 
 INPUTS_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 

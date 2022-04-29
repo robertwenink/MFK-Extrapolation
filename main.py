@@ -17,14 +17,17 @@ if __name__ == "__main__":
     if hasattr(setup,'X'):
         X = setup.X
     else:
-        X = doe(setup, 2*setup.d)
-    # X = np.append(X,[[2,2,2]],axis=0)
-    solver = get_solver(setup)
-    y, _ = solver.solve(X)
+        X = doe(setup, 10*setup.d)
     
+    if hasattr(setup,'Z') and False:
+        y = setup.Z
+    else:
+        solver = get_solver(setup)
+        y, _ = solver.solve(X)
+        
     ok = OrdinaryKriging(setup)
     ok.train(X, y,True)
-    pp.plot(X,ok)
+    pp.plot(X,y,ok)
 
     # ok2 = OrdinaryKriging(setup)
     # ok2.train(X, y+1,True)
@@ -32,6 +35,7 @@ if __name__ == "__main__":
     
     if setup.SAVE_DATA:
         setup.X = X
+        setup.Z = y
 
         setup.create_input_file()
 
