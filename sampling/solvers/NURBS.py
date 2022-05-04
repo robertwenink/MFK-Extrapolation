@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageOps
 
 # ship parameters
-B = 1  # half width
+B = 1  # half width; in deci-meters
 h = 1
-vrijboord = 0.3
+vrijboord = 0.5
 
 
 def create_curve_figure(crv, x=None, path=None):
@@ -18,38 +18,45 @@ def create_curve_figure(crv, x=None, path=None):
     evalpts = np.array(crv.evalpts)
 
     # Plot points together on the same graph
-    fig = plt.figure(figsize=(4 * B * 2, 4 * h))
-    plt.axis("off")
-    plt.fill_between(
-        -evalpts[:, 0] * B + 2 * B, evalpts[:, 1] * h, h + vrijboord, color="#1f77b4"
-    )
+    mydpi = 100
+    fig = plt.figure(figsize=(B, h + vrijboord), dpi = mydpi)
+
     plt.fill_between(
         evalpts[:, 0] * B, evalpts[:, 1] * h, h + vrijboord, color="#1f77b4"
     )
-
+    # plt.fill_between(
+    #     2 * B - evalpts[:, 0] * B, evalpts[:, 1] * h, h + vrijboord, color="#1f77b4"
+    # )
     # to remove all plotting borders
+
+    plt.axis("off")
     plt.gca().set_axis_off()
     plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
     plt.margins(0, 0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
-
+    
+    def get_concat_h(im1, im2):
+        dst = Image.new('RGBA', (im1.width + im2.width, im1.height))
+        dst.paste(im1, (0, 0))
+        dst.paste(im2, (im1.width, 0))
+        return dst
+    
     # save figure
     if path == None:
         assert x != None, "\nPlease provide an input vector x if no path is given."
         name = "_".join(format(i, ".3f") for i in x)
         name = name.replace(".", "")
-        plt.savefig(
-            "./NURBS/{}.png".format(name),
-            bbox_inches="tight",
-            pad_inches=0,
-            transparent=True,
-        )
-    else:
-        plt.savefig(path+".png", bbox_inches="tight", pad_inches=0, transparent=True)
+        path = "./NURBS/{}".format(name)
 
+    plt.savefig(path+".png", bbox_inches="tight", pad_inches=0, transparent=True)        
     plt.close()
 
+    
+    # reopen and mirror to get perfect mirror, matplotlib has overlap at centre point otherwise!
+    img = Image.open(path+".png")
+    mirror_img = ImageOps.mirror(img)
+    get_concat_h(img, mirror_img).save(path+".png")
 
 def interpolating_curve(x, path=None):
     # Scale variables

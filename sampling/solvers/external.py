@@ -130,10 +130,10 @@ class EVA(ExternalSolver):
 
     def read_results(self,output_path):
         data = pd.read_csv(os.path.join(output_path,"Excel","Body_forces","Force_body_y.csv"))
-        forces = data.iloc[:,1] # N/m bcs 2D -> 3D
+        forces = data.iloc[1:,1] # N/m bcs 2D -> 3D
         
         # apply moving average to reduce numerical noise
-        forces = forces.rolling(5, min_periods=1).mean()
+        forces = forces.rolling(10, min_periods=1).mean()
 
         #NOTE HARDCODED but constant conversion so of no influence to optimization
         #NOTE mass = 1 means that we are just assessing the forces.
@@ -174,16 +174,16 @@ class EVA(ExternalSolver):
             
         fig.set_label("body_forces")
         fig.suptitle(os.path.split(output_path)[-1])
-        # plt.show()return
 
-    def solve(self, X, l = None):
+    def solve(self, X, refinement = None):
         
         start_time = time.time()
 
-        # select level
-        l = 2
-        refinements = [1,1.5,2,3,4]
-        refinement = refinements[l]
+        # select level if no refinement defined
+        if refinement == None:
+            l = 2
+            refinements = [1,1.5,2,3,4]
+            refinement = refinements[l]
 
         # copy unadapted input.tex for future reference
         if not os.path.exists(self.base_path):
@@ -191,6 +191,7 @@ class EVA(ExternalSolver):
         
         # setup multithreading bcs we dont want to overload system, and have more uniform running times between batches and single runs.
         num =  min(int(cpu_count()/2), X.shape[0]) # defaults to the cpu count of machine otherwise
+        # num = 1
         tp = ThreadPool(num)
         
         counter = 0
@@ -206,25 +207,12 @@ class EVA(ExternalSolver):
             if error:
                 print("ret> ",p.returncode)
                 print("Error> error ",error.strip())
-                print("Unsuccesfully finished run {} with pid {}, restarting once ...".format(run_id,p.pid))
-                
-                shutil.rmtree(output_path)
-                os.makedirs(output_path)
-
-                p,f = run_cmd(cmd, output_path)
-                _,error = p.communicate()
-                if error:
-                    print("ret> ",p.returncode)
-                    print("Error> error ",error.strip())
-                    print("Unsuccesfully finished run {} with pid {} for a second time".format(run_id,p.pid))
-                else:
-                    print("Succesfully finished run {} with pid {}, after retrying".format(run_id,p.pid)) 
-                    counter += 1
+                print("Unsuccesfully finished run {} with pid {}".format(run_id,p.pid))
             else:
                 print("Succesfully finished run {} with pid {}".format(run_id,p.pid)) 
                 counter += 1
 
-            print("Succesfully completed {} out of {} runs.".format(counter,))
+            print("Succesfully completed {} out of {} runs.".format(counter,batch_size))
 
         # retrieve EVA solution, this should be done in parallel in the case of an initial DoE.
         for x in X:
@@ -248,8 +236,9 @@ class EVA(ExternalSolver):
                     os.makedirs(output_path)
 
                 # create the NURBS parameterized figure
-                interpolating_curve(x, output_path)
+                interpolating_curve(x, output_path) 
                 shutil.copyfile(output_path+".png", os.path.join(output_path,"NURBS.png"))
+                shutil.copyfile(os.path.normpath(".\Reconstruct_plot.py"), os.path.join(output_path,"Reconstruct_plot.py"))
 
                 # create command and call
                 cmd = self.python_string + '{} "{}" {}'.format(EVA.solver_path, output_path, refinement)
@@ -274,5 +263,5 @@ class EVA(ExternalSolver):
         # inspect best sample.
         self.inspect_results(self.get_output_path(X[np.argmin(Z)], refinement)[0])
 
-        return np.array(Z), np.array(costs)
+        return np.array(Z), np.sum(costs)
  

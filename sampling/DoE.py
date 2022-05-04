@@ -3,7 +3,7 @@ from pyDOE2 import lhs
 import inspect
 import sys
 import matplotlib.pyplot as plt
-from models.kriging.kernel import dist_matrix
+from kriging.kernel import dist_matrix
 
 
 def get_doe(setup):

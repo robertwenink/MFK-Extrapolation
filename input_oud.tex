@@ -1,7 +1,7 @@
 ## Input for the code
 
 # Name file (between ' with spaces on both sides and no spaces in name)
-' Wedge_optimization_PLIC_many '
+' Wedge_optimization_detail_spacing_adjusted '
 
 ## PARAMETERS
 
@@ -16,7 +16,7 @@
 
 # Position of definition of atmospheric pressure [pos, x_0, x_1]
 # Atmospheric opens the wall automatic
-# pos: Top (1)	| Bottom (3)	| Right (2)		| Left (4) | (0) if none
+# pos: Top (1)	| Bottom (3)	| Right (2)		| Left (4)
 # Distance x_0 and x_1
 1 0 1.0
 
@@ -27,10 +27,9 @@
 1.0 0.8
 
 # Grid size and geometrical progression ratio [Nx, Nz, Rx, Rz]
-# SIMPLE [Nx, Nz, Rx, Rz] (amount of cells and ratio between smallest and largest cell)
-# DETAIL [xL, xR, N, sL, sR] (2x) (a band of N cells between xL and xR, stretch outward with sL and sR )
 DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
-# SIMPLE 102 82 1 1
+# SIMPLE 110 90 1 1
+
 
 #-------------------
 ## CASE
@@ -52,17 +51,13 @@ DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
 # Way of filling
 # [1] Circle        [x_center, z_center, radius]
 # [2] Wedge         [x_left, x_right, z_entry, a_degree]
-# [3] BLOCK 		[x_left, x_right, z_bottom, z_top, radius]
-# [4] WEDGE_BLOCK   [x_left, x_right, z_entry, a_degree, h_block]
-# [5] HEIGHT_z      [x_height]
-# [6] HEIGHT_x      [z_height]
-# [7] CIRCLE_BLOCK  [x_center, z_center, radius, h_block]
-# [8] FULL
-# [9] PICTURE		[picture relative address, x_centre, y_centre, scale ( standard: 1 pxl = 1 mm)]
+# [3] Rectangle     [x_left, x_right, z_bottom, z_top]
+# [4] Wedgeblock    [x_left, x_right, z_entry, a_degree, h_block]
+# [5] Picture		[picture relative address, x_centre, y_centre, scale ( standard: 1 pxl = 1 mm)]
 
 # PART 1:
 # Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
-0 0 0 0 0
+0 0 0 0 0 0
 
 # PART 2 (Using Geometry.py module):
 # Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
@@ -82,12 +77,7 @@ DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
 
 # BODY 1:
 # Dimensions of body [way, param1, param2, param3, ...] [m]
-# picture is 800px wide, scale 0.25 aligns with B = 0.2m, H = 0.1m, ch = 0.05m
-picture NURBS.png 0.50 0.59 1
-
-# BODY 2:
-# Dimensions of body [way, param1, param2, param3, ...] [m]
-NONE
+5 NURBS.png 0.50 0.56 0.2725
 
 # Initial velocity of body [u0, v0, ax, ay]
 0 -4.0 0 0
@@ -95,7 +85,7 @@ NONE
 # Mass of body [m/rho, value, xg, yg]
 0 20.0 0 0
 
-# Motion of body [uncoupled: 0 0 0, coupled: 0 1 1, pendulum: 1 px py cyl_radius length I C K start_rad]
+# Motion of body [uncoupled: 0 0 0, coupled: 0 1 1, pendulum: 1 px py]
 0 0 1
 
 #-------------------
@@ -155,19 +145,19 @@ NONE
 # Quarter-cell based (2) | Gravity-consistent interpolation (1)	|	Central-weighted averaging (0) (not needed for one-phase)
 2
 
-# PLIC Youngs (1)	| SLIC Hirt Nichols (0) | PLIC HF (2) | PLIC HF/Youngs (3) / Coeff (values/ALL = -1) (BODY AND FLUID)
-1 0
+# PLIC Youngs (1)	| SLIC Hirt Nichols (0) | PLIC HF (2) | PLIC HF/Youngs (3)
+1
 
 # Stamping (1)	| None (0)
 0
 
-# Incompressible (0)	| Air compressible (1)	| Compressible (2) | One-phase (3) (AERATION: 2)
+# Incompressible (0)	| Air compressible (1)	| Compressible (2) | One-phase (3)
 0
 
-# Correcting divergence term transport (2) | Correcting divergence term transport with pressure (1) | None (0) (AERATION: 1)
+# Correcting divergence term transport (2) | Correcting divergence term transport with pressure (1) | None (0)
 0
 
-# Scheme fluid flux: Macho scheme (1)	|  Cosmic (0) | EMFPA (2) | Unsplit (3)
+# Scheme fluid flux: Macho scheme (1)	|  Cosmic (0) | No-split (2)
 0
 
 # No-slip at wall (-1)	| Free-slip (1)
@@ -182,11 +172,11 @@ NONE
 # SE velocities constant extrapolation (1) | divergence free (0)
 1
 
-# Conservative (1) (CFL < 0.5) | Non-conservative (0)
+# Conservative (1) | Non-conservative (0)
 1
 
-# Scheme body flux: Macho scheme (1) (only when same labelling) | Cosmic (0) (only when same labelling) | EMFPA (2) | Unsplit (3)
-3
+# Scheme body flux: Macho scheme (1) (only when same labelling) | Cosmic (0) (only when same labelling) | No-split (2)
+1
 
 # Body coupling: [none (0), 1way (1), 2way (2)] | Time integration of force: [BEuler (0), Crank Nicolson (1)]
 2 0
@@ -195,13 +185,10 @@ NONE
 0
 
 # Cell merging: yes(1) no(0) | Value
-0 0.05
- 
+0 0.01
+
 # Angle body [deg] (0 works)
 90.0
-
-# Filter sharp corners: yes (1) no (0) | size of filter (default = 8)
-0 0
 
 #-------------------
 
@@ -214,13 +201,13 @@ NONE
 0 0 0 0 0 0
 
 # Velocity (yes/no (1/0), value_x, value_y)
-0 1 1
+0 10 10
 
 #-------------------
 
 ## AERATION INITIAL
-# Initial volume fraction (AERATION LEVEL IN FRACTION)
-0.00
+# Initial volume fraction
+0.0
 
 #-------------------
 
@@ -229,32 +216,33 @@ NONE
 # dir = 0 when you want to measure on position y in height x
 # When value of x/y is negative, measuring from another direction
 # Measurement of water: yes (1)/no (0), (x/y, dir) h1, (x/y, dir) h2, (x/y, dir) h3, (x/y, dir) h4 [m]
-0   0 1  0.5 1  100.0 1  200.0 1
+0   0.01 1  0.4 1  0.6 1  0.99 1
 
 # Measurement of pressure: yes (1)/no (0), (x, y) p1, (x, y) p2, (x, y) p3, (x, y) p4
-0	0.3750 0.0001	0.0001 0.0001	0.7499 0.0001     1.4999 0.0001
+0	10 8	20 8     30 8	40 8
 
 # Measurement of body_force and position: yes (1)/no (0), number (1, 2, 3)
 # Saved in horizontal, vertical, x, y, speed x, speed y
 1 1
 
 # Measurement force on wall
-0
+# yes/no, Position 1, 2, 3, 4
+0 2
 
 # Measurement of mass conservation: yes (1)/no (0) | Energy conservation and momentum: yes (1)/no (0)
 0 0
 
 # Save data: yes (1)/no (0), amount of steps,
 # [(fake)fraction, velocity, inter_vel, density, pressure, cell, reconstr, fracB]
-0	4	1 1 0 0 1 0 0 0
+0	5	1 0 0 0 1 0 0 0 0
 
 # Save figures: yes (1)/no (0), amount of steps, [fraction, velocity, density, pressure, cell], alpha
 # alpha = 0.0: No visible object in plot
 # alpha = 1.0: Only visible object in plot
-1 	10	1 1 0 1 1	0.3
+1 	10	1 1 0 1 0	0.5
 
 # Save VTK: yes (1)/no (0), amount of steps[dt], [(fake)fraction, velocity, density, pressure, cell, body]
-0	0.0001	1 1 0 1 1 1
+0 	0.000001	1 1 0 1 1 1
 
 # Save pressure profile around object: yes (1)/no (0), amount of steps[dt]
 0  0.0001

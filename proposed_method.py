@@ -8,7 +8,7 @@ from numba import vectorize, float64
 
 from sampling.DoE import get_doe
 from sampling.infill.infill_criteria import EI
-from models.kriging.method.OK import Kriging
+from kriging.OK import Kriging
 from utils.formatting_utils import return_unique, correct_formatX
 
 
@@ -111,7 +111,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     return Z2_p, S2_p ** 2, Sf ** 2
 
 
-def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
+def  weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.

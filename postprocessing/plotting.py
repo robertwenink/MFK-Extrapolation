@@ -312,14 +312,14 @@ class Plotting:
         
         " plot 'full' Kriging level in case of linearity check"
         if len(Z_k)>3:
-            self.plot(X[-1], Z_k[-1], label="Full Kriging (linearity check)")
+            self.plot(X[-1], Z[-1], Z_k[-1], label="Full Kriging (linearity check)")
         
         for ax in self.axes:
             ax.legend()
 
         plt.tight_layout()
         plt.draw()
-        plt.pause(1000)
+        plt.pause(2)
 
 def draw_convergence(solver, solver_type_text):
     marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))

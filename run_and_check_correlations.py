@@ -7,12 +7,16 @@ from postprocessing.plotting import Plotting
 
 from preprocessing.input import Input
 
-# plot_doe()
+from utils.correlation_utils import check_correlations
 
-L = [2,3,3.5]
 
 setup = Input(0)
 pp = Plotting(setup)
+
+L = [1,1.5,2,2.5,3,3.5,4]
+# L = [1] 
+Z = []
+X = []
 
 doe = get_doe(setup)
 if hasattr(setup,'X') and isinstance(setup.X, list):
@@ -27,23 +31,17 @@ else:
     for l in L:
         X.append(X0)
 
-Z = []
 for l in range(len(L)):
     solver = get_solver(setup)
-    z, _ = solver.solve(X[l],L[l])
+    z, _ = solver.solve(X[0],L[l])
     Z.append(z)
+
+for i in range(2,len(L)):
+    for j in range(i):
+        for k in range(j):
+            print("###### Checking the refinements: {}, {}, {} ######".format(L[k],L[j],L[i]))
+            check_correlations(Z[k], Z[j], Z[i])
         
-    ok = OrdinaryKriging(setup)
-    ok.train(X[l], z,True)
-    pp.plot(X[l],z,ok)
-
-if setup.SAVE_DATA:
-    setup.X = X
-    setup.Z = Z
-
-    setup.create_input_file()
-
-plt.show()
 
 
-    
+

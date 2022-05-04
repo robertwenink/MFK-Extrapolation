@@ -3,13 +3,13 @@ Ordinary Kriging
 """
 import numpy as np
 from scipy import linalg
-from models.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
+from kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
 from numba import njit
 import time
 import sys
 
-# from models.kriging.hyperparameter_tuning.GA import GeneticAlgorithm as ga
-from models.kriging.hyperparameter_tuning.GA import MultistartHillclimb as ga
+# from kriging.hp_tuning import GeneticAlgorithm as ga
+from kriging.hp_tuning import MultistartHillclimb as ga
 from utils.formatting_utils import correct_formatX
 
 

@@ -13,6 +13,9 @@ from sampling.DoE import get_doe, LHS_subset
 from preprocessing.input import Input
 from utils.formatting_utils import return_unique
 
+from utils.correlation_utils import check_correlations
+
+
 setup = Input(0)
 solver = get_solver(setup)
 doe = get_doe(setup)
@@ -25,13 +28,15 @@ pp = Plotting(setup)
 
 " inits and settings"
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-L = [0, 1, 3] 
+L = [1, 2, 4] 
+
+
 
 n_samples_l0 = 10
-max_cost = 1500
+max_cost = 1500e5
 max_nr_levels = 3
-reuse_values = False
-pc = 3 # parallel capability, used for sampling the hifi in assumption verifications
+reuse_values = True
+pc = 6 # parallel capability, used for sampling the hifi in assumption verifications
 
 ei = 1
 ei_criterion = 2 * np.finfo(np.float32).eps
@@ -92,8 +97,9 @@ def sample_initial_hifi(setup, X,Z,X_unique):
     x_b = X[-1][np.argmin(Z[-1])]
 
     # select other points for cross validation, in LHS style
+    # TODO hardcoded!
     amount = os.cpu_count()
-    amount = 3
+    amount = 6
     X_hifi = correct_formatX(LHS_subset(setup, X_unique, x_b, amount),setup.d)
 
     Z_pred, cost = solver.solve(X_hifi, L[l])
@@ -106,25 +112,28 @@ def sample_initial_hifi(setup, X,Z,X_unique):
 ###############################
 # main
 ###############################
+np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
 if hasattr(setup, "X") and reuse_values:
     X = setup.X
-    Z = setup.Z
     
     # for now only keep first 2 levels
     del X[2]
-    del Z[2]
 else:
-    X, Z = [], []
+    X = []
     X.append(doe(setup, n_samples_l0 * setup.d))
     X.append(doe(setup, n_samples_l0 * setup.d))
+    # NOTE use same X at lower levels / nested
     X[1] = X[0]
     
-    for l in range(2):
-        z_new, cost = solver.solve(X[l], L[l])
-        Z.append(z_new)
-        update_costs(cost, X, l)
+
+# fill Z, either by reading old results or new (test) solves.
+Z = []
+for l in range(2):
+    z_new, cost = solver.solve(X[l], L[l])
+    Z.append(z_new)
+    update_costs(cost, X, l)
 
 
 # create Krigings of levels, same initial hps
@@ -145,8 +154,9 @@ if len(Z) == 2: # then we do not have a sample on level 2 yet.
     sample_initial_hifi(setup, X, Z, X_unique)
 
 if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
-    plt.pause(5)
-    sys.exit()
+    print("Not linear enough, but continueing for now.")
+    # plt.pause(5)
+    # sys.exit()
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
@@ -154,11 +164,11 @@ Z_k_new = Kriging(setup, X_unique, Z_pred, hps_init=Z_k[-1].hps, tune = True, R_
 Z_k_new.reinterpolate()
 
 # draw the result
-pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
+pp.draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique_exc)
 
 
 " sample from the predicted distribution in EGO fashion"
-while np.sum(costs) < max_cost:
+while np.sum(costs) < max_cost and False:
     # select points to asses expected improvement
     X_infill = pp.X_pred  # TODO does not work for d>2
 
@@ -205,7 +215,7 @@ while np.sum(costs) < max_cost:
     Z_k_new.reinterpolate()
 
     # " output "
-    pp.draw_current_levels(X, [*Z_k, Z_k_new], X_unique_exc)
+    pp.draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique_exc)
 
 
 #####################################
@@ -217,9 +227,13 @@ if setup.SAVE_DATA:
     setup.Z = Z
     setup.create_input_file()
 
+
+# check_correlations(Z[0], Z[1], Z[2])
+
+
 print("Simulation finished")
 show = True
-if show:
+if show: 
     plt.show()
 else:
     plt.draw()

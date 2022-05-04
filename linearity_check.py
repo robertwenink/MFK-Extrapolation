@@ -60,15 +60,15 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
 
     linear = True
     nr_samples = Z[-1].shape[0]
-    pp.draw_current_levels(X, [*Z_k, Z_k_full], X_unique)
+    pp.draw_current_levels(X, Z, [*Z_k, Z_k_full], X_unique)
     for i_exclude in range(nr_samples):
         i_include = np.delete(inds, i_exclude)
 
         Z_pred_partial, mse_pred_partial = weighted_prediction(
             setup,
-            np.delete(X[-1], i_exclude),
+            np.delete(X[-1], i_exclude, 0),
             X_unique,
-            np.delete(Z[-1], i_exclude),
+            np.delete(Z[-1], i_exclude, 0),
             Z_k,
         )
 
@@ -84,7 +84,7 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
         # 0.5 corresponds with a fraction representing one side of the 100% confidence interval
         # i_include are sampeled points, so we exclude them ...
         overlap = np.delete(
-            overlap_amount(start_full, end_full, start_partial, end_partial), i_include
+            overlap_amount(start_full, end_full, start_partial, end_partial), i_include, 0
         )
         difference = np.abs(Z_pred_full-Z_pred_partial)
         ov = np.any(overlap < 0.25)
@@ -99,6 +99,6 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
             print("NOT LINEAR ENOUGH")
         
         # draw the result
-        pp.draw_current_levels(X, [*Z_k, Z_k_partial, Z_k_full], X_unique)
-    
+        pp.draw_current_levels(X, Z, [*Z_k, Z_k_partial, Z_k_full], X_unique)
+
     return linear

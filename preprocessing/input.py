@@ -110,7 +110,8 @@ class Input:
 
         # make each self.data_dict key a variable in our input object
         for key in data_dict:
-            setattr(self, key, data_dict[key])
+            if not key == "filename":
+                setattr(self, key, data_dict[key])
         
         # NOTE this part is a bit of hardcoding, in order to convert some lists back to np.array    
         self.read_X()
