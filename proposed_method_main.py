@@ -28,15 +28,15 @@ pp = Plotting(setup)
 
 " inits and settings"
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-L = [1, 2, 4] 
+L = [1, 3, 4] 
 
 
 
-n_samples_l0 = 10
+n_samples_l0 = 10 
 max_cost = 1500e5
 max_nr_levels = 3
 reuse_values = True
-pc = 6 # parallel capability, used for sampling the hifi in assumption verifications
+pc = 5 # parallel capability, used for sampling the hifi in assumption verifications
 
 ei = 1
 ei_criterion = 2 * np.finfo(np.float32).eps
@@ -97,10 +97,7 @@ def sample_initial_hifi(setup, X,Z,X_unique):
     x_b = X[-1][np.argmin(Z[-1])]
 
     # select other points for cross validation, in LHS style
-    # TODO hardcoded!
-    amount = os.cpu_count()
-    amount = 6
-    X_hifi = correct_formatX(LHS_subset(setup, X_unique, x_b, amount),setup.d)
+    X_hifi = correct_formatX(LHS_subset(setup, X_unique, x_b, pc),setup.d)
 
     Z_pred, cost = solver.solve(X_hifi, L[l])
     X.append(X_hifi)

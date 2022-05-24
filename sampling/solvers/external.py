@@ -169,7 +169,7 @@ class EVA(ExternalSolver):
         # NOTE mass = 1 means that we are just assessing the forces.
         mass = 1  # kg/m
 
-        acc_tt = data / mass  # this is the full timetrace of acceleration
+        acc_tt = data.iloc[: , 1] / mass  # this is the full timetrace of acceleration
         max_acc = np.max(acc_tt)
 
         # time found in file with name like simulation_time_8.18.txt

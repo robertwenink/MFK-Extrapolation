@@ -165,8 +165,10 @@ class OrdinaryKriging:
         R_in = np.linalg.inv(R)
 
         if hps.shape[0] == 1:
+            # in case of single evaluation.
             return _fitness_func_loop(R_in, self.y, R).item()
         else:
+            # in case of batch evaluation.
             return _fitness_func_loop(R_in, self.y, R)
 
     def tune(self, R_diagonal=0):
