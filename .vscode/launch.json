@@ -24,6 +24,13 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: run_and_check_correlations.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run_and_check_correlations.py",
+            "console": "integratedTerminal"
         }
     ]
 }

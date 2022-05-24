@@ -67,7 +67,7 @@ def interpolating_curve(x, path=None):
     # if we dont do this we might 'sway' outside the breadth
     r0, r1 = 0.01, 0.02
     max_ang = 90 / 180 * np.pi
-    min_ang = 20 / 180 * np.pi
+    min_ang = 30 / 180 * np.pi
     max_diff = max_ang - min_ang
     x0_x0 = np.sin(x0 * max_diff + min_ang) * r0
     x0_y0 = 1 - np.cos(x0 * max_diff + min_ang) * r0
@@ -84,7 +84,7 @@ def interpolating_curve(x, path=None):
 
     # lower corner, angle constrained between 0 and 60 deg
     r0, r1 = 0.02, 0.01
-    max_ang = 70 / 180 * np.pi
+    max_ang = 60 / 180 * np.pi
     min_ang = 0 / 180 * np.pi
     max_diff = max_ang - min_ang
     # x3_x0 = 1 - np.cos(x3 * max_diff + min_ang) * r0

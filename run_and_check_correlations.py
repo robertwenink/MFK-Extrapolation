@@ -8,33 +8,38 @@ from postprocessing.plotting import Plotting
 from preprocessing.input import Input
 
 from utils.correlation_utils import check_correlations
-
+from utils.convergence_utils import plot_grid_convergence, plot_grid_convergence_tt
 
 setup = Input(0)
-pp = Plotting(setup)
 
-L = [1,1.5,2,2.5,3,3.5,4]
+L = [1,2,3,4]
 # L = [1] 
 Z = []
+TT = []
 X = []
 
 doe = get_doe(setup)
-if hasattr(setup,'X') and isinstance(setup.X, list):
-    X = setup.X
-else:
-    if isinstance(setup.X, np.ndarray):
+if hasattr(setup,'X'):
+    if isinstance(setup.X, list) and len(setup.X) == len(L):
+        #NOTE redundant in this setup
+        X = setup.X
+    elif isinstance(setup.X, np.ndarray):
         X0 = setup.X 
-    else:
-        X0 = doe(setup, 10*setup.d)
+    else: 
+        X0 = setup.X[0]
+else:
+    X0 = doe(setup, 10*setup.d)
     
-    # take all the same X    
-    for l in L:
-        X.append(X0)
+X = []
+# take all the same X    
+for l in L:
+    X.append(X0)
 
 for l in range(len(L)):
     solver = get_solver(setup)
-    z, _ = solver.solve(X[0],L[l])
+    z, _, tt = solver.solve(X[0],L[l],get_time_trace = True)
     Z.append(z)
+    TT.append(tt)
 
 for i in range(2,len(L)):
     for j in range(i):
@@ -43,5 +48,6 @@ for i in range(2,len(L)):
             check_correlations(Z[k], Z[j], Z[i])
         
 
-
-
+plot_grid_convergence(X, Z, L, solver)
+plot_grid_convergence_tt(X, TT, L, solver)
+plt.show()
