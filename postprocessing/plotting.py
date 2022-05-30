@@ -19,7 +19,7 @@ class Plotting:
 
         # create self.X_plot, and X_pred
         self.axes = []
-        self.markers = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
+        self.markers = itertools.cycle(("^", "o", "p"))
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
         self.lb = setup.search_space[1]
         self.ub = setup.search_space[2]
@@ -145,6 +145,7 @@ class Plotting:
         if label == "":
             plt.legend()
 
+        # marker used for handling multiple axes
         ind = 0
 
         " retrieve predictions "
@@ -156,18 +157,14 @@ class Plotting:
 
         " plot prediction surface "
         ax, ind = self.axes[ind], ind + 1
-        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.9, color=self.color, label=label if label != "" else "Prediction surface"))
-        ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.4, color=self.color)
-        ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.4, color=self.color)
+        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.6, color=self.color, label=label if label != "" else "Prediction surface"))
+        ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.1, color=self.color)
+        ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.1 , color=self.color)
 
         # add sample locations
-        # y, _ = predictor.predict(self.transform_X(X))
         ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label =="" else "Samples")
 
         if label == "":
-            # then provide minimum location as well.
-            
-
             ax.legend()
         
         " plot exact surface "
@@ -241,7 +238,7 @@ class Plotting:
         assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 3"
         # reset axes and colorcycle
         axes = self.axes
-        self.markers = itertools.cycle(("^", "o", "s", "<", "8", "v", "p"))
+        self.markers = itertools.cycle(("^", "o", "p"))
         for ax in axes:
             ax.clear()
             ax._get_lines.set_prop_cycle(None)
@@ -250,28 +247,35 @@ class Plotting:
         for l in range(max(len(X) - 1, 2)):
             self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
 
+        l=1
         " plot prediction kriging "
         # first two levels always known
         if len(X) > 2:
             l += 1
 
+            
+            # plot our prediction, estimated points in black
+            inds = np.array([np.all(X_unique == x, axis=1) for x in X[-1]]).any(axis=0)
+            X_plot_est = np.delete(X_unique,inds,axis = 0)
+
+            self.axes[0].scatter(
+                *X_plot_est[:, self.d_plot].T,
+                Z_k[l].predict(self.transform_X(X_plot_est))[0],
+                c="black",
+                marker="+",
+                label = "Extrapolated points", 
+                s = 70
+            )
+
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
             self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
             
-            # plot our prediction, estimated points in black
-            self.axes[0].scatter(
-                *X_unique[:, self.d_plot].T,
-                Z_k[l].predict(self.transform_X(X_unique))[0],
-                c="black",
-                marker=">",
-                label = "Extrapolated points"
-            )
 
             # best out of all the *sampled* locations
             Z = Z_k[-1].predict(X[-1])[0]
             best = np.argmin(Z)
             t =  X[l][best, self.d_plot].T
-            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[best], s = 60, marker = "*", color = 'red', zorder = 10, label="Current best")
+            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[best], s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
 
             if self.plot_exact:
                 # exact result of the level we try to predict

@@ -14,6 +14,7 @@ from preprocessing.input import Input
 from utils.formatting_utils import return_unique
 
 from utils.correlation_utils import check_correlations
+from utils.error_utils import check_all_RMSE
 
 
 setup = Input(0)
@@ -28,7 +29,7 @@ pp = Plotting(setup)
 
 " inits and settings"
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-L = [1, 3, 4] 
+L = [1, 2, 4] 
 
 
 
@@ -36,7 +37,7 @@ n_samples_l0 = 10
 max_cost = 1500e5
 max_nr_levels = 3
 reuse_values = True
-pc = 5 # parallel capability, used for sampling the hifi in assumption verifications
+pc = 3 # parallel capability, used for sampling the hifi in assumption verifications
 
 ei = 1
 ei_criterion = 2 * np.finfo(np.float32).eps
@@ -150,19 +151,30 @@ X_unique, X_unique_exc = return_unique(X)
 if len(Z) == 2: # then we do not have a sample on level 2 yet.
     sample_initial_hifi(setup, X, Z, X_unique)
 
-if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
-    print("Not linear enough, but continueing for now.")
-    # plt.pause(5)
-    # sys.exit()
+# if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
+#     print("Not linear enough, but continueing for now.")
+#     # plt.pause(5)
+#     # sys.exit()
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
-Z_k_new = Kriging(setup, X_unique, Z_pred, hps_init=Z_k[-1].hps, tune = True, R_diagonal=mse_pred / Z_k[-1].sigma_hat)
+Z_k_new = Kriging(setup, X_unique, Z_pred, hps_init=Z_k[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred / Z_k[-1].sigma_hat)
 Z_k_new.reinterpolate()
+
+
+X0 = X[0]
+# RMSE = RMSE_norm(solver.solve(X0,L[-1])[0], Z_k_new.predict(X0)[0])
+# print("RMSE: {}".format(RMSE))
+Z_hifi_full = solver.solve(X0,L[-1])[0]
+check_all_RMSE(X0, Z_hifi_full, [*Z_k, Z_k_new])
+check_correlations(Z[0], Z[1], Z_hifi_full)
 
 # draw the result
 pp.draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique_exc)
 
+plt.show()
+
+sys.exit(0)
 
 " sample from the predicted distribution in EGO fashion"
 while np.sum(costs) < max_cost and False:
@@ -219,6 +231,8 @@ while np.sum(costs) < max_cost and False:
 # Postprocessing
 #####################################
 
+
+
 if setup.SAVE_DATA:
     setup.X = X
     setup.Z = Z
@@ -226,7 +240,7 @@ if setup.SAVE_DATA:
 
 
 # check_correlations(Z[0], Z[1], Z[2])
-
+RMSE_norm(Z_hifi_full, Z_k[-1].predict(X0))
 
 print("Simulation finished")
 show = True

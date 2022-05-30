@@ -13,7 +13,7 @@ from kriging.hp_tuning import MultistartHillclimb as ga
 from utils.formatting_utils import correct_formatX
 
 
-def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True):
+def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, hps_noise_ub = False, train=True):
     """
     This method clusters and provides all the functionality required for setting up a kriging model.
     """
@@ -25,6 +25,11 @@ def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, train=True
             raise NameError(
                 "hps_init is not defined! When tune=False, hps_init must be defined"
             )
+
+    if hps_noise_ub:
+        if hps_init is None:
+            print("WARNING: when hps_noise_ub = True, hps_init should be defined.")
+        ok.hps_constraints[-1,1] = hps_init[-1]
 
     if train:
         ok.train(X_l, y_l, tune, R_diagonal)

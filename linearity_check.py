@@ -42,7 +42,7 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
     # need the list without X[-1] too
 
     Z_pred_full, mse_pred_full = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
-    Z_k_full = Kriging(setup, X_unique, Z_pred_full, hps_init=Z_k[-1].hps, tune = True, R_diagonal=mse_pred_full / Z_k[-1].sigma_hat)
+    Z_k_full = Kriging(setup, X_unique, Z_pred_full, hps_init=Z_k[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred_full / Z_k[-1].sigma_hat)
     Z_k_full.reinterpolate()
 
     Z_interval = np.max(Z_pred_full) - np.min(Z_pred_full)
@@ -77,7 +77,7 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
         Z_k_partial = Kriging(
-            setup, X_unique, Z_pred_partial, hps_init=Z_k_full.hps, tune = False, R_diagonal=mse_pred_partial / Z_k_full.sigma_hat
+            setup, X_unique, Z_pred_partial, hps_init=Z_k_full.hps, hps_noise_ub = True, tune = False, R_diagonal=mse_pred_partial / Z_k_full.sigma_hat
         )
         Z_k_partial.reinterpolate()
 
