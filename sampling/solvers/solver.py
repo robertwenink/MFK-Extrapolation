@@ -13,7 +13,7 @@ CLSMEMBERS += inspect.getmembers(internal, inspect.isclass)
 def get_solver_name_list():
     name_list = []
     for name, obj in CLSMEMBERS:
-        if name not in ["Solver", "TestFunction", "ABC", "ExternalSolver"]:
+        if name not in ["Solver", "TestFunction", "ABC", "ExternalSolver", "groupby", "ThreadPool"]:
             if "external" in str(obj):
                 name_list.append("external: " + name)
             else:

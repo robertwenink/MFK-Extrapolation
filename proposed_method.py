@@ -79,8 +79,8 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z2_p = Ef * (Z1 - Z0) + Z1
-
+    Z2_p = Ef * (Z1 - Z0) * np.exp(-abs(Sf/Ef)) + Z1 # TODO diminish the first term if Sf is high! 
+    Z2_p_org = Ef * (Z1 - Z0) + Z1
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
     t0 = np.min([(S0 - S1) * Ef, np.zeros_like(S0)], axis=0)
@@ -88,7 +88,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     t2 = abs(Z1 - Z0) * Sf
     t = t0 + t1 + t2
 
-    S2_p = S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf
+    S2_p = S1 + (abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf )*np.exp(-abs(Sf/Ef))
 
     # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
     # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
@@ -111,7 +111,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     return Z2_p, S2_p ** 2, Sf ** 2
 
 
-def  weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
+def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.
@@ -159,10 +159,10 @@ def  weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
     #    This decreases distance based influence if sigma > 0.
     #    We take the variance of the fraction, S_f
-
-    mult = np.exp(-D_Sf)
+ 
+    mult = np.exp(-D_Sf/np.mean(D_Sf))
     c = (c.T * mult).T
-
+ 
     " Scale to sum to 1; correct for sampled locations "
     # Contributions coefficients should sum up to 1.
     # Furthermore, sampled locations should be the only contribution for themselves.

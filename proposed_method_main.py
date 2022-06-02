@@ -135,9 +135,8 @@ for l in range(2):
 
 
 # create Krigings of levels, same initial hps
-tune = False
 Z_k.append(Kriging(setup, X[0], Z[0], tune=True))
-Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps, tune=tune))
+Z_k.append(Kriging(setup, X[1], Z[1], hps_init=Z_k[0].hps, tune=True))
 
 
 " level 2 initialisation "
@@ -151,10 +150,10 @@ X_unique, X_unique_exc = return_unique(X)
 if len(Z) == 2: # then we do not have a sample on level 2 yet.
     sample_initial_hifi(setup, X, Z, X_unique)
 
-# if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
-#     print("Not linear enough, but continueing for now.")
-#     # plt.pause(5)
-#     # sys.exit()
+if not check_linearity(setup, X, X_unique, Z, Z_k, pp):
+    print("Not linear enough, but continueing for now.")
+    # plt.pause(5)
+    # sys.exit()
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
@@ -171,7 +170,7 @@ check_correlations(Z[0], Z[1], Z_hifi_full)
 
 # draw the result
 pp.draw_current_levels(X, Z, [*Z_k, Z_k_new], X_unique_exc)
-
+pp.plot_kriged_truth(setup,X0, Z_hifi_full, hps_init = Z_k[-1].hps)
 plt.show()
 
 sys.exit(0)

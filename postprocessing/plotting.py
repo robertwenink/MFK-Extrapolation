@@ -9,6 +9,7 @@ from sampling.solvers.solver import get_solver
 from sampling.solvers.internal import TestFunction
 from proposed_method import *
 
+from kriging.OK import Kriging
 
 class Plotting:
     def __init__(self, setup):
@@ -164,7 +165,7 @@ class Plotting:
         # add sample locations
         ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label =="" else "Samples")
 
-        if label == "":
+        if label != "":
             ax.legend()
         
         " plot exact surface "
@@ -218,13 +219,22 @@ class Plotting:
         std = np.sqrt(mse)
 
         # plot prediction and mse
-        ax.plot(*self.X_plot, y_hat, label=label, color=self.color, alpha=0.9)
-        ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.4)
-        ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.4)
+        ax.plot(*self.X_plot, y_hat, label=label, color=self.color, alpha=0.7)
+        ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.2)
+        ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.2)
 
     def fix_colors(self,surf):
         surf._facecolors2d = surf._facecolor3d
         surf._edgecolors2d = surf._edgecolor3d
+
+    def plot_kriged_truth(self, setup, X_hifi_full, Z_hifi_full, hps_init = None):
+        """
+        Use to plot the fully sampled hifi truth Kriging with the prediction Kriging.
+        """
+        K = Kriging(setup, X_hifi_full, Z_hifi_full, hps_init=hps_init, tune = True)
+
+        self.plot(X_hifi_full, Z_hifi_full, K, label="Kriging truth")
+        # self.plot(X_hifi_full, Z_hifi_full, predictor, label="Kriging truth")
 
     def draw_current_levels(self, X, Z, Z_k, X_unique):
         """
@@ -235,7 +245,7 @@ class Plotting:
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
 
-        assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 3"
+        assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 2"
         # reset axes and colorcycle
         axes = self.axes
         self.markers = itertools.cycle(("^", "o", "p"))
@@ -247,13 +257,11 @@ class Plotting:
         for l in range(max(len(X) - 1, 2)):
             self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
 
-        l=1
         " plot prediction kriging "
         # first two levels always known
         if len(X) > 2:
-            l += 1
+            l+=1
 
-            
             # plot our prediction, estimated points in black
             inds = np.array([np.all(X_unique == x, axis=1) for x in X[-1]]).any(axis=0)
             X_plot_est = np.delete(X_unique,inds,axis = 0)
@@ -278,6 +286,7 @@ class Plotting:
             self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[best], s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
 
             if self.plot_exact:
+                # NOTE this only works for test functions.
                 # exact result of the level we try to predict
                 y_pred_truth = self.solver.solve(self.X_pred, l=3)[0].reshape(
                     self.X_plot[0].shape
