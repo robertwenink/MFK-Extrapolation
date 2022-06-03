@@ -48,7 +48,7 @@ def correct_format_hps(a):
     return a
 
 
-def return_unique(X_list,X_exclude=[[]]):
+def return_unique(X_list, dim, X_exclude=[[]]):
     """
     @param X_list: List containing each level`s X 2d nd.array
     @param X_exclude: X we want to exclude from our list of uniques. 
@@ -59,4 +59,4 @@ def return_unique(X_list,X_exclude=[[]]):
     res = [item for sublist in X_list for item in sublist]
     res = np.unique(res,axis=0)
     res_exc = np.array([item for item in res if item not in X_exclude])
-    return res , res_exc
+    return correct_formatX(res,dim) , correct_formatX(res_exc,dim)

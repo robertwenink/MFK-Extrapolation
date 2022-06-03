@@ -9,8 +9,7 @@ from numba import vectorize, float64
 from sampling.DoE import get_doe
 from sampling.infill.infill_criteria import EI
 from kriging.OK import Kriging
-from utils.formatting_utils import return_unique, correct_formatX
-
+from utils.formatting_utils import correct_formatX
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     """
@@ -76,19 +75,34 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     Sf = np.sqrt(
         np.trapz(np.trapz(Y, lambs, axis=0), lambs, axis=0)
     )  # NOTE not a normal gaussian variance, but we use it as such
+    
+    # scaling according to reliability of Ef based on ratio Sf/Ef, and correlation with surrounding samples
+    # important for: suppose the scenario where a sample at L1 lies between samples of L2. 
+    # Then it would not be reasonable to discard all weighted information and just take the L1 value even if Sf/Ef is high.
+
+    # so:   if high Sf/Ef -> use correlation (sc = correlation)
+    #       if low Sf/Ef -> use prediction (sc = 1)
+    
+    # TODO this is the point at which we can integrate other MF methods!!!!
+    # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
+    # then, we can use Sf not to switch back to L1, but to switch back to the other model if our prediction turns out to be unreliable.
+    # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
+    # so TODO now it is time to get to the MF-EGO approach of Meliani.
+
+    corr = Z1_k.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, Z_k[-1].hps).flatten()
+    lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
+
+    sc = 1 * lin + corr * (1 - lin) 
+    sc = lin
+    # * np.exp(-abs(Sf/Ef))
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z2_p = Ef * (Z1 - Z0) * np.exp(-abs(Sf/Ef)) + Z1 # TODO diminish the first term if Sf is high! 
-    Z2_p_org = Ef * (Z1 - Z0) + Z1
+    Z2_p = Ef * (Z1 - Z0) * sc + Z1 # TODO diminish the first term if Sf is high! 
+
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    t0 = np.min([(S0 - S1) * Ef, np.zeros_like(S0)], axis=0)
-    t1 = S1 * Ef + S1
-    t2 = abs(Z1 - Z0) * Sf
-    t = t0 + t1 + t2
-
-    S2_p = S1 + (abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf )*np.exp(-abs(Sf/Ef))
+    S2_p = S1 + (abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf ) * sc
 
     # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
     # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
@@ -108,6 +122,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # set S2_p to 0 at that index (we will later include variance from noise.)
     S2_p[ind] = 0
 
+    # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
     return Z2_p, S2_p ** 2, Sf ** 2
 
 
@@ -146,8 +161,7 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     # 1) distance based: take the (tuned) Kriging correlation function
     # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
     # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-    km = Kriging(setup, X_s, Z_s, hps_init=Z_k[-1].hps, train=False)
-    c = km.corr(X_s, correct_formatX(X_unique, setup.d), km.hps)
+    c = Z_k[-1].corr(X_s, X_unique, Z_k[-1].hps)
  
     mask = c == 1.0  # then sampled point
     idx = mask.any(axis=0)  # get columns with sampled points

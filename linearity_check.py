@@ -32,7 +32,7 @@ def overlap_amount(s1, e1, s2, e2):
     return overlap_fraction
 
 
-def check_linearity(setup, X, X_unique, Z, Z_k, pp):
+def check_linearity(setup, X, X_unique, Z, Z_k, pp, L):
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
     print("### Checking linearity")
@@ -60,7 +60,7 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
 
     linear = True
     nr_samples = Z[-1].shape[0]
-    pp.draw_current_levels(X, Z, [*Z_k, Z_k_full], X_unique)
+    pp.draw_current_levels(X, Z, [*Z_k, Z_k_full], X_unique, L)
     for i_exclude in range(nr_samples):
         i_include = np.delete(inds, i_exclude)
 
@@ -99,6 +99,6 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp):
             print("NOT LINEAR ENOUGH")
         
         # draw the result
-        pp.draw_current_levels(X, Z, [*Z_k, Z_k_partial, Z_k_full], X_unique)
+        pp.draw_current_levels(X, Z, [*Z_k, Z_k_partial, Z_k_full], X_unique, L)
 
     return linear

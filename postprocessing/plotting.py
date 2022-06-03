@@ -165,9 +165,6 @@ class Plotting:
         # add sample locations
         ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label =="" else "Samples")
 
-        if label != "":
-            ax.legend()
-        
         " plot exact surface "
         if self.plot_exact:
 
@@ -231,12 +228,13 @@ class Plotting:
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction Kriging.
         """
+        print("Creating Kriging model of truth")
         K = Kriging(setup, X_hifi_full, Z_hifi_full, hps_init=hps_init, tune = True)
 
         self.plot(X_hifi_full, Z_hifi_full, K, label="Kriging truth")
         # self.plot(X_hifi_full, Z_hifi_full, predictor, label="Kriging truth")
 
-    def draw_current_levels(self, X, Z, Z_k, X_unique):
+    def draw_current_levels(self, X, Z, Z_k, X_unique, L):
         """
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.
@@ -280,15 +278,17 @@ class Plotting:
             
 
             # best out of all the *sampled* locations
-            Z = Z_k[-1].predict(X[-1])[0]
-            best = np.argmin(Z)
+            best = np.argmin(Z[-1])
             t =  X[l][best, self.d_plot].T
-            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[best], s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
+            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
+            if self.plot_contour:
+                self.axes[1].scatter(*X[l][best, self.d_plot].T, s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
+
 
             if self.plot_exact:
                 # NOTE this only works for test functions.
                 # exact result of the level we try to predict
-                y_pred_truth = self.solver.solve(self.X_pred, l=3)[0].reshape(
+                y_pred_truth = self.solver.solve(self.X_pred, l = L[-1])[0].reshape(
                     self.X_plot[0].shape
                 )
                 kwargs = {
@@ -326,13 +326,13 @@ class Plotting:
         " plot 'full' Kriging level in case of linearity check"
         if len(Z_k)>3:
             self.plot(X[-1], Z[-1], Z_k[-1], label="Full Kriging (linearity check)")
-        
-        for ax in self.axes:
-            ax.legend()
 
+        # legend and plot settings
+        self.axes[0].legend(loc='center left', bbox_to_anchor=(1.04, 0.5))
+        
         plt.tight_layout()
         plt.draw()
-        plt.pause(2)
+        # plt.pause(2)
 
 def draw_convergence(solver, solver_type_text):
     marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))

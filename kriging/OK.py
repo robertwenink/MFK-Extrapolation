@@ -29,7 +29,7 @@ def Kriging(setup, X_l, y_l, tune=False, R_diagonal=0, hps_init=None, hps_noise_
     if hps_noise_ub:
         if hps_init is None:
             print("WARNING: when hps_noise_ub = True, hps_init should be defined.")
-        ok.hps_constraints[-1,1] = hps_init[-1]
+        ok.hps_constraints[-1,1] = hps_init[-1] * 2
 
     if train:
         ok.train(X_l, y_l, tune, R_diagonal)
