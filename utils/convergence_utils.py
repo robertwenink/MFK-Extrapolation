@@ -41,7 +41,7 @@ def plot_grid_convergence(X_list, Z_list, L, solver):
     X_plot_list = [X_plot_list[i] for i in inds]
     Z_plot_list = [Z_plot_list[i] for i in inds]
 
-    fig, axes = plt.subplots(n_plots_y, n_plots_x, sharex=True, sharey="row")
+    fig, axes = plt.subplots(n_plots_y, n_plots_x, sharex=True, sharey=True)
     fig.suptitle("Convergence plots")
 
     for i in range(len(X_plot_list)):
@@ -108,7 +108,7 @@ def plot_grid_convergence_tt(X_list, TT, L, solver):
     X_plot_list = [X_plot_list[i] for i in inds]
     Z_plot_list = [Z_plot_list[i] for i in inds]
 
-    fig, axes = plt.subplots(n_plots_y, n_plots_x, sharex=True, sharey="row")
+    fig, axes = plt.subplots(n_plots_y, n_plots_x, sharex=True, sharey=True)
     fig.suptitle("Convergence plots")
 
     for i in range(len(X_plot_list)):
@@ -116,7 +116,7 @@ def plot_grid_convergence_tt(X_list, TT, L, solver):
         x = X_list[0][inds[i]]
         ax.set_title("x={}".format(x))
         for l in range( len(X_list)): 
-            ax.plot(X_plot_list[i][l], Z_plot_list[i][l], label = "L = {}".format(L[l]))
+            ax.plot(X_plot_list[i][l], Z_plot_list[i][l], label = "Refinement level = {}".format(L[l]))
 
     # set the background when all y-bounds of the rows are known.
     for i in range(len(X_plot_list)):
@@ -134,5 +134,5 @@ def plot_grid_convergence_tt(X_list, TT, L, solver):
             extent=[xb[0], xb[1], yb[0], yb[1]],
         )
     handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper center')
+    fig.legend(handles, labels, loc='upper left')
     fig.tight_layout()

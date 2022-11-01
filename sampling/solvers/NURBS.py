@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageOps
 
 # ship parameters
-B = 1  # half width; in deci-meters
-h = 1
+B = 3.4/2  # half width; in deci-meters
+D = 4.3
+h = D/2
 vrijboord = 0.5
-
+angle_ded = 10
 
 def create_curve_figure(crv, x=None, path=None):
     # Prepare points
@@ -44,7 +45,7 @@ def create_curve_figure(crv, x=None, path=None):
     
     # save figure
     if path == None:
-        assert x != None, "\nPlease provide an input vector x if no path is given."
+        assert np.any(x != None), "\nPlease provide an input vector x if no path is given."
         name = "_".join(format(i, ".3f") for i in x)
         name = name.replace(".", "")
         path = "./NURBS/{}".format(name)
@@ -65,9 +66,10 @@ def interpolating_curve(x, path=None):
 
     # define two diagonal lines to fix the angle at the end
     # if we dont do this we might 'sway' outside the breadth
+    #NOTE this is the bilge corner
     r0, r1 = 0.01, 0.02
-    max_ang = 90 / 180 * np.pi
-    min_ang = 30 / 180 * np.pi
+    min_ang = 0 / 180 * np.pi # 0 is recht naar beneden!
+    max_ang = (90-angle_ded) / 180 * np.pi 
     max_diff = max_ang - min_ang
     x0_x0 = np.sin(x0 * max_diff + min_ang) * r0
     x0_y0 = 1 - np.cos(x0 * max_diff + min_ang) * r0
@@ -82,10 +84,10 @@ def interpolating_curve(x, path=None):
     # x1 = x1 * (0.9 - 0.5) + 0.5
     # x2 = x2 * (0.6 - 0.2) + 0.2
 
-    # lower corner, angle constrained between 0 and 60 deg
+    #NOTE this is the keel corner
     r0, r1 = 0.02, 0.01
-    max_ang = 60 / 180 * np.pi
-    min_ang = 0 / 180 * np.pi
+    min_ang = angle_ded / 180 * np.pi  # 0 is naar links horizontaal
+    max_ang = (90-angle_ded) / 180 * np.pi
     max_diff = max_ang - min_ang
     # x3_x0 = 1 - np.cos(x3 * max_diff + min_ang) * r0
     # x3_y0 = np.sin(x3 * max_diff + min_ang) * r0

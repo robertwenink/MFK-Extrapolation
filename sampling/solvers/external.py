@@ -100,7 +100,7 @@ class EVA(ExternalSolver):
         if setup != None:
             # then we are not setting up a virtual class for the GUI anymore.ABC()
             
-            self.filter_span_frac, self.fitler_delta = 0.01, 0.04
+            self.filter_span_frac, self.fitler_delta = 0.005, 0.04
             
             assert os.path.exists(
                 "input.tex"
@@ -190,7 +190,16 @@ class EVA(ExternalSolver):
 
         fig, (ax1, ax2) = plt.subplots(1, 2)
         ax1.imshow(plt.imread(os.path.join(output_path, "NURBS.png")))
-
+        ax1.tick_params(
+            axis="both",  # changes apply to the x-axis
+            which="both",  # both major and minor ticks are affected
+            bottom=False,  # ticks along the bottom edge are off
+            top=False,  # ticks along the top edge are off
+            labelbottom=False,
+            right=False,
+            left=False,
+            labelleft=False,
+        )  # labels along the bottom edge are off
         path = os.path.join(output_path, "Excel", "Body_forces", "Force_body_y.csv")
         df = pd.read_csv(path)
         df = df.iloc[1: , :]
@@ -217,7 +226,7 @@ class EVA(ExternalSolver):
         ax2.plot(
             x,
             filter_spiked_signal(df , self.filter_span_frac, self.fitler_delta),
-            label="filter_spiked_signal",
+            label="Composite signal filter", linewidth=3,
         )
         # set non overlapping ticks and legend
         ax2.set_xticks(x[:: int(len(x) / 10)])

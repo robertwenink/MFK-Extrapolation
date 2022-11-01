@@ -17,7 +17,7 @@ from utils.correlation_utils import check_correlations
 from utils.error_utils import check_all_RMSE
 
 
-setup = Input(0)
+setup = Input(2)
 solver = get_solver(setup)
 doe = get_doe(setup)
 pp = Plotting(setup)
@@ -29,7 +29,7 @@ pp = Plotting(setup)
 
 " inits and settings"
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-L = [1, 1.5, 4] 
+L = [1, 3, 4] 
 
 
 

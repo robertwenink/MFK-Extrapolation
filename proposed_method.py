@@ -92,17 +92,19 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     corr = Z1_k.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, Z_k[-1].hps).flatten()
     lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
 
-    sc = 1 * lin + corr * (1 - lin) 
-    sc = lin
+    w = 1 * lin + corr * (1 - lin) 
+    w = lin
     # * np.exp(-abs(Sf/Ef))
 
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z2_p = Ef * (Z1 - Z0) * sc + Z1 # TODO diminish the first term if Sf is high! 
+    Z1_alt = Z1 # TODO should become equal to external method
+    Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1-w) * Z1_alt # TODO diminish the first term if Sf is high! 
 
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    S2_p = S1 + (abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf ) * sc
+    S1_alt = S1 # TODO should become equal to external method
+    S2_p = w * (S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
 
     # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
     # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
