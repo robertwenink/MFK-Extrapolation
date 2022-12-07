@@ -10,8 +10,8 @@ The external solvers are required to:
 
 """
 
-from sampling.solvers.internal import Solver
-from sampling.solvers.NURBS import *
+from core.sampling.solvers.internal import Solver
+from core.sampling.solvers.NURBS import *
 from utils.filter_utils import filter_spiked_signal
 
 from abc import ABC, abstractmethod
@@ -95,7 +95,7 @@ class EVA(ExternalSolver):
     def __init__(self, setup=None):
         super().__init__()
 
-        from sampling.solvers.NURBS import interpolating_curve, create_nurbs
+        from core.sampling.solvers.NURBS import interpolating_curve, create_nurbs
 
         if setup != None:
             # then we are not setting up a virtual class for the GUI anymore.ABC()

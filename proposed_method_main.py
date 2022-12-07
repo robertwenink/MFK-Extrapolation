@@ -4,20 +4,20 @@ from copy import deepcopy
 import sys
 import os
 
-from proposed_method import *
-from linearity_check import *
+from preprocessing.input import Input
+
+from core.proposed_method import *
+from core.sampling.DoE import get_doe, LHS_subset
+
 from postprocessing.plotting import *
 
-from preprocessing.input import Input
-from sampling.DoE import get_doe, LHS_subset
-from preprocessing.input import Input
 from utils.formatting_utils import return_unique, correct_formatX
-
+from utils.linearity_utils import check_linearity
 from utils.correlation_utils import check_correlations
 from utils.error_utils import check_all_RMSE
 
 
-setup = Input(2)
+setup = Input(0)
 solver = get_solver(setup)
 doe = get_doe(setup)
 pp = Plotting(setup)
@@ -64,7 +64,7 @@ def update_costs(cost,X,l):
 
 def sample(l, x_new):
     """
-    Function that does all required actions for sampling.
+    Function that does all required actions for core.sampling.
     lists X, Z, and costs are changed inplace by reference
     x_new is the value / an np.ndarray of to sample location(s)
     """
@@ -79,7 +79,7 @@ def sample(l, x_new):
 
 def sample_nested(l, x_new, X, Z, Z_k):
     """
-    Function that does all required actions for nested sampling.
+    Function that does all required actions for nested core.sampling.
     """
 
     # Sampled HIFI location should be sampled at all lower levels as well, i.e. nested DoE; this because of Sf and optimally making use of the hifi point.

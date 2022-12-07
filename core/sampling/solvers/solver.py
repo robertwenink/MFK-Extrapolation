@@ -1,8 +1,8 @@
 from abc import ABC
 from abc import abstractmethod
 
-import sampling.solvers.external as external
-import sampling.solvers.internal as internal
+import core.sampling.solvers.external as external
+import core.sampling.solvers.internal as internal
 
 import inspect
 

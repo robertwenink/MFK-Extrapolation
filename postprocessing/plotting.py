@@ -5,11 +5,11 @@ import itertools
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
-from sampling.solvers.solver import get_solver
-from sampling.solvers.internal import TestFunction
-from proposed_method import *
+from core.sampling.solvers.solver import get_solver
+from core.sampling.solvers.internal import TestFunction
+from core.proposed_method import *
 
-from kriging.OK import Kriging
+from core.kriging.OK import Kriging
 
 class Plotting:
     def __init__(self, setup):
@@ -226,7 +226,7 @@ class Plotting:
 
     def plot_kriged_truth(self, setup, X_hifi_full, Z_hifi_full, hps_init = None):
         """
-        Use to plot the fully sampled hifi truth Kriging with the prediction Kriging.
+        Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
         print("Creating Kriging model of truth")
         K = Kriging(setup, X_hifi_full, Z_hifi_full, hps_init=hps_init, tune = True)

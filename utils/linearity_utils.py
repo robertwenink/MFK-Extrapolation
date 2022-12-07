@@ -1,5 +1,5 @@
 import numpy as np
-from proposed_method import *
+from core.proposed_method import *
 
 def overlap_check(s1, e1, s2, e2):
     """Does the range (s1, e1) overlap with (s2, e2)?"""

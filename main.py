@@ -1,8 +1,8 @@
-from sampling.DoE import get_doe, plot_doe
+from core.sampling.DoE import get_doe, plot_doe
 import numpy as np
 import matplotlib.pyplot as plt
-from sampling.solvers.solver import get_solver
-from kriging.OK import OrdinaryKriging
+from core.sampling.solvers.solver import get_solver
+from core.kriging.OK import OrdinaryKriging
 from postprocessing.plotting import Plotting
 
 from preprocessing.input import Input

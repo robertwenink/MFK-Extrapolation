@@ -1,5 +1,5 @@
-from sampling.DoE import grid_unit_hypercube
-from sampling.solvers.NURBS import *
+from core.sampling.DoE import grid_unit_hypercube
+from core.sampling.solvers.NURBS import *
 import matplotlib.pyplot as plt
 
 
