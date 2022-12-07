@@ -22,7 +22,7 @@ solver = get_solver(setup)
 doe = get_doe(setup)
 pp = Plotting(setup)
 
-
+from testing.tryNURBS import *
 ################
 # Settings
 ################

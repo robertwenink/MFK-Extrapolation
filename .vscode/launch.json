@@ -4,25 +4,25 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
-            "name": "Python: main.py",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal"
-        },
-		{
-            "name": "Python: proposed_method.py",
-            "type": "python",
-            "request": "launch",
-            "program": "proposed_method_main.py",
-            "console": "integratedTerminal"
-        },
 		{
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: main_sf.py",
+            "type": "python",
+            "request": "launch",
+            "program": "main_sf.py",
+            "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: main_mf.py",
+            "type": "python",
+            "request": "launch",
+            "program": "main_mf.py",
             "console": "integratedTerminal"
         },
 		{

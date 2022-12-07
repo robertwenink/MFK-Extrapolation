@@ -1,6 +1,7 @@
 from core.sampling.DoE import grid_unit_hypercube
 from core.sampling.solvers.NURBS import *
 import matplotlib.pyplot as plt
+import os
 
 
 X = grid_unit_hypercube(2, n_per_d=4)
@@ -9,16 +10,19 @@ X = grid_unit_hypercube(2, n_per_d=4)
 fig, axes = plt.subplots(4, 4, sharex=True, sharey=True)
 fig.suptitle("NURBS variations")
 
+if not os.path.exists(os.path.dirname(__file__)+"./NURBS/"):
+    os.mkdir(os.path.dirname(__file__)+"./NURBS/")
+
 for i, x in enumerate(X):
     name = "_".join(format(i, ".3f") for i in x)
     name = name.replace(".", "")
-    path = "./NURBS/{}".format(name)
+    path = os.path.dirname(__file__)+"./NURBS/{}".format(name)
     interpolating_curve(x, path)
 
 for i, x in enumerate(X):
     name = "_".join(format(j, ".3f") for j in x)
     name = name.replace(".", "")
-    path = "./NURBS/{}.png".format(name)
+    path = os.path.dirname(__file__)+"./NURBS/{}.png".format(name)
     
     ax = axes[3 - int(np.floor(i / 4)), i % 4]
     ax.set_title("x=[{}]".format(name.replace("_", ", ")))
