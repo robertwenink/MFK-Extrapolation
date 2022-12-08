@@ -20,8 +20,8 @@ def MAE_norm(Z, Z_predict):
     return MAE
 
 
-def check_all_RMSE(X, Z_hifi, Z_k_list):
-    for i, Z_k in enumerate(Z_k_list):
-        RMSE = RMSE_norm(Z_hifi, Z_k.predict(X)[0])
+def RMSE_norm_MF(X, Z_truth, K_mf):
+    for i, K_l in enumerate(K_mf_list):
+        RMSE = RMSE_norm(Z_truth, K_l.predict(X)[0])
         print("RMSE of level {} = {:.4f} %".format(i,RMSE*100))
 

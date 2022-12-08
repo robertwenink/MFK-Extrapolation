@@ -196,7 +196,7 @@ class Plotting:
     def plot_1d(self, X, y, predictor, label=""):
         """
         X : X where we have actually sampled
-        predictor : Z_k
+        predictor : K_mf
         """
         ax = self.axes[0]
 
@@ -234,12 +234,12 @@ class Plotting:
         self.plot(X_hifi_full, Z_hifi_full, K, label="Kriging truth")
         # self.plot(X_hifi_full, Z_hifi_full, predictor, label="Kriging truth")
 
-    def draw_current_levels(self, X, Z, Z_k, X_unique, L):
+    def draw_current_levels(self, X, Z, K_mf, X_unique, L):
         """
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.
         @param Z: list of the sampled z (or y) values; these can be different than the predictions when noise is involved.
-        @param Z_k: list of the Kriging predictors of each level
+        @param K_mf: list of the Kriging predictors of each level
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
 
@@ -253,7 +253,7 @@ class Plotting:
 
         " plot known kriging levels"
         for l in range(max(len(X) - 1, 2)):
-            self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
+            self.plot(X[l], Z[l], K_mf[l], label="Kriging level {}".format(l))
 
         " plot prediction kriging "
         # first two levels always known
@@ -266,7 +266,7 @@ class Plotting:
 
             self.axes[0].scatter(
                 *X_plot_est[:, self.d_plot].T,
-                Z_k[l].predict(self.transform_X(X_plot_est))[0],
+                K_mf[l].predict(self.transform_X(X_plot_est))[0],
                 c="black",
                 marker="+",
                 label = "Extrapolated points", 
@@ -274,7 +274,7 @@ class Plotting:
             )
 
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[l], Z[l], Z_k[l], label="Kriging level {}".format(l))
+            self.plot(X[l], Z[l], K_mf[l], label="Kriging level {}".format(l))
             
 
             # best out of all the *sampled* locations
@@ -324,8 +324,8 @@ class Plotting:
                 self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
         
         " plot 'full' Kriging level in case of linearity check"
-        if len(Z_k)>3:
-            self.plot(X[-1], Z[-1], Z_k[-1], label="Full Kriging (linearity check)")
+        if len(K_mf)>3:
+            self.plot(X[-1], Z[-1], K_mf[-1], label="Full Kriging (linearity check)")
 
         # legend and plot settings
         self.axes[0].legend(loc='center left', bbox_to_anchor=(1.04, 0.5))

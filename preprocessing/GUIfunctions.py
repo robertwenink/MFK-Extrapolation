@@ -166,7 +166,7 @@ class GUI(qtw.QWidget, Ui_Form):
         # selectKrigingTypeComboBox
         gui_data["kriging_type"] = str(self.selectKrigingTypeComboBox.currentText())
 
-        gui_data["kernel"] = str(self.correlationKernelComboBox.currentText())
+        gui_data["kernel_name"] = str(self.correlationKernelComboBox.currentText())
 
         # parallelSamplingCheckBox
         gui_data["parallel"] = self.parallelSamplingCheckBox.isChecked()

@@ -4,6 +4,7 @@ The kernel determines the relation between points based on distance or radius, t
 The used kernel determines which hyperparameters need to be tuned.
 For Kriging we have to use a kernel that is able to scale the dimensions according to the corresponding hyperparameters. (Jones 2001)
 """
+# pyright: reportGeneralTypeIssues=false
 
 import numpy as np
 
@@ -16,17 +17,18 @@ def get_available_kernel_names():
     return ["kriging"]
 
 
-def get_kernel(setup):
+def get_kernel(kernel_name : str, d : int, noise_regression : bool):
     """
-    Function to return the correct kernel function according to the setup object,
-    including the hyperparameters, its names and constraints.
+    Function to return the correct kernel function according to the kernel name defined in setup.
+    
+    @return kernel function, initial hyperparameters, hyper parameter constraints
     """
-    if setup.kernel == "kriging":
+    if kernel_name == "kriging":
         # define function to use
         func = corr_matrix_kriging
 
         # define the format/type of the hyperparameters, place in a list that is easy to unpack
-        hps = np.array([[1] * setup.d, [2] * setup.d]).reshape(-1,1)        
+        hps = np.array([[1] * d, [2] * d]).reshape(-1,1)        
         
         # we should always include this regression hyperparameter, otherwise functions break down
         hps = np.append(hps, [0])
@@ -39,10 +41,10 @@ def get_kernel(setup):
         # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
         # further, close to 0 makes no sense.
         hps_constraints = np.array(
-            [[[-10, 2]] * setup.d, [[np.inf, np.inf]] * setup.d]
+            [[[-10, 2]] * d, [[np.inf, np.inf]] * d]
         ).reshape(-1,2)
 
-        if setup.noise_regression:
+        if noise_regression:
             hps_constraints = np.append(hps_constraints,[[0, 0.2]], axis=0)  
         else:
             hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)  
@@ -58,7 +60,7 @@ def _dist_matrix(X):
     """
     return np.power(np.sum(np.power(X[:, np.newaxis, :] - X, 2), axis=2), 1 / 2)
 
-@njit(cache=True)
+@njit(cache=True)  
 def dist_matrix(X,X_other):
     " Euclidian pairwise distance "
     diff_mat = diff_matrix(X,X_other)
@@ -116,7 +118,7 @@ def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     return np.exp(-arr)
 
 
-@njit(cache=True, fastmath=True)
+@njit(cache=True, fastmath=True) 
 def corr_matrix_kriging(X, X_other, hps):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).

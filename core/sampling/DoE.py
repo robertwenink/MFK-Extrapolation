@@ -20,12 +20,12 @@ def get_doe_name_list():
     return name_list
 
 
-def grid(setup, n=None, n_per_d=None):
+def grid(setup, n=None, n_per_d : int = 10):
     """
     Build a grid/ full factorial DoE and sample n points in each dimension d.
     Be aware that each column/ row is linearly dependent and thus correlation matrix R is (nearly) invertable.
     """
-    if n is not None and n_per_d is None:
+    if n is not None and n_per_d == 10:
         n_per_d = int(round(n ** (1 / setup.d)))
     d = setup.d
     lb = setup.search_space[1]
@@ -36,12 +36,12 @@ def grid(setup, n=None, n_per_d=None):
     X = np.stack(res, axis=-1).reshape(-1, d)
     return X
 
-def grid_unit_hypercube(d, n=None, n_per_d=None):
+def grid_unit_hypercube(d, n=None, n_per_d : int = 10):
     """
     Build a grid/ full factorial DoE and sample n points in each dimension d for a unit hypercube.
     Be aware that each column/ row is linearly dependent and thus correlation matrix R is (nearly) invertable.
     """
-    if n is not None and n_per_d is None:
+    if n is not None and n_per_d == 10:
         n_per_d = int(round(n ** (1 / d)))
     lin = np.linspace(0, 1, n_per_d)
     lis = [lin for i in range(d)]
@@ -60,16 +60,16 @@ def LHS(setup, n=None, n_per_d=None):
         samples = n_per_d ** setup.d
 
     # sampling plan from 0 to 1
-    X = lhs(setup.d, samples=samples, criterion='maximin',iterations=min(int(2*samples), 150))
+    X = lhs(setup.d, samples=samples, criterion='maximin',iterations=min(int(2*samples), 150)) # type: ignore
 
     # scale data according to the search space bounds
     X = (
-        np.multiply(X, setup.search_space[2] - setup.search_space[1])
+        np.multiply(X, setup.search_space[2] - setup.search_space[1])  # type: ignore
         + setup.search_space[1]
     )
     return X
 
-def LHS_subset(setup, X_superset,x_init,amount):
+def LHS_subset(setup, X_superset, x_init, amount):
     """
     Greedy selection via Morris-Mitchels / maximin criterium. See Forrester 2008 as well.
     """ 

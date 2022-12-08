@@ -2,16 +2,11 @@
 A 'solver' with the property of grid convergence; i.e. a converging function.
 We could use it as well as modifier for transformed MF testcases.
 """
-import matplotlib.pyplot as plt
 import numpy as np
-from numba import vectorize, float64
 
-from core.sampling.DoE import get_doe
-from core.sampling.infill.infill_criteria import EI
-from core.kriging.OK import Kriging
 from utils.formatting_utils import correct_formatX
 
-def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
+def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     """
     Assume the relative differences at one location are representative for the
      differences elsewhere in the domain, if we scale according to the same convergence.
@@ -19,27 +14,27 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
 
     @param x_b: a (presumably best) location at which we have/will sample(d) the new level.
     @param X_unique: all unique previously sampled locations in X.
-    @param z_pred: new level`s sampled locations.
-    @param Z_k: Kriging models of the levels, should only contain known levels.
+    @param z_pred: new level`s sampled location value(s).
+    @param K_mf: Kriging models of the levels, should only contain known levels.
     @return extrapolated predictions Z2_p, corresponding mse S2_p (squared!)
     """
 
-    Z0_k = Z_k[-2]
-    Z1_k = Z_k[-1]
+    K0 = K_mf[-2]
+    K1 = K_mf[-1]
 
     # get values corresponding to x_b of previous 2 levels
-    z0_b, s0_b = Z0_k.predict(x_b)
-    z1_b, s1_b = Z1_k.predict(x_b)
+    z0_b, s0_b = K0.predict(x_b)
+    z1_b, s1_b = K1.predict(x_b)
     s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)
 
     # this is only the base noise,actual noise can deviate due to correlations
     # TODO unused yet
-    S0_noise = Z0_k.sigma_hat * Z0_k.hps[-1]
-    S1_noise = Z1_k.sigma_hat * Z1_k.hps[-1]
+    S0_noise = K0.sigma_hat * K0.hps[-1]
+    S1_noise = K1.sigma_hat * K1.hps[-1]
 
     # get all other values of previous 2 levels
-    Z0, S0 = Z0_k.predict(X_unique)
-    Z1, S1 = Z1_k.predict(X_unique)
+    Z0, S0 = K0.predict(X_unique)
+    Z1, S1 = K1.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
     def exp_f(lamb1, lamb2):
@@ -89,7 +84,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
     # so TODO now it is time to get to the MF-EGO approach of Meliani.
 
-    corr = Z1_k.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, Z_k[-1].hps).flatten()
+    corr = K1.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
     lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
 
     w = 1 * lin + corr * (1 - lin) 
@@ -128,7 +123,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, Z_k):
     return Z2_p, S2_p ** 2, Sf ** 2
 
 
-def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
+def weighted_prediction(setup, X_s, X_unique, Z_s, K_mf):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.
@@ -141,13 +136,13 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     @param X_s = X[-1]: Locations at which we have sampled at the new level.
     @param X_unique: all unique previously sampled locations in X.
     @param Z_s: list hifi level sample locations
-    @param Z_k: Kriging models of the levels, should only contain *known* levels.
+    @param K_mf: Kriging models of the levels, should only contain *known* levels.
     """
 
     X_s = correct_formatX(X_s, setup.d)
 
     if len(Z_s) == 1:
-        Z_pred, mse_pred, _ = Kriging_unknown_z(X_s, X_unique, Z_s, Z_k)
+        Z_pred, mse_pred, _ = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf)
         return Z_pred, mse_pred
 
     " Collect new results "
@@ -155,7 +150,7 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     # might be faster but more edge-cases
     D, D_mse, D_Sf = [], [], []
     for i in range(X_s.shape[0]):
-        Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], Z_k)
+        Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
         D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
     D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
 
@@ -163,7 +158,7 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, Z_k):
     # 1) distance based: take the (tuned) Kriging correlation function
     # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
     # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-    c = Z_k[-1].corr(X_s, X_unique, Z_k[-1].hps)
+    c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
  
     mask = c == 1.0  # then sampled point
     idx = mask.any(axis=0)  # get columns with sampled points

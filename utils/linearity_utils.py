@@ -32,7 +32,7 @@ def overlap_amount(s1, e1, s2, e2):
     return overlap_fraction
 
 
-def check_linearity(setup, X, X_unique, Z, Z_k, pp, L):
+def check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
     print("### Checking linearity")
@@ -41,9 +41,9 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp, L):
 
     # need the list without X[-1] too
 
-    Z_pred_full, mse_pred_full = weighted_prediction(setup, X[-1], X_unique, Z[-1], Z_k)
-    Z_k_full = Kriging(setup, X_unique, Z_pred_full, hps_init=Z_k[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred_full / Z_k[-1].sigma_hat)
-    Z_k_full.reinterpolate()
+    Z_pred_full, mse_pred_full = weighted_prediction(setup, X[-1], X_unique, Z[-1], K_mf)
+    K_mf_full = Kriging(setup, X_unique, Z_pred_full, hps_init=K_mf[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred_full / K_mf[-1].sigma_hat)
+    K_mf_full.reinterpolate()
 
     Z_interval = np.max(Z_pred_full) - np.min(Z_pred_full)
     deviation_allowed = .1 * Z_interval # 5 percent noise/deviation allowed in absolute value
@@ -60,7 +60,7 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp, L):
 
     linear = True
     nr_samples = Z[-1].shape[0]
-    pp.draw_current_levels(X, Z, [*Z_k, Z_k_full], X_unique, L)
+    pp.draw_current_levels(X, Z, [*K_mf, K_mf_full], X_unique, L)
     for i_exclude in range(nr_samples):
         i_include = np.delete(inds, i_exclude)
 
@@ -69,17 +69,17 @@ def check_linearity(setup, X, X_unique, Z, Z_k, pp, L):
             np.delete(X[-1], i_exclude, 0),
             X_unique,
             np.delete(Z[-1], i_exclude, 0),
-            Z_k,
+            K_mf,
         )
 
         # TODO fault: mse_pred is not the prediction mse!!! maakt dit uit?
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        Z_k_partial = Kriging(
-            setup, X_unique, Z_pred_partial, hps_init=Z_k_full.hps, hps_noise_ub = True, tune = False, R_diagonal=mse_pred_partial / Z_k_full.sigma_hat
+        K_mf_partial = Kriging(
+            setup, X_unique, Z_pred_partial, hps_init=K_mf_full.hps, hps_noise_ub = True, tune = False, R_diagonal=mse_pred_partial / K_mf_full.sigma_hat
         )
-        Z_k_partial.reinterpolate()
+        K_mf_partial.reinterpolate()
 
         # 0.5 corresponds with a fraction representing one side of the 100% confidence interval
         # i_include are sampeled points, so we exclude them ...
