@@ -1,5 +1,6 @@
 import numpy as np
 np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
+# pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
 import matplotlib.pyplot as plt
 import sys
@@ -14,21 +15,20 @@ from core.kriging.kernel import get_kernel
 
 # from postprocessing.plotting import Plotting
 
-from utils.formatting_utils import return_unique, correct_formatX
+from utils.formatting_utils import correct_formatX
 from utils.linearity_utils import check_linearity
 from utils.correlation_utils import check_correlations
 from utils.error_utils import RMSE_norm_MF
 
 # inits based on input settings
 setup = Input(0)
-reuse_values = True
 
 solver = get_solver(setup)
 doe = get_doe(setup)
-kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression)  # type: ignore
+kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
 # pp = Plotting(setup)
 
-mf_model = MultiFidelityKriging(kernel, solver, max_cost = 1500e5)
+mf_model = MultiFidelityKriging(kernel, setup.d, solver, max_cost = 1500e5)
 
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
 mf_model.set_L([1, 3, 4])
@@ -46,47 +46,31 @@ n_samples_l0 = 10
 ###############################
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-if reuse_values:      # type: ignore
+reuse_values = True
+if reuse_values:
     mf_model.set_state(setup)
 
     # sequentially retrain all
 else:
-    X_l = doe(setup) # type: ignore
+    X_l = doe(setup)
     
     # create Krigings of levels, same initial hps
-    mf_model.add_level(X_l, X_l, tune=True)
-    mf_model.add_level(X_l, X_l, tune=True)
+    mf_model.add_level(X_l, tune=True)
+    mf_model.add_level(X_l, tune=True)
 
 
-sys.exit(0)
-
-" level 2 initialisation "
-# we are now on level 2!    
-l = 2
-
-#  X_unique are the locations at which we will evaluate our prediction
-# NOTE return_unique does not scale well, should instead append the list each new level
-X_unique, X_unique_exc = return_unique(X, setup.d)
-
-if len(Z) == 2: # then we do not have a sample on level 2 yet.
-    mf_model.sample_initial_hifi(setup, X, Z, X_unique)
+" level 2 / hifi initialisation "
+mf_model.sample_initial_hifi(setup)
 
 # if not check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
 #     print("Not linear enough, but continueing for now.")
 
 
 " initial prediction "
-Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], K_mf)
-K_mf_new = Kriging(setup, X_unique, Z_pred, hps_init=K_mf[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred / K_mf[-1].sigma_hat)
+Z_pred, mse_pred = weighted_prediction(mf_model)
+K_mf_new = mf_model.add_level(setup, mf_model.X_unique, Z_pred, hps_noise_ub = True, tune = True, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat)
 K_mf_new.reinterpolate()
 
-
-X0 = X[0]
-# RMSE = RMSE_norm(solver.solve(X0,L[-1])[0], K_mf_new.predict(X0)[0])
-# print("RMSE: {}".format(RMSE))
-Z_hifi_full = solver.solve(X0,L[-1])[0]
-RMSE_norm_MF(X0, Z_hifi_full, [*K_mf, K_mf_new])
-check_correlations(Z[0], Z[1], Z_hifi_full)
 
 # draw the result
 pp.draw_current_levels(X, Z, [*K_mf, K_mf_new], X_unique_exc, L)
@@ -131,7 +115,7 @@ while np.sum(costs) < max_cost:
     X_unique, X_unique_exc = return_unique(X, setup.d, X[-1])
 
     # weigh each prediction contribution according to distance to point.
-    Z_pred, mse_pred = weighted_prediction(setup, X[-1], X_unique, Z[-1], K_mf)
+    Z_pred, mse_pred = weighted_prediction(mf_model)
 
     # build new kriging based on prediction
     # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
