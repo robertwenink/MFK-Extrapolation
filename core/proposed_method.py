@@ -4,6 +4,7 @@ We could use it as well as modifier for transformed MF testcases.
 """
 import numpy as np
 
+from core.kriging.mf_kriging import ProposedMultiFidelityKriging
 from utils.formatting_utils import correct_formatX
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
@@ -123,7 +124,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     return Z2_p, S2_p ** 2, Sf ** 2
 
 
-def weighted_prediction(setup, X_s, X_unique, Z_s, K_mf):
+def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s = [], assign : bool = True):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.
@@ -137,60 +138,69 @@ def weighted_prediction(setup, X_s, X_unique, Z_s, K_mf):
     @param X_unique: all unique previously sampled locations in X.
     @param Z_s: list hifi level sample locations
     @param K_mf: Kriging models of the levels, should only contain *known* levels.
+    @param assign: Assign the results Z_pred and mse_pred as property to the mf_model.
     """
 
-    X_s = correct_formatX(X_s, setup.d)
+    X_unique, K_mf =  mf_model.X_unique, mf_model.K_mf
 
+    if not (np.any(X_s) and np.any(Z_s)):
+        X_s, Z_s = mf_model.X_mf[-1],  mf_model.Z_mf[-1]
+    
+    # In case there is only one sample, nothing to weigh
     if len(Z_s) == 1:
         Z_pred, mse_pred, _ = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf)
-        return Z_pred, mse_pred
+    else:
+        " Collect new results "
+        # NOTE if not in X_unique, we could just add a 0 to all previous,
+        # might be faster but more edge-cases
+        D, D_mse, D_Sf = [], [], []
+        for i in range(X_s.shape[0]):
+            Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
+            D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
+        D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
 
-    " Collect new results "
-    # NOTE if not in X_unique, we could just add a 0 to all previous,
-    # might be faster but more edge-cases
-    D, D_mse, D_Sf = [], [], []
-    for i in range(X_s.shape[0]):
-        Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
-        D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
-    D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
+        " Weighing "
+        # 1) distance based: take the (tuned) Kriging correlation function
+        # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
+        # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
+        c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
+    
+        mask = c == 1.0  # then sampled point
+        idx = mask.any(axis=0)  # get columns with sampled points
 
-    " Weighing "
-    # 1) distance based: take the (tuned) Kriging correlation function
-    # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
-    # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-    c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
- 
-    mask = c == 1.0  # then sampled point
-    idx = mask.any(axis=0)  # get columns with sampled points
+        # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
+        #    we want to keep the correlation/weighing the same if there is no variance,
+        #    and otherwise reduce it.
+        #    We could simply do: sigma += 1 and divide.
+        #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
+        #    This decreases distance based influence if sigma > 0.
+        #    We take the variance of the fraction, S_f
+    
+        mult = np.exp(-D_Sf/np.mean(D_Sf))
+        c = (c.T * mult).T
+    
+        " Scale to sum to 1; correct for sampled locations "
+        # Contributions coefficients should sum up to 1.
+        # Furthermore, sampled locations should be the only contribution for themselves.
+        #  if we dont do this, EI does not work!
+        #  however, we might get very spurious results -> we require regression!
+        c[:, idx] = 0  # set to zero
+        c = c + mask  # retrieve samples exactly
 
-    # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
-    #    we want to keep the correlation/weighing the same if there is no variance,
-    #    and otherwise reduce it.
-    #    We could simply do: sigma += 1 and divide.
-    #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
-    #    This decreases distance based influence if sigma > 0.
-    #    We take the variance of the fraction, S_f
- 
-    mult = np.exp(-D_Sf/np.mean(D_Sf))
-    c = (c.T * mult).T
- 
-    " Scale to sum to 1; correct for sampled locations "
-    # Contributions coefficients should sum up to 1.
-    # Furthermore, sampled locations should be the only contribution for themselves.
-    #  if we dont do this, EI does not work!
-    #  however, we might get very spurious results -> we require regression!
-    c[:, idx] = 0  # set to zero
-    c = c + mask  # retrieve samples exactly
+        # Scale for Z
+        c_z = np.divide(
+            c, np.sum(c, axis=0) + np.finfo(np.float64).eps
+        )  # to avoid division by (near) zero for higher d
+        Z_pred = np.sum(np.multiply(D, c_z), axis=0)
 
-    # Scale for Z
-    c_z = np.divide(
-        c, np.sum(c, axis=0) + np.finfo(np.float64).eps
-    )  # to avoid division by (near) zero for higher d
-    Z_pred = np.sum(np.multiply(D, c_z), axis=0)
+        # Scale for mse
+        # NOTE noise is added to the samples regardless of what this function returns
+        c_mse = c_z - mask  # always 0 variance for samples
+        mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
-    # Scale for mse
-    # NOTE noise is added to the samples regardless of what this function returns
-    c_mse = c_z - mask  # always 0 variance for samples
-    mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
+    # assign the found values to the mf_model, in order to be easily retrieved.
+    if assign:
+        mf_model.Z_pred = Z_pred
+        mf_model.mse_pred = mse_pred
 
     return Z_pred, mse_pred

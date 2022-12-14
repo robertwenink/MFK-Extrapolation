@@ -10,6 +10,7 @@ def get_doe(setup):
     for name,obj in inspect.getmembers(sys.modules[__name__], inspect.isfunction): 
         if name == setup.doe:
             return obj
+    return lambda *args, **kwargs: print("No correct DoE provided!") 
 
 def get_doe_name_list():
     """Helper function for the GUI"""
@@ -50,14 +51,14 @@ def grid_unit_hypercube(d, n=None, n_per_d : int = 10):
     return X
 
 
-def LHS(setup, n=None, n_per_d=None):
+def LHS(setup, n=None, n_per_d : int = 10):
     """
     LHS
     """
     if n is not None:
         samples = n
-    elif n_per_d is not None:
-        samples = n_per_d ** setup.d
+    else:
+        samples = n_per_d * setup.d
 
     # sampling plan from 0 to 1
     X = lhs(setup.d, samples=samples, criterion='maximin',iterations=min(int(2*samples), 150)) # type: ignore

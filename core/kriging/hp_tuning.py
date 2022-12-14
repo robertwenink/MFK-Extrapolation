@@ -1,4 +1,5 @@
 """ Adapted from: Copyright at end of file """
+# pyright: reportGeneralTypeIssues=false
 from numba import njit
 import numpy as np
 import sys
@@ -316,7 +317,7 @@ class GeneticAlgorithm(Tuner):
                 ef_par_list = np.random.random(self.par_s) <= self.prob_cross
                 par_count = np.sum(ef_par_list)
 
-            ef_par = pop[: self.par_s][ef_par_list]
+            ef_par = pop[: self.par_s][ef_par_list] #type: ignore
 
             for k in range(self.par_s, self.pop_s, 2):
                 r1 = np.random.randint(0, par_count)

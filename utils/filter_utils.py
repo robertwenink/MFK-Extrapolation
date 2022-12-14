@@ -1,5 +1,5 @@
 # https://stackoverflow.com/questions/37556487/remove-spikes-from-signal-in-python
-
+# pyright: reportGeneralTypeIssues=false
 import numpy as np
 import pandas as pd
 import scipy.signal as ss

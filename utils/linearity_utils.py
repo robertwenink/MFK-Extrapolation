@@ -1,5 +1,7 @@
 import numpy as np
 from core.proposed_method import *
+from core.kriging.mf_kriging import ProposedMultiFidelityKriging
+from postprocessing.plotting import Plotting
 
 def overlap_check(s1, e1, s2, e2):
     """Does the range (s1, e1) overlap with (s2, e2)?"""
@@ -32,53 +34,50 @@ def overlap_amount(s1, e1, s2, e2):
     return overlap_fraction
 
 
-def check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
+def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
+    """
+    There should already be a high-fidelity / truth Kriging model as part of mf_model.
+    """
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
     print("### Checking linearity")
-    assert Z[-1].shape[0] >= 2, "\nMinimum of 2 samples at highest level required"
+    assert mf_model.Z_mf[-1].shape[0] >= 2, "\nMinimum of 2 samples at highest level required"
     
 
     # need the list without X[-1] too
 
-    Z_pred_full, mse_pred_full = weighted_prediction(setup, X[-1], X_unique, Z[-1], K_mf)
-    K_mf_full = Kriging(setup, X_unique, Z_pred_full, hps_init=K_mf[-1].hps, hps_noise_ub = True, tune = True, R_diagonal=mse_pred_full / K_mf[-1].sigma_hat)
-    K_mf_full.reinterpolate()
-
-    Z_interval = np.max(Z_pred_full) - np.min(Z_pred_full)
+    Z_interval = np.max(mf_model.Z_pred) - np.min(mf_model.Z_pred)
     deviation_allowed = .1 * Z_interval # 5 percent noise/deviation allowed in absolute value
 
-    start_full = Z_pred_full - 5 * mse_pred_full
-    end_full = Z_pred_full + 5 * mse_pred_full
+    start_full = mf_model.Z_pred - 5 * mf_model.mse_pred
+    end_full = mf_model.Z_pred + 5 * mf_model.mse_pred
 
     # TODO extremely ugly
     inds = [
         i
-        for sublist in [np.where(X[-1] == item)[0].tolist() for item in X_unique]
+        for sublist in [np.where(mf_model.X_mf[-1] == item)[0].tolist() for item in mf_model.X_unique]
         for i in sublist
     ]
 
     linear = True
-    nr_samples = Z[-1].shape[0]
-    pp.draw_current_levels(X, Z, [*K_mf, K_mf_full], X_unique, L)
+    nr_samples = mf_model.Z_mf[-1].shape[0]
+    pp.draw_current_levels(mf_model)
     for i_exclude in range(nr_samples):
         i_include = np.delete(inds, i_exclude)
-
+        X_s = np.delete(mf_model.X_mf[-1], i_exclude, 0)
+        Z_s = np.delete(mf_model.Z_mf[-1], i_exclude, 0)
         Z_pred_partial, mse_pred_partial = weighted_prediction(
-            setup,
-            np.delete(X[-1], i_exclude, 0),
-            X_unique,
-            np.delete(Z[-1], i_exclude, 0),
-            K_mf,
+            mf_model,
+            X_s = X_s,
+            Z_s = Z_s,
+            assign=False
         )
 
         # TODO fault: mse_pred is not the prediction mse!!! maakt dit uit?
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        K_mf_partial = Kriging(
-            setup, X_unique, Z_pred_partial, hps_init=K_mf_full.hps, hps_noise_ub = True, tune = False, R_diagonal=mse_pred_partial / K_mf_full.sigma_hat
-        )
+        K_mf_partial = mf_model.create_level(mf_model.X_unique, Z_pred_partial, tune = True, append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
         K_mf_partial.reinterpolate()
 
         # 0.5 corresponds with a fraction representing one side of the 100% confidence interval
@@ -86,7 +85,7 @@ def check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
         overlap = np.delete(
             overlap_amount(start_full, end_full, start_partial, end_partial), i_include, 0
         )
-        difference = np.abs(Z_pred_full-Z_pred_partial)
+        difference = np.abs(mf_model.Z_pred-Z_pred_partial)
         ov = np.any(overlap < 0.25)
         if ov:
             print("Too little overlap!")
@@ -99,6 +98,8 @@ def check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
             print("NOT LINEAR ENOUGH")
         
         # draw the result
-        pp.draw_current_levels(X, Z, [*Z_k, Z_k_partial, Z_k_full], X_unique, L)
+        # TODO een optie opnemen om een extra level weer te geven zoals de truth.
+        # K_mf_alt = [*Z_k, Z_k_partial, Z_k_full] # zonder *Z_k wss
+        pp.draw_current_levels(mf_model)
 
     return linear

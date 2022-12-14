@@ -46,17 +46,3 @@ def correct_format_hps(a):
     if a.ndim == 1:
         return np.array([a], dtype=np.float64)
     return a
-
-
-def return_unique(X_list, dim, X_exclude=[[]]):
-    """
-    @param X_list: List containing each level`s X 2d nd.array
-    @param X_exclude: X we want to exclude from our list of uniques. 
-      Often these are the sampled locations at the highest level (points we do not need to predict anymore). 
-    @return uniques including X_exclude, uniques excluding X_exclude; are equal when X_exclude = []
-    """
-    # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
-    res = [item for sublist in X_list for item in sublist]
-    res = np.unique(res,axis=0)
-    res_exc = np.array([item for item in res if item not in X_exclude])
-    return correct_formatX(res,dim) , correct_formatX(res_exc,dim)

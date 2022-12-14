@@ -1,6 +1,7 @@
 """
 Ordinary Kriging
 """
+# pyright: reportGeneralTypeIssues=false
 
 import numpy as np
 from scipy import linalg
@@ -15,7 +16,7 @@ from utils.formatting_utils import correct_formatX
 
 
 class OrdinaryKriging:
-    def __init__(self, kernel, hps_init=None, *args, **kwarg):
+    def __init__(self, kernel, d, hps_init=None, *args, **kwarg):
         super().__init__(*args, **kwarg)
 
         self.corr, self.hps, self.hps_constraints = kernel

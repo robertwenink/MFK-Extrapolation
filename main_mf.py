@@ -1,24 +1,23 @@
 import numpy as np
+import sys 
+
 np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
 import matplotlib.pyplot as plt
-import sys
 
 from preprocessing.input import Input
 
 from core.proposed_method import weighted_prediction
 from core.sampling.DoE import get_doe
 from core.sampling.solvers.solver import get_solver
-from core.kriging.mf_kriging import MultiFidelityKriging
+from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityKriging
 from core.kriging.kernel import get_kernel
 
-# from postprocessing.plotting import Plotting
+from postprocessing.plotting import Plotting
 
 from utils.formatting_utils import correct_formatX
 from utils.linearity_utils import check_linearity
-from utils.correlation_utils import check_correlations
-from utils.error_utils import RMSE_norm_MF
 
 # inits based on input settings
 setup = Input(0)
@@ -26,61 +25,56 @@ setup = Input(0)
 solver = get_solver(setup)
 doe = get_doe(setup)
 kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
-# pp = Plotting(setup)
+pp = Plotting(setup)
 
-mf_model = MultiFidelityKriging(kernel, setup.d, solver, max_cost = 1500e5)
+mf_model = ProposedMultiFidelityKriging(kernel, setup.d, solver, max_cost = 1500e5)
 
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
 mf_model.set_L([1, 3, 4])
-
-################
-# Settings
-################
-
-" inits and settings"
-n_samples_l0 = 10 
-
 
 ###############################
 # main
 ###############################
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = True
+reuse_values = False
 if reuse_values:
     mf_model.set_state(setup)
 
-    # sequentially retrain all
+    # TODO sequentially retrain all
+
 else:
     X_l = doe(setup)
     
     # create Krigings of levels, same initial hps
-    mf_model.add_level(X_l, tune=True)
-    mf_model.add_level(X_l, tune=True)
+    hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
+    mf_model.create_level(X_l, tune=False, hps_init=hps)
+    mf_model.create_level(X_l, tune=False)
 
 
-" level 2 / hifi initialisation "
-mf_model.sample_initial_hifi(setup)
-
-# if not check_linearity(setup, X, X_unique, Z, K_mf, pp, L):
-#     print("Not linear enough, but continueing for now.")
-
+    " level 2 / hifi initialisation "
+    mf_model.sample_initial_hifi(setup)
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(mf_model)
-K_mf_new = mf_model.add_level(setup, mf_model.X_unique, Z_pred, hps_noise_ub = True, tune = True, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat)
+K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = False, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
 K_mf_new.reinterpolate()
 
+# if not check_linearity(mf_model, pp):
+#     print("Not linear enough, but continueing for now.")
 
+mf_model.sample_truth()
+  
 # draw the result
-pp.draw_current_levels(X, Z, [*K_mf, K_mf_new], X_unique_exc, L)
-pp.plot_kriged_truth(setup,X0, Z_hifi_full, hps_init = K_mf[-1].hps)
+X_unique_exc = mf_model.return_unique_exc(mf_model.X_mf[mf_model.l_hifi])
+pp.draw_current_levels(mf_model)
+# pp.plot_kriged_truth(mf_model)
 plt.show()
 
-sys.exit(0)
+sys.exit(0) 
 
 " sample from the predicted distribution in EGO fashion"
-while np.sum(costs) < max_cost:
+while np.sum(mf_model.costs_tot) < max_cost:
     # select points to asses expected improvement
     X_infill = pp.X_pred  # TODO does not work for d>2
 

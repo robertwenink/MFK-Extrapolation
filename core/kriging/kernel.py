@@ -7,10 +7,7 @@ For Kriging we have to use a kernel that is able to scale the dimensions accordi
 # pyright: reportGeneralTypeIssues=false
 
 import numpy as np
-
 from numba import njit
-from utils.formatting_utils import correct_formatX
-
 
 def get_available_kernel_names():
     """Helper function for the GUI"""

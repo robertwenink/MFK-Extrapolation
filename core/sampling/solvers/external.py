@@ -9,13 +9,11 @@ The external solvers are required to:
 3) accept an output path when being called from the command line
 
 """
+# pyright: reportGeneralTypeIssues=false
 
 from core.sampling.solvers.internal import Solver
 from core.sampling.solvers.NURBS import *
 from utils.filter_utils import filter_spiked_signal
-
-from abc import ABC, abstractmethod
-import traceback
 
 import subprocess
 from multiprocessing.pool import ThreadPool
@@ -273,10 +271,10 @@ class EVA(ExternalSolver):
                 print("Unsuccesfully finished run {} with pid {}".format(run_id, p.pid))
             else:
                 print("Succesfully finished run {} with pid {}".format(run_id, p.pid))
-                counter += 1
+                counter += 1 #type: ignore
 
             print(
-                "Succesfully completed {} out of {} runs.".format(counter, batch_size)
+                "Succesfully completed {} out of {} runs.".format(counter, batch_size) #type: ignore
             )
 
         # retrieve EVA solution, this should be done in parallel in the case of an initial DoE.

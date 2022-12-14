@@ -1,15 +1,16 @@
-import sys
 import numpy as np
 from core.kriging.OK import OrdinaryKriging
 
 
 from core.sampling.DoE import LHS_subset
 from utils.formatting_utils import correct_formatX
+from utils.error_utils import RMSE_norm_MF
+from utils.correlation_utils import check_correlations
 
 
 class MultiFidelityKriging():
 
-    def __init__(self, kernel, solver, max_cost = None, max_nr_levels : int = 3, *args, **kwarg):
+    def __init__(self, kernel, d, solver, max_cost = None, max_nr_levels : int = 3, *args, **kwarg):
         """
         @param kernel (list): list containing kernel function, (initial) hyperparameters, hyper parameter constraints
         @param max_cost: maximum cost available for sampling. 
@@ -20,8 +21,11 @@ class MultiFidelityKriging():
         super().__init__(*args, **kwarg) # possibly useful later if inhereting from something other than Object!
 
         self.kernel = kernel
+        self.d = d
         self.solver = solver
         self.max_cost = max_cost #1500e5
+
+        self.number_of_levels = 0
         self.max_nr_levels = max_nr_levels
         self.l_hifi = max_nr_levels - 1
 
@@ -34,6 +38,7 @@ class MultiFidelityKriging():
 
         # multifidelity X and Z, each entry and np.ndarray
         self.X_mf = [] # TODO miss ook dict maken!
+        self.X_unique = np.array([])
         self.Z_mf = []
         
         # cost variables: total cost per level; expected cost per sample per level 
@@ -47,7 +52,8 @@ class MultiFidelityKriging():
         self.L = L
         self.max_nr_levels = len(L)
 
-    def add_level(self, X_l, y_l = [], tune=False, R_diagonal=0, hps_init=None, hps_noise_ub = False, train=True):
+
+    def create_level(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, append : bool = True):
         """
         This method clusters and provides all the functionality required for setting up a new kriging level.
         @param X_l: initial X for new level l
@@ -58,18 +64,18 @@ class MultiFidelityKriging():
         @param hps_noise_ub: provide an upperbound to the noise hyperparameter. Used such that no infinite noise can be used (in the prediction).
         @param R_diagonal (np.ndarray): added noise or variance per sample.
         """
-
-        if hps_init is None and len(self.X_mf) >= 1:
+        
+        if hps_init is None and self.number_of_levels >= 1:
             hps_init = self.K_mf[-1].hps
 
         if hps_noise_ub and (hps_init is not None):
             # noise upperbound should be larger than previous tuned noise!
-            kernel = self.kernel[-1][-1,1]
-            kernel = hps_init[-1] * 2
+            kernel = self.kernel
+            kernel[-1][-1,1] = hps_init[-1] * 2
         else:
             kernel = self.kernel
 
-        ok = OrdinaryKriging(kernel, hps_init=hps_init)
+        ok = OrdinaryKriging(kernel, self.d, hps_init=hps_init)
 
         if tune == False:
             if hps_init is None:
@@ -77,14 +83,21 @@ class MultiFidelityKriging():
                     "hps_init is not defined! When tune=False, hps_init must be defined"
                 )
 
-        if not y_l:
-            self.sample_new(len(self.X_mf), X_l)
-
+        if not np.any(y_l):
+            if append:
+                self.sample_new(self.number_of_levels, X_l)
+                y_l = self.Z_mf[self.number_of_levels]
+            else:
+                y_l, _ = self.solver.solve(X_l, self.L[self.number_of_levels])
 
         if train:
             ok.train(X_l, y_l, tune, R_diagonal)
+        
+        if append:
+            self.K_mf.append(ok)
+            self.number_of_levels += 1
 
-        return ok #TODO toevoegen aan K_mf ipv return?
+        return ok
 
     def update_costs(self, cost, l):
         """
@@ -93,7 +106,11 @@ class MultiFidelityKriging():
         """
 
         # total cost per level
-        self.costs_tot[l] += cost
+        try:
+            self.costs_tot[l] += cost
+        except:
+            self.costs_tot[l] = cost
+            self.costs_exp[l] = cost
 
         # expected cost per sample at a level
         self.costs_exp[l] = self.costs_tot[l] / self.X_mf[l].shape[0]
@@ -108,17 +125,31 @@ class MultiFidelityKriging():
     def sample(self, l, X_new):
         """
         Function that does all required actions for sampling if the level already exists.
+        Only samples new locations.
         x_new is the value / an np.ndarray of to sample location(s)
         """
 
-        # check if not already sampled at this level
-        # TODO for loop, parallel sampling.
-        if np.all(np.isin(X_new,self.X_mf[l],invert=True)):
-            Z_new, cost = self.solver.solve(X_new, self.L[l])
+        # check per sample if not already sampled at this level
 
-            self.X_mf[l] = np.append(self.X_mf[l], X_new, axis=0)
+        # NOTE looping way
+        # TODO for loop, parallel sampling.
+        #      in EVA this is done separately, might be better to put it here!
+        # inds = []
+        # for i, x_new in enumerate(X_new):
+        #     # has x not already been sampled before?
+        #     if ~np.any(np.all(x_new == self.X_mf[l], axis=1)):
+        #         inds.append(i)
+
+        # NOTE broadcasting way
+        inds = ~(X_new == self.X_unique[:, None]).all(axis=-1).any(axis=0)
+        
+        if np.any(inds):
+            Z_new, cost = self.solver.solve(X_new[inds], self.L[l])
+
+            self.X_mf[l] = np.append(self.X_mf[l], X_new[inds], axis=0)
             self.Z_mf[l] = np.append(self.Z_mf[l], Z_new)
-            
+
+            self.X_unique = self.return_updated_unique(self.X_unique, X_new[inds])
             self.update_costs(cost, l)
 
 
@@ -129,6 +160,8 @@ class MultiFidelityKriging():
         Z_new, cost = self.solver.solve(X_new, self.L[l])
         self.X_mf.append(X_new)
         self.Z_mf.append(Z_new)
+
+        self.X_unique = self.return_updated_unique(self.X_unique, X_new)
         self.update_costs(cost,l)
 
 
@@ -156,7 +189,7 @@ class MultiFidelityKriging():
                 self.K_mf[i].train(self.X_mf[i], self.Z_mf[i])
 
 
-    def sample_initial_hifi(self, setup, X_unique):
+    def sample_initial_hifi(self, setup):
         """
         Select best sampled (!) point of previous level and sample there again.
         Then find a LHS subset with (n_subset = parallel capability) and solve.
@@ -167,10 +200,38 @@ class MultiFidelityKriging():
         l = self.l_hifi
 
         # select other points for cross validation, in LHS style
-        X_hifi = correct_formatX(LHS_subset(setup, X_unique, x_b, self.pc),setup.d)
+        X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_b, self.pc),setup.d)
 
         self.sample_new(l,X_hifi)
         self.sample_nested(l, X_hifi)
+
+
+    def sample_truth(self, X = None, use_known_X : bool = True):
+        """
+        Sample the hifi truth on X_unique or X and compare it with our prediction.
+        @param X: optional X to provide, otherwise the current self.X_unique will be used. 
+            X does not have to be a subset of X_unique.
+        @param use_known_X: reuse the X where the truth has been sampled if possible, 
+            such that there is no additional sampling required.
+        """
+        
+        if X is None:
+            if not hasattr(self,'X_truth'):
+                self.X_truth = self.X_unique
+            X = self.X_truth
+        else:
+            # X does not have to be in X_unique for testing purposes
+            # So, create an unique X_truth tracking where the high fidelity has been sampled.
+            self.X_truth = self.return_updated_unique(self.X_truth, X)
+
+
+        # sample or retrieve the 'truth'
+        self.Z_truth = self.solver.solve(X,self.L[-1])[0]
+        
+        # check correlations and RMSE levels
+        RMSE_norm_MF(X, self.Z_truth, self.K_mf)
+        check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
+
 
 
     def set_state(self, setup):
@@ -184,6 +245,10 @@ class MultiFidelityKriging():
                 self.X_mf = setup.Z_mf
                 self.costs_tot = setup.costs_tot
                 self.costs_exp = setup.costs.exp
+
+            # TODO save whole state, including tuned hyperparameters etc.
+            # just pickle the whole object?
+
 
 
     def get_state(self):
@@ -202,8 +267,42 @@ class MultiFidelityKriging():
 
         return state
 
+    def set_unique(self):
+        """
+        Finds the unique sample locations over all levels, from the list containing each level`s X 2d nd.array.
+
+        @return uniques including X_exclude, uniques excluding X_exclude; are equal when X_exclude = []
+        """
+        # # https://www.peterbe.com/plog/fastest-way-to-uniquify-a-list-in-python-3.6
+        res = [item for sublist in self.X_mf for item in sublist]
+        res = np.unique(res,axis=0)
+
+        # return and reformat X
+        self.X_unique = correct_formatX(res,self.d)  
+
+    def return_updated_unique(self, X_unique, X_new):
+        """
+        If an element of X_new is not in X_unique, add it.
+        """
+
+        if not np.any(X_unique):
+            return X_new
+
+        res = np.unique(np.vstack([X_unique, X_new]), axis = 0)
+        return correct_formatX(res,self.d)  
 
 
+    def return_unique_exc(self, X_exclude=[[]]):
+        """
+        @param X_exclude: X we want to exclude from our list of uniques. 
+        Often these are the sampled locations at the highest level (points we do not need to predict anymore). 
+        Useful for plotting.
+        """
+
+        res_exc = np.array([item for item in self.X_unique if item not in X_exclude])
+
+        return correct_formatX(res_exc,self.d)
+        
 
 class ProposedMultiFidelityKriging(MultiFidelityKriging):
 
@@ -211,7 +310,8 @@ class ProposedMultiFidelityKriging(MultiFidelityKriging):
         super().__init__(*args, **kwarg)
 
         # list of predicted z values at the highest/ new level
-        self.Z_pred = []
+        self.Z_pred = np.array([])
+        self.mse_pred = np.array([])
 
 class MultiFidelityEGO():
     # initial EI

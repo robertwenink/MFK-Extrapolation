@@ -1,5 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
 import numpy as np
-import math
 import itertools
 
 import matplotlib.pyplot as plt
@@ -9,11 +10,15 @@ from core.sampling.solvers.solver import get_solver
 from core.sampling.solvers.internal import TestFunction
 from core.proposed_method import *
 
-from core.kriging.OK import Kriging
+from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityKriging
+  
+def fix_colors(surf):
+    surf._facecolors2d = surf._facecolor3d
+    surf._edgecolors2d = surf._edgecolor3d
 
 class Plotting:
     def __init__(self, setup):
-        self.n_per_d = 200
+        self.n_per_d = 100
         self.d_plot = setup.d_plot
         self.d = setup.d
         self.plot_contour = setup.plot_contour
@@ -28,7 +33,7 @@ class Plotting:
 
         # we can plot the exact iff our solver is a self.plot_exacttion
         self.solver = get_solver(setup)
-        self.plot_exact = isinstance(self.solver, TestFunction)
+        self.plot_exact = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
 
         if setup.live_plot:
@@ -41,13 +46,17 @@ class Plotting:
         else:
             self.plot = lambda X, y, predictor: None
 
+
     def iterate_color_marker(func):
         def wrapper(self, *args, **kwargs):
             self.marker = next(self.markers)
             self.color = next(self.axes[0]._get_lines.prop_cycler)["color"]
             func(self, *args, **kwargs)
-
+            self.reset_color_cycle()
         return wrapper
+
+    def reset_color_cycle(self):
+        plt.gca().set_prop_cycle(None)
 
     def create_grid(self):
         """
@@ -77,14 +86,49 @@ class Plotting:
         X_t[:, self.d_plot] = X[:, self.d_plot]
         return X_t
 
+    def init_1d_fig(self):
+        fig, ax = plt.subplots(1, 1, figsize = (4,10))
+        fig.suptitle("{}".format(self.figure_title))
+        self.axes.append(ax)
+    
+    
+    @iterate_color_marker
+    def plot_1d(self, X, y, predictor, l, label=""):
+        """
+        X : X where we have actually sampled
+        predictor : K_mf
+        """
+        ax = self.axes[0]
+
+        # plot sample points
+        ax.plot(
+            X,
+            y,
+            linestyle="",
+            markeredgecolor="none",
+            marker=self.marker,
+            color=self.color,
+            label="" if label =="" else "Samples level {}".format(l) if l is not None else "", 
+        )
+
+        # retrieve predictions
+        y_hat, mse = predictor.predict(self.X_pred)
+        std = np.sqrt(mse)
+
+        # plot prediction and mse
+        ax.plot(*self.X_plot, y_hat, label=label, color=self.color, alpha=0.7)
+        ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.2)
+        ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.2)
+
+
     def init_2d_fig(self):
         "initialise figure"
-        fig = plt.figure()
+        fig = plt.figure(figsize=(10,10))
         fig.suptitle("{}".format(self.figure_title))
 
         axes = []
         # first expand horizontally, then vertically; depending on plotting options
-        ncols = 1 + (self.plot_exact or self.plot_contour)
+        ncols = 1 + (self.plot_exact or self.plot_contour) 
         nrows = 1 + (self.plot_exact and self.plot_contour)
         ind = 1
 
@@ -124,19 +168,8 @@ class Plotting:
         self.fig = fig
         self.axes = axes
 
-    def init_1d_fig(self):
-        fig, ax = plt.subplots(1, 1)
-        fig.suptitle("{}".format(self.figure_title))
-
-        # if we want to set the figure size.
-        # ax.set_aspect("equal")
-        fig.set_figheight(4)
-        fig.set_figwidth(10)
-
-        self.axes.append(ax)
-
     @iterate_color_marker
-    def plot_2d(self, X, y, predictor, label=""):
+    def plot_2d(self, X, y, predictor, l = None, label=""):
         """
         Plotting for surfaces and possibly contours of the predicted function in 2d.
         Exact function values plotted if available.
@@ -158,12 +191,12 @@ class Plotting:
 
         " plot prediction surface "
         ax, ind = self.axes[ind], ind + 1
-        self.fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.6, color=self.color, label=label if label != "" else "Prediction surface"))
+        fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.6, color=self.color, label=label if label != "" else "Prediction surface"))
         ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.1, color=self.color)
         ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.1 , color=self.color)
 
         # add sample locations
-        ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label =="" else "Samples")
+        ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label == "" else "Samples level {}".format(l) if l is not None else "")
 
         " plot exact surface "
         if self.plot_exact:
@@ -175,7 +208,7 @@ class Plotting:
 
             # plot
             ax, ind = self.axes[ind], ind + 1
-            self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.9))
+            fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.9))
 
             # add samplepoints
             ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker)
@@ -183,67 +216,55 @@ class Plotting:
         if self.plot_contour:
             "Plot prediction contour"
             ax, ind = self.axes[ind], ind + 1
-            ax.contour(*self.X_plot, y_hat, colors=self.color)
-            ax.scatter(*X[:, self.d_plot].T, c=self.color, marker=self.marker)
+            CS = ax.contour(*self.X_plot, y_hat, colors=self.color)
+            CS.collections[-1].set_label("Kriging level {}".format(l) if l is not None else "")
+            ax.scatter(*X[:, self.d_plot].T, c=self.color, marker=self.marker, label = "Samples level {}".format(l) if l is not None else "")
 
             " Plot exact contour "
             if self.plot_exact:
+                # TODO deze wordt gewoon zovaak het level bestaat geplot!!
+                # TODO per ax een eigen plotfunction maken, veel overzichtelijker!
+                #       wel even nadenken hoe je dat dan met plot_1d plot_2d doet
+                # TODO colorcycle / iterator kunnen resetten -> kan zolang colormarker per functie zelf een decorator is??
                 ax, ind = self.axes[ind], ind + 1
-                ax.contour(*self.X_plot, y_exact, colors=self.color)
+                CS = ax.contour(*self.X_plot, y_exact, colors=self.color)
+                ax.clabel(CS, inline=1, fontsize=10)
+                CS.collections[-1].set_label("Exact level {}".format(l) if l is not None else "Exact") # zou ook met ax ipv CS kunnen
+
         plt.tight_layout()
 
-    @iterate_color_marker
-    def plot_1d(self, X, y, predictor, label=""):
-        """
-        X : X where we have actually sampled
-        predictor : K_mf
-        """
-        ax = self.axes[0]
-
-        # plot sample points
-        ax.plot(
-            X,
-            y,
-            linestyle="",
-            markeredgecolor="none",
-            marker=self.marker,
-            color=self.color,
-            label="" if label =="" else "Samples",
-        )
-
-        # retrieve predictions
-        y_hat, mse = predictor.predict(self.X_pred)
-        std = np.sqrt(mse)
-
-        # plot prediction and mse
-        ax.plot(*self.X_plot, y_hat, label=label, color=self.color, alpha=0.7)
-        ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.2)
-        ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.2)
-
-    def fix_colors(self,surf):
-        surf._facecolors2d = surf._facecolor3d
-        surf._edgecolors2d = surf._edgecolor3d
-
-    def plot_kriged_truth(self, setup, X_hifi_full, Z_hifi_full, hps_init = None):
+    def plot_kriged_truth(self, mf_model : MultiFidelityKriging):
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
         print("Creating Kriging model of truth")
-        K = Kriging(setup, X_hifi_full, Z_hifi_full, hps_init=hps_init, tune = True)
+        K = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = True, append = False)
 
-        self.plot(X_hifi_full, Z_hifi_full, K, label="Kriging truth")
+        self.plot(mf_model.X_truth, mf_model.Z_truth, K, label="Kriging truth")
         # self.plot(X_hifi_full, Z_hifi_full, predictor, label="Kriging truth")
 
-    def draw_current_levels(self, X, Z, K_mf, X_unique, L):
+    def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_alt = None):
         """
+
+        TODO for plotting: 
+        1) if there is a sampled truth present, i.e. mf_model.X_truth, then plot 'exact' too.
+        This has exactly the same plot as the regular one, but only contains the truth and prediction -> segment/refactor code!!
+        2) add K_mf_alt, this is an option that can/will be used by the linearity check.
+
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.
         @param Z: list of the sampled z (or y) values; these can be different than the predictions when noise is involved.
         @param K_mf: list of the Kriging predictors of each level
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
+        X = mf_model.X_mf # contains the hifi sampled level too
+        Z = mf_model.Z_mf # contains the hifi sampled level too
+        K_mf = mf_model.K_mf
+        X_unique = mf_model.X_unique
+        L = mf_model.L
+        if K_mf_alt != None:
+            K_mf = K_mf_alt
 
-        assert (X[-1].ndim == 2), "dimension of X in draw_current_levels != 2"
         # reset axes and colorcycle
         axes = self.axes
         self.markers = itertools.cycle(("^", "o", "p"))
@@ -252,13 +273,13 @@ class Plotting:
             ax._get_lines.set_prop_cycle(None)
 
         " plot known kriging levels"
-        for l in range(max(len(X) - 1, 2)):
-            self.plot(X[l], Z[l], K_mf[l], label="Kriging level {}".format(l))
+        has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
+        for l in range(mf_model.number_of_levels - 1 if has_prediction else mf_model.number_of_levels):
+            self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l))
 
         " plot prediction kriging "
-        # first two levels always known
-        if len(X) > 2:
-            l+=1
+        if has_prediction:
+            l = mf_model.l_hifi
 
             # plot our prediction, estimated points in black
             inds = np.array([np.all(X_unique == x, axis=1) for x in X[-1]]).any(axis=0)
@@ -274,7 +295,7 @@ class Plotting:
             )
 
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[l], Z[l], K_mf[l], label="Kriging level {}".format(l))
+            self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l))
             
 
             # best out of all the *sampled* locations
@@ -301,7 +322,7 @@ class Plotting:
                     ax.plot(*self.X_plot, y_pred_truth, '--', **kwargs ) 
                 else:
                     ax=self.axes[1]
-                    self.fix_colors(ax.plot_surface(*self.X_plot, y_pred_truth, **kwargs))
+                    fix_colors(ax.plot_surface(*self.X_plot, y_pred_truth, **kwargs))
 
             
         " plot truth "
@@ -321,14 +342,21 @@ class Plotting:
                 ax.plot(*self.X_plot, y_exact, '--', **kwargs2)
             else:
                 ax=self.axes[1]
-                self.fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
+                fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
         
         " plot 'full' Kriging level in case of linearity check"
         if len(K_mf)>3:
             self.plot(X[-1], Z[-1], K_mf[-1], label="Full Kriging (linearity check)")
 
         # legend and plot settings
-        self.axes[0].legend(loc='center left', bbox_to_anchor=(1.04, 0.5))
+        # self.axes[0].legend(loc='center left', bbox_to_anchor=(1.04, 0.5))
+        for ax in axes:
+            leg = ax.legend()
+            for t in leg.texts:
+                t.set_alpha(1)
+            for lh in leg.legendHandles:
+                lh.set_alpha(1)
+                # lh.set_color(self.color) # TODO reset cycler!!
         
         plt.tight_layout()
         plt.draw()

@@ -21,7 +21,7 @@ def MAE_norm(Z, Z_predict):
 
 
 def RMSE_norm_MF(X, Z_truth, K_mf):
-    for i, K_l in enumerate(K_mf_list):
+    for i, K_l in enumerate(K_mf):
         RMSE = RMSE_norm(Z_truth, K_l.predict(X)[0])
         print("RMSE of level {} = {:.4f} %".format(i,RMSE*100))
 
