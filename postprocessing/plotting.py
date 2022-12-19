@@ -1,9 +1,9 @@
 # pyright: reportGeneralTypeIssues=false
 
 import numpy as np
-import itertools
 
 import matplotlib.pyplot as plt
+import matplotlib
 from mpl_toolkits.mplot3d import axes3d
 
 from core.sampling.solvers.solver import get_solver
@@ -25,15 +25,19 @@ class Plotting:
 
         # create self.X_plot, and X_pred
         self.axes = []
-        self.markers = itertools.cycle(("^", "o", "p"))
+        self.colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        self.markers = ["^", "o", "p", "8"] # "^", "o", ">", "s", "<", "8", "v", "p"
+        self.s_standard = plt.rcParams['lines.markersize'] ** 2
+
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
+        
         self.lb = setup.search_space[1]
         self.ub = setup.search_space[2]
-        self.create_grid()
+        self.create_plotting_grid()
 
-        # we can plot the exact iff our solver is a self.plot_exacttion
+        # we can plot the exact iff our solver is a self.plot_exact_possibletion
         self.solver = get_solver(setup)
-        self.plot_exact = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
+        self.plot_exact_possible = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
 
         if setup.live_plot:
@@ -44,21 +48,10 @@ class Plotting:
                 self.plot = self.plot_2d
                 self.init_2d_fig()
         else:
-            self.plot = lambda X, y, predictor: None
+            self.plot = lambda X, y, predictor, l: None
 
 
-    def iterate_color_marker(func):
-        def wrapper(self, *args, **kwargs):
-            self.marker = next(self.markers)
-            self.color = next(self.axes[0]._get_lines.prop_cycler)["color"]
-            func(self, *args, **kwargs)
-            self.reset_color_cycle()
-        return wrapper
-
-    def reset_color_cycle(self):
-        plt.gca().set_prop_cycle(None)
-
-    def create_grid(self):
+    def create_plotting_grid(self):
         """
         Build a (1d or 2d) grid used for plotting and sample n points in each dimension d.
         Dimensions d are specified by the dimensions to plot in setup.d_plot.
@@ -79,6 +72,7 @@ class Plotting:
         )
         self.X_pred[:, self.d_plot] = xs.reshape(-1, len(self.d_plot))
 
+
     def transform_X(self, X):
         """Transform X to have constant values in dimensions unused for plotting."""
         assert X.ndim == 2, "\nProvide X in 2d shape."
@@ -92,24 +86,35 @@ class Plotting:
         self.axes.append(ax)
     
     
-    @iterate_color_marker
-    def plot_1d(self, X, y, predictor, l, label=""):
+    def plot_1d(self, X, y, predictor, l, label="", color = "", marker = "", is_truth = False):
         """
         X : X where we have actually sampled
         predictor : K_mf
         """
         ax = self.axes[0]
 
+        # color and marker of this level
+        if color == "":
+            color = self.colors[l]
+        if marker == "":
+            marker = self.markers[l]
+
+        # Setting the labels used
+        label, label_samples, label_exact = self.get_labels(l,label,is_truth)
+
+        #TODO from here, make ax based like 2d (already is for the most part)
         # plot sample points
         ax.plot(
             X,
             y,
             linestyle="",
             markeredgecolor="none",
-            marker=self.marker,
-            color=self.color,
-            label="" if label =="" else "Samples level {}".format(l) if l is not None else "", 
+            marker=self.markers[l],
+            color=self.colors[l],
+            label= label, 
         )
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
 
         # retrieve predictions
         y_hat, mse = predictor.predict(self.X_pred)
@@ -120,6 +125,20 @@ class Plotting:
         ax.plot(*self.X_plot, y_hat + 2 * std, color=self.color, alpha=0.2)
         ax.plot(*self.X_plot, y_hat - 2 * std, color=self.color, alpha=0.2)
 
+        if self.plot_exact_possible:
+            # NOTE this only works for test functions.
+            # exact result of the level we try to predict
+            y_pred_truth = self.solver.solve(self.X_pred, l = L[-1])[0].reshape(
+                self.X_plot[0].shape
+            )
+            kwargs = {
+                "label":"true level {}".format(l),
+                "color":self.colors[l],
+                "alpha":0.5
+            }
+            ax.plot(*self.X_plot, y_pred_truth, '--', **kwargs ) 
+
+
 
     def init_2d_fig(self):
         "initialise figure"
@@ -128,8 +147,8 @@ class Plotting:
 
         axes = []
         # first expand horizontally, then vertically; depending on plotting options
-        ncols = 1 + (self.plot_exact or self.plot_contour) 
-        nrows = 1 + (self.plot_exact and self.plot_contour)
+        ncols = 1 + (self.plot_exact_possible or self.plot_contour) 
+        nrows = 1 + (self.plot_exact_possible and self.plot_contour)
         ind = 1
 
         # predictions surface
@@ -140,7 +159,7 @@ class Plotting:
         ind += 1
 
         # exact surface
-        if self.plot_exact:
+        if self.plot_exact_possible:
             ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
             ax.set_title("exact surface")
             ax.set_zlabel("Z")
@@ -154,94 +173,136 @@ class Plotting:
             axes.append(ax)
             ind += 1
 
-            if self.plot_exact:
+            if self.plot_exact_possible:
                 ax = fig.add_subplot(nrows, ncols, ind)
                 ax.set_title("exact contour")
                 ax.set_aspect("equal")
                 axes.append(ax)
 
-        " set axes properties "
+        # keep track of a list of plotted colors.
         for ax in axes:
-            ax.set_xlabel(self.axis_labels[0])
-            ax.set_ylabel(self.axis_labels[1])
+            ax.colors = []
 
         self.fig = fig
         self.axes = axes
 
-    @iterate_color_marker
-    def plot_2d(self, X, y, predictor, l = None, label=""):
+    def get_labels(self, l, label = "", is_truth=False):
         """
-        Plotting for surfaces and possibly contours of the predicted function in 2d.
-        Exact function values plotted if available.
-        @param label: define a custom label for the prediction surface. If given, all other labels will not be used. 
-        """      
+        Get the used labels.
+        """
+        
+        if is_truth:
+            label = label if label != "" else "Kriging level {} (truth)".format(l)
+            label_samples = "Samples Kriged truth"
+        else:
+            label = label if label != "" else "Kriging level {}".format(l)
+            label_samples = "Samples level {}".format(l)
+        label_exact = "Exact level {}".format(l)
 
-        if label == "":
-            plt.legend()
+        return label, label_samples, label_exact
 
-        # marker used for handling multiple axes
-        ind = 0
+    def plot_2d_ax(self,ax,predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
+        """
+        There are 4 desired axes / modes of plotting:
+        1) Normal surfaces (+ exact if possible), (with or without samples)
+        2) Normal contours (+ exact if possible), (with or without samples)
+        3) Predicted + truth surfaces (+ exact if possible), (with or without samples)
+        4) Predicted + truth contours (+ exact if possible), (with or without samples)
+        """
 
-        " retrieve predictions "
+        # Setting the labels used
+        label, label_samples, label_exact = self.get_labels(l,label,is_truth)
+
+        if is_truth:
+            l += 1
+
+        # color and marker of this level
+        if color == "":
+            color = self.colors[l]
+        if marker == "":
+            marker = self.markers[3] # we only display one set of samples, so better be consistent!
+        
+        color_exact = self.colors[l+1]
+        
+
+        " STEP 1: data preparation "
+        # retrieve predictions from the provided predictor
         y_hat, mse = predictor.predict(self.X_pred)
 
         # reshape to X_plot shape
         y_hat = y_hat.reshape(self.X_plot[0].shape)
         std = np.sqrt(mse.reshape(self.X_plot[0].shape))
 
-        " plot prediction surface "
-        ax, ind = self.axes[ind], ind + 1
-        fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.6, color=self.color, label=label if label != "" else "Prediction surface"))
-        ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.1, color=self.color)
-        ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.1 , color=self.color)
-
-        # add sample locations
-        ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker, label="" if label == "" else "Samples level {}".format(l) if l is not None else "")
-
-        " plot exact surface "
-        if self.plot_exact:
-
-            # retrieve exact solution
-            y, _ = self.solver.solve(self.transform_X(X))
+        # ADDITIONALLY get (and later plot) the exact level solution simultaneously
+        y_exact = 0
+        if show_exact and self.plot_exact_possible:
             y_exact, _ = self.solver.solve(self.X_pred)
             y_exact = y_exact.reshape(self.X_plot[0].shape)
 
-            # plot
-            ax, ind = self.axes[ind], ind + 1
-            fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.9))
 
-            # add samplepoints
-            ax.scatter(*X[:, self.d_plot].T, y, c=self.color, marker=self.marker)
+        " STEP 2: plotting "
+        if ax.name == "3d":
+            # if the axis is 3d, we will plot a surface
+    
+            fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.6, color=color, label=label))
+            ax.plot_surface(*self.X_plot, y_hat - 2 * std, alpha=0.1, color=color)
+            ax.plot_surface(*self.X_plot, y_hat + 2 * std, alpha=0.1 , color=color)
+            ax.colors.append(color)
 
-        if self.plot_contour:
-            "Plot prediction contour"
-            ax, ind = self.axes[ind], ind + 1
-            CS = ax.contour(*self.X_plot, y_hat, colors=self.color)
-            CS.collections[-1].set_label("Kriging level {}".format(l) if l is not None else "")
-            ax.scatter(*X[:, self.d_plot].T, c=self.color, marker=self.marker, label = "Samples level {}".format(l) if l is not None else "")
+            if X_sample is not None and y_sample is not None:
+                # add sample locations
+                ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + 5 if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples) # needs s argument, otherwise smaller in 3d!
+                ax.colors.append(color)
 
-            " Plot exact contour "
-            if self.plot_exact:
-                # TODO deze wordt gewoon zovaak het level bestaat geplot!!
-                # TODO per ax een eigen plotfunction maken, veel overzichtelijker!
-                #       wel even nadenken hoe je dat dan met plot_1d plot_2d doet
-                # TODO colorcycle / iterator kunnen resetten -> kan zolang colormarker per functie zelf een decorator is??
-                ax, ind = self.axes[ind], ind + 1
-                CS = ax.contour(*self.X_plot, y_exact, colors=self.color)
-                ax.clabel(CS, inline=1, fontsize=10)
-                CS.collections[-1].set_label("Exact level {}".format(l) if l is not None else "Exact") # zou ook met ax ipv CS kunnen
 
-        plt.tight_layout()
+            if show_exact and self.plot_exact_possible:
+                fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.9, label = label_exact, color = color_exact))
+                ax.colors.append(color_exact)
+        else:
+            # then we are plotting a contour, 2D data (only X, no y)
+            # there is no difference between plotting the normal and truth here
+            CS = ax.contour(*self.X_plot, y_hat, colors=color)
+            CS.collections[-1].set_label(label)
+            ax.colors.append(color)
+            ax.CS = CS # Used for giving only the last contour inline labelling
 
-    def plot_kriged_truth(self, mf_model : MultiFidelityKriging):
+            if X_sample is not None:
+                # sc = ax.scatter(*X_sample[:, self.d_plot].T, c=color, marker=marker, label = label_samples, facecolor = "none" if is_truth else color)
+                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + 5 if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
+                ax.colors.append(color)
+            if show_exact and self.plot_exact_possible:
+                CS = ax.contour(*self.X_plot, y_exact, colors=color_exact)
+                CS.collections[-1].set_label(label_exact)
+                ax.colors.append(color_exact)
+                ax.CS = CS # Used for giving only the last contour inline labelling
+                
+
+
+    def plot_2d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
+        """
+        Plotting for surfaces and possibly contours of the predicted function in 2d.
+        Exact function values plotted if available.
+        @param label: define a custom label for the prediction surface. If given, all other labels will not be used. 
+        """      
+        for i, ax in enumerate(self.axes):
+            if i == 1 or i == 3: # right two plots, here we only want the truth / +exact
+                if is_truth:
+                    show_exact = True
+                if l >= self.l_hifi:
+                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+            else:
+                if not is_truth:
+                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+
+
+    def plot_kriged_truth(self, mf_model : MultiFidelityKriging, tune : bool = True):
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
         print("Creating Kriging model of truth")
-        K = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = True, append = False)
+        K = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = tune, append = False)
 
-        self.plot(mf_model.X_truth, mf_model.Z_truth, K, label="Kriging truth")
-        # self.plot(X_hifi_full, Z_hifi_full, predictor, label="Kriging truth")
+        self.plot(K, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
 
     def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_alt = None):
         """
@@ -260,110 +321,146 @@ class Plotting:
         X = mf_model.X_mf # contains the hifi sampled level too
         Z = mf_model.Z_mf # contains the hifi sampled level too
         K_mf = mf_model.K_mf
-        X_unique = mf_model.X_unique
         L = mf_model.L
+        self.l_hifi = mf_model.l_hifi
+
         if K_mf_alt != None:
             K_mf = K_mf_alt
 
-        # reset axes and colorcycle
+        # reset axes for live plotting purposes
         axes = self.axes
-        self.markers = itertools.cycle(("^", "o", "p"))
         for ax in axes:
             ax.clear()
-            ax._get_lines.set_prop_cycle(None)
 
         " plot known kriging levels"
         has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
         for l in range(mf_model.number_of_levels - 1 if has_prediction else mf_model.number_of_levels):
-            self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l))
+            self.plot(K_mf[l], l)
+            # self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l)) # with samples
 
         " plot prediction kriging "
         if has_prediction:
-            l = mf_model.l_hifi
-
-            # plot our prediction, estimated points in black
-            inds = np.array([np.all(X_unique == x, axis=1) for x in X[-1]]).any(axis=0)
-            X_plot_est = np.delete(X_unique,inds,axis = 0)
-
-            self.axes[0].scatter(
-                *X_plot_est[:, self.d_plot].T,
-                K_mf[l].predict(self.transform_X(X_plot_est))[0],
-                c="black",
-                marker="+",
-                label = "Extrapolated points", 
-                s = 70
-            )
+            l = self.l_hifi
 
             # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l))
+            # includes sample points, but not the predicted points!
+            self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
             
+            # set up to plot our prediction`s` estimated part of points seperately in black
+            X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
+            Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
 
-            # best out of all the *sampled* locations
-            best = np.argmin(Z[-1])
-            t =  X[l][best, self.d_plot].T
-            self.axes[0].scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
-            if self.plot_contour:
-                self.axes[1].scatter(*X[l][best, self.d_plot].T, s = 70, marker = "*", color = 'red', zorder = 10, label="Current best")
+            # set up to plot best out of all the *sampled* hifi locations
+            # NOTE not per definition the best location of all previous levels too
+            best = np.argmin(Z[l])
 
+            # plot the methods prediction points
+            for ax in self.axes:
+                color_predicted = 'black'
+                color_best = 'black'
+                ax.colors.append(color_predicted)
+                ax.colors.append(color_best)
 
-            if self.plot_exact:
-                # NOTE this only works for test functions.
-                # exact result of the level we try to predict
-                y_pred_truth = self.solver.solve(self.X_pred, l = L[-1])[0].reshape(
-                    self.X_plot[0].shape
-                )
-                kwargs = {
-                    "label":"true level {}".format(l),
-                    "color":self.color,
-                    "alpha":0.5
-                }
-                if self.d == 1:
-                    ax=self.axes[0]
-                    ax.plot(*self.X_plot, y_pred_truth, '--', **kwargs ) 
-                else:
-                    ax=self.axes[1]
-                    fix_colors(ax.plot_surface(*self.X_plot, y_pred_truth, **kwargs))
+                # 3D scatter plot
+                if ax.name == "3d":
+                    # plot predicted points
+                    ax.scatter(
+                        *X_plot_est[:, self.d_plot].T,
+                        Z_plot_est,
+                        c=color_predicted,
+                        marker="+",
+                        label = "Predicted points level {}".format(l), 
+                        s = 70,
+                        zorder = 5,
+                    )
 
-            
-        " plot truth "
-        if self.plot_exact:
-            # exact hifi truth
-            y_exact = self.solver.solve(self.X_pred)[0].reshape(self.X_plot[0].shape)
+                    # plot best point
+                    ax.scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
 
-            kwargs2 = {
-                "label":"truth", 
-                "color":"black", 
-                "alpha": 0.3
-            }
-            
-            # use correct plotting function
-            if self.d == 1:
-                ax=self.axes[0]
-                ax.plot(*self.X_plot, y_exact, '--', **kwargs2)
-            else:
-                ax=self.axes[1]
-                fix_colors(ax.plot_surface(*self.X_plot, y_exact, **kwargs2))
+                else: # the 2D scatter plot
         
+                    # plot predicted points
+                    ax.scatter(
+                        *X_plot_est[:, self.d_plot].T,
+                        c=color_predicted,
+                        marker="+",
+                        label = "Predicted points level {}".format(l), 
+                        s = 70,
+                        zorder = 5,
+                    )
+
+                    # plot best point
+                    ax.scatter(*X[l][best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+
         " plot 'full' Kriging level in case of linearity check"
         if len(K_mf)>3:
             self.plot(X[-1], Z[-1], K_mf[-1], label="Full Kriging (linearity check)")
 
+        if hasattr(mf_model, "X_truth"):
+            self.plot_kriged_truth(mf_model, tune = False)
+
+        self.set_axis_props(mf_model)
+        # plt.pause(2)
+
+
+    def set_axis_props(self, mf_model):
+        """ set axes properties like color and legend """
         # legend and plot settings
         # self.axes[0].legend(loc='center left', bbox_to_anchor=(1.04, 0.5))
-        for ax in axes:
+        
+        for ax_nr, ax in enumerate(self.axes):
+            handles, labels = ax.get_legend_handles_labels()
+            
+            is_line_or_surface = []
+            is_other = []
             leg = ax.legend()
-            for t in leg.texts:
-                t.set_alpha(1)
-            for lh in leg.legendHandles:
-                lh.set_alpha(1)
-                # lh.set_color(self.color) # TODO reset cycler!!
+            
+            for i, lh in enumerate(leg.legendHandles):
+                if isinstance(lh,matplotlib.patches.Rectangle) or isinstance(lh,matplotlib.lines.Line2D):
+                    is_line_or_surface.append(i)
+                else:
+                    # still if the label color is exactly the same as of line or surface, we want to add it after!
+                    if len(is_line_or_surface) > 0 and ax.colors[i]==ax.colors[is_line_or_surface[-1]]:
+                        is_line_or_surface.append(i)
+                    else:
+                        is_other.append(i)
+            
+            # reorder, surfaces / lines flushed forwards! 
+            order = is_line_or_surface + is_other
+            leg = ax.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+
+            # now reset the color and alpha! (calling ax.legend resets this)
+            # NOTE this is only fucked for 3d surface plots
+            if ax.name == '3d':
+                for i in range(len(is_line_or_surface)):
+                    lh = leg.legendHandles[i]
+                    without_facecolor = False
+                    try:
+                        if not any(lh.get_facecolor()):
+                            without_facecolor = True
+                    except:
+                        pass
+
+                    if not without_facecolor:
+                        lh.set_alpha(1)
+                        lh.set_color(ax.colors[is_line_or_surface[i]])
+                for t in leg.texts:
+                    t.set_alpha(1)
+            else:
+                try:
+                    ax.clabel(ax.CS, inline=1, fontsize=10)
+                except:
+                    pass
+
+        for ax in self.axes:
+            ax.set_xlabel(self.axis_labels[0])
+            ax.set_ylabel(self.axis_labels[1])
+
         
         plt.tight_layout()
         plt.draw()
-        # plt.pause(2)
 
 def draw_convergence(solver, solver_type_text):
-    marker = itertools.cycle(("^", "o", ">", "s", "<", "8", "v", "p"))
     # fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
     fig = plt.figure()
     ax1 = fig.add_subplot(221, projection="3d")

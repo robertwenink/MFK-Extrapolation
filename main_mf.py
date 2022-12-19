@@ -19,6 +19,7 @@ from postprocessing.plotting import Plotting
 from utils.formatting_utils import correct_formatX
 from utils.linearity_utils import check_linearity
 
+
 # inits based on input settings
 setup = Input(0)
 
@@ -38,6 +39,7 @@ mf_model.set_L([1, 3, 4])
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
 reuse_values = False
+tune = False
 if reuse_values:
     mf_model.set_state(setup)
 
@@ -48,8 +50,8 @@ else:
     
     # create Krigings of levels, same initial hps
     hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
-    mf_model.create_level(X_l, tune=False, hps_init=hps)
-    mf_model.create_level(X_l, tune=False)
+    mf_model.create_level(X_l, tune=tune, hps_init=hps)
+    mf_model.create_level(X_l, tune=tune)
 
 
     " level 2 / hifi initialisation "
@@ -57,18 +59,17 @@ else:
 
 " initial prediction "
 Z_pred, mse_pred = weighted_prediction(mf_model)
-K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = False, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
+K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
 K_mf_new.reinterpolate()
 
 # if not check_linearity(mf_model, pp):
 #     print("Not linear enough, but continueing for now.")
 
 mf_model.sample_truth()
-  
+
 # draw the result
 X_unique_exc = mf_model.return_unique_exc(mf_model.X_mf[mf_model.l_hifi])
 pp.draw_current_levels(mf_model)
-# pp.plot_kriged_truth(mf_model)
 plt.show()
 
 sys.exit(0) 
