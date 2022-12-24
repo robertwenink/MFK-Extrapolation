@@ -125,7 +125,7 @@ class Input:
     def create_new_filename(self, optional=""):
         if optional != "":
             optional = "_" + optional
-        self.filename = time.strftime("(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"
+        self.filename = time.strftime(self.solver_str + " {}d ".format(self.d) + "(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"
     
     def create_input_file(self):
         """Can be used to create or update the input file according to the contents of __dict__"""

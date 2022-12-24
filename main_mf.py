@@ -21,7 +21,7 @@ from utils.linearity_utils import check_linearity
 
 
 # inits based on input settings
-setup = Input(0)
+setup = Input(1)
 
 solver = get_solver(setup)
 doe = get_doe(setup)
@@ -31,7 +31,7 @@ pp = Plotting(setup)
 mf_model = ProposedMultiFidelityKriging(kernel, setup.d, solver, max_cost = 1500e5)
 
 # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-mf_model.set_L([1, 3, 4])
+# mf_model.set_L([1, 3, 4])
 
 ###############################
 # main
@@ -49,8 +49,12 @@ else:
     X_l = doe(setup)
     
     # create Krigings of levels, same initial hps
-    hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
-    mf_model.create_level(X_l, tune=tune, hps_init=hps)
+    if setup.d == 2:
+        hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
+        mf_model.create_level(X_l, tune=tune, hps_init=hps)
+    else:
+        hps = np.array([1.26756467e+00, 2.00000000e+00, 9.65660595e-04])
+        mf_model.create_level(X_l, tune=tune, hps_init=hps)
     mf_model.create_level(X_l, tune=tune)
 
 

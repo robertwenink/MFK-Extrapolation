@@ -9,7 +9,7 @@ def RMSE(Z, Z_predict):
 
 
 def RMSE_norm(Z, Z_predict):
-    return RMSE(Z, Z_predict) / np.mean(Z)
+    return RMSE(Z, Z_predict) / np.mean(abs(Z))
 
 
 def MAE_norm(Z, Z_predict):
