@@ -152,6 +152,7 @@ class Tuner:
 
     def hillclimbing(self, individuals):
         # NOTE sequentially is faster than using multithreading due to overhead.
+        print("Running hillclimbing with population of {} ...".format(self.pop_s))
         for i in range(individuals.shape[0]):
             if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
                 hps0 = individuals[i][: self.dim]
@@ -165,6 +166,7 @@ class Tuner:
                 # give progress bar (wont work if we would use multithreading)
                 if self.progress_bar:
                     self.progress(i,self.pop_s)
+        print(end='\r\033[A')
         return individuals
 
     def sim(self, hps):
@@ -182,7 +184,7 @@ class Tuner:
 
             percents = round(100.0 * count / float(total), 1)
             bar = "|" * filled_len + "_" * (bar_len - filled_len)
-            print("Running hillclimbing with population of {} ...\r\n{} {}{} {}".format(self.pop_s,bar, percents, "%", status), end='\r\033[A')
+            print("{} {}{} {}".format(bar, percents, "%", status), end='\r')
 
     def finalize(self, pop):
         # Sort

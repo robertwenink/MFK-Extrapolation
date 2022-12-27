@@ -71,6 +71,8 @@ K_mf_new.reinterpolate()
 #     print("Not linear enough, but continueing for now.")
 
 mf_model.sample_truth()
+setup.create_input_file(mf_model)
+sys.exit()
 
 # draw the result
 X_unique_exc = mf_model.return_unique_exc(mf_model.X_mf[mf_model.l_hifi])

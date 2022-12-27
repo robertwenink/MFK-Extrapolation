@@ -93,14 +93,19 @@ class OrdinaryKriging:
 
         R = corr_matrix_kriging_tune(hps, self.diff_matrix, self.R_diagonal)
 
-        # computes many inverses simultaneously = somewhat faster; no njit
-        R_in = np.linalg.inv(R)
-
         if hps.shape[0] == 1:
             # in case of single evaluation.
-            return _fitness_func_loop(R_in, self.y, R).item()
+            if np.linalg.cond(R) < 1/np.finfo(np.float32).eps:
+                # https://stackoverflow.com/questions/13249108/efficient-pythonic-check-for-singular-matrix
+                # computes many inverses simultaneously = somewhat faster; no njit
+                R_in = np.linalg.inv(R)
+                return _fitness_func_loop(R_in, self.y, R).item()
+            else:
+                return -1e8
         else:
+            print("WARNING: NO COND CHECK YET")
             # in case of batch evaluation.
+            R_in = np.linalg.inv(R)
             return _fitness_func_loop(R_in, self.y, R)
 
     def tune(self, R_diagonal = 0, retuning : bool = True):
@@ -145,7 +150,7 @@ class OrdinaryKriging:
         """
         # OK.__dict__:  dict_keys(['corr', 'hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r'])
         # corr is a (compiled) function
-        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr'})}
+        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat'})}
 
     def set_state(self, data_dict):
         """
@@ -153,9 +158,13 @@ class OrdinaryKriging:
         """
         # best to do this explicitly!
         # then if something misses we will know instead of being blind
-        keylist = ['hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r']
+        keylist = ['hps', 'hps_constraints', 'd', 'X', 'y', 'R_diagonal']
         for key in keylist:
             setattr(self, key, data_dict[key])
+
+        # such that we do not have to save:
+        # r, diff_matrix, R_in, mu_hat, sigma_hat
+        self.train(self.X,self.Y,False,False,self.R_diagonal)
 
 
 @njit(cache=True)
@@ -193,12 +202,8 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
-    if np.linalg.cond(R_in) < 1e8:  # NOTE quite large but numerically still stable
-        # NOTE +np.finfo(np.float32).eps makes the function more stable, and wont change the max hps bcs constant factor
-        t = y - np.sum(R_in * y) / (np.sum(R_in) + np.finfo(np.float32).eps)
-        return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
-    else:
-        return -1e8
+    t = y - np.sum(R_in * y) / np.sum(R_in)
+    return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
 
 
 @njit(cache=True)

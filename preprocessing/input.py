@@ -16,14 +16,27 @@ from preprocessing.GUIfunctions import GUI
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtCore as qtc
 
-from utils.formatting_utils import correct_fileformatX
-
 INPUTS_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 
 def convert_np_to_list(obj):
     if isinstance(obj, np.ndarray):
         return obj.tolist()
-    raise TypeError('Not serializable')
+
+
+def convert_dict_to_array(d):
+    # Base case: if value is a numerical list, convert to NumPy array
+    if isinstance(d, list) and all(isinstance(i, (int, float)) for i in d):
+        return np.array(d)
+
+    # Recursive case: if value is a dictionary or nested list, convert each value to a NumPy array
+    if isinstance(d, (dict, list)):
+        if isinstance(d, dict):
+            return {key: convert_dict_to_array(value) for key, value in d.items()}
+        else:
+            return [convert_dict_to_array(value) for value in d]
+
+    # Return value as is if it is not a numerical list or dictionary
+    return d
         
 class Input:
     def __init__(self, option=0):
@@ -50,8 +63,6 @@ class Input:
             self.open_gui()
 
     def open_file_prompt(self):
-        filename = ""
-
         root = tk.Tk()
         filepath = filedialog.askopenfilename(
             initialdir=INPUTS_DIR,
@@ -73,32 +84,6 @@ class Input:
         f.write(self.filename)
         f.close()
 
-    def read_X(self):
-        """
-        Function that converts input X of the json file from a list of lists to a nested list of nd.arrays.
-        If length of the resulting list is 1, we have a single fidelity solution.
-        """
-        if hasattr(self,'X'):
-            for i in range(len(self.X)):
-                # this implies we always should define our X as a list of 2d ndarray
-                self.X[i] = np.array(self.X[i],dtype=np.float64)
-                assert self.X[i].ndim == 2, "not retrieving a 2 dimensional (sub)X!"
-
-            if len(self.X) == 1:
-                self.X = self.X[0]
-
-    def read_Z(self):
-        """
-        See docstring of read_X.
-        """
-        if hasattr(self,'Z'):
-            for i in range(len(self.Z)):
-                # this implies we always should define our Z as a list of 1d ndarray
-                self.Z[i] = np.array(self.Z[i],dtype=np.float64)
-                assert self.Z[i].ndim == 1, "not retrieving a 1 dimensional (sub)Z!"
-                
-            if len(self.Z) == 1:
-                self.Z = self.Z[0]
 
     def read_input(self):
         """Read the json file inputs and converting it to class attributes"""
@@ -108,16 +93,13 @@ class Input:
         with open(file_path) as json_file:
             data_dict = json.load(json_file)
 
+        data_dict = convert_dict_to_array(data_dict)
+
         # make each self.data_dict key a variable in our input object
         for key in data_dict:
             if not key == "filename":
+                # if exists: sets attribute 'model' too, containing the state dict of the model.
                 setattr(self, key, data_dict[key])
-        
-        # NOTE this part is a bit of hardcoding, in order to convert some lists back to np.array    
-        self.read_X()
-        self.read_Z()
-        self.search_space[1] = np.array(self.search_space[1])
-        self.search_space[2] = np.array(self.search_space[2])
         
         print("Reading successful")
         self.write_previous_filename()
@@ -125,20 +107,18 @@ class Input:
     def create_new_filename(self, optional=""):
         if optional != "":
             optional = "_" + optional
-        self.filename = time.strftime(self.solver_str + " {}d ".format(self.d) + "(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"
-    
-    def create_input_file(self):
-        """Can be used to create or update the input file according to the contents of __dict__"""
+        self.filename = time.strftime(self.solver_str + " {}d ".format(self.d) + "(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"  # type: ignore 
+   
+    def create_input_file(self, model = None):
+        """Can be used to create or update the input file according to the contents of __dict__ and model.get_state()"""
+ 
+        d = self.__dict__
+        if model != None:
+            d['model'] = model.get_state()
 
-        if hasattr(self,'X'):
-            self.X = correct_fileformatX(self.X)
-
-        if hasattr(self,'Z'):
-            self.Z = correct_fileformatX(self.Z)
-            
         # dumping
         json.dump(
-            self.__dict__, open(os.path.join(INPUTS_DIR, self.filename), "w"), default=convert_np_to_list, indent=4
+           d, open(os.path.join(INPUTS_DIR, self.filename), "w"), default = convert_np_to_list, indent=4
         )
         self.write_previous_filename()
 

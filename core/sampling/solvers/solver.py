@@ -33,7 +33,8 @@ def get_solver(setup=None, name=None):
         raise Exception("solver_name not defined")
 
     
-    # not efficient but small list
+    # retrieve the function that fits the desired solver name
+    solver = lambda x: x
     for name, obj in CLSMEMBERS:
         if name == solver_name:
             solver = obj

@@ -1,5 +1,5 @@
 """Infill criteria"""
-
+# pyright: reportGeneralTypeIssues=false
 # https://github.com/mid2SUPAERO/multi-fi-optimization/blob/master/MFK_tutorial.ipynb
 import scipy as sci
 import numpy as np

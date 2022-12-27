@@ -1,12 +1,8 @@
 """
 This file contains all internal solvers used for testing, plus the abstract classes Solver and TestFunction.
 """
-
-import math
+# pyright: reportGeneralTypeIssues=false
 import numpy as np
-
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import axes3d
 
 from abc import ABC, abstractmethod
 from utils.formatting_utils import correct_formatX
