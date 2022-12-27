@@ -1,5 +1,5 @@
 import numpy as np
-
+from beautifultable import BeautifulTable
 
 def pearson_correlation_squared(Z0, Z1):
     assert (
@@ -32,12 +32,17 @@ def check_correlations(Z0, Z1, Z2):
     r2_high = pearson_correlation_squared(Z1, Z2)
     r2_diff = pearson_correlation_differences(Z0, Z1, Z2)
 
-    print(
-        "r2_low = {} \n r2_high = {} \n r2_diff = {}".format(r2_low, r2_high, r2_diff)
-    )
+
+    table = BeautifulTable()
+    table.columns.header = ['r2_low', 'r2_high', 'r2_diff']
+    table.rows.append([r2_low, r2_high, r2_diff])
+    warnings = [""] * 3 
     if r2_low < 0.9:
-        print("WARNING: r2_low < 0.9!")
+        warnings[0] = "r2_low < 0.9!"
     if r2_high < 0.9:
-        print("WARNING: r2_high < 0.9!")
+        warnings[1] = "r2_high < 0.9!"
     if r2_diff < 0.9:
-        print("WARNING: r2_diff < 0.9!")
+        warnings[2] = "r2_diff < 0.9!"
+    if any(warnings):
+        table.rows.append(warnings)
+    

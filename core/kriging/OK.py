@@ -8,7 +8,7 @@ from scipy import linalg
 from core.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
 from numba import njit
 import time
-import sys
+from beautifultable import BeautifulTable
 
 # from core.kriging.hp_tuning import GeneticAlgorithm as ga
 from core.kriging.hp_tuning import MultistartHillclimb as ga
@@ -16,11 +16,12 @@ from utils.formatting_utils import correct_formatX
 
 
 class OrdinaryKriging:
-    def __init__(self, kernel, d, hps_init=None, *args, **kwarg):
+    def __init__(self, kernel, d, hps_init=None, name = "", *args, **kwarg):
         super().__init__(*args, **kwarg)
 
         self.corr, self.hps, self.hps_constraints = kernel
         self.d = d
+        self.name = name
 
         if hps_init is not None:
             assert self.hps.shape == hps_init.shape, "Provide hps_init of correct size!"
@@ -39,7 +40,7 @@ class OrdinaryKriging:
         return y_hat, mse_var
 
 
-    def train(self, X, y, tune=False, R_diagonal=0):
+    def train(self, X, y, tune=False, retuning = True, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X, self.d)
         self.y = y
@@ -48,7 +49,7 @@ class OrdinaryKriging:
         self.R_diagonal = R_diagonal
 
         if tune:
-            self.tune(R_diagonal)
+            self.tune(R_diagonal, retuning)
 
         R = self.corr(self.X, self.X, self.hps)
 
@@ -102,8 +103,10 @@ class OrdinaryKriging:
             # in case of batch evaluation.
             return _fitness_func_loop(R_in, self.y, R)
 
-    def tune(self, R_diagonal=0):
-        """Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)"""
+    def tune(self, R_diagonal = 0, retuning : bool = True):
+        """
+        Tune the Kernel hyperparameters according to the concentrated log-likelihood function (Jones 2001)
+        """
         # run model and time it
         start = time.time()
 
@@ -116,6 +119,7 @@ class OrdinaryKriging:
                 convergence_curve=False,
             )
         else:
+            self.model.set_retuning(retuning)
             self.model.run()
 
         t = time.time() - start
@@ -124,13 +128,34 @@ class OrdinaryKriging:
         self.hps = self.model.output_dict["hps"].reshape(self.hps.shape)
 
         # print results of tuning
-        sys.stdout.write("\r\tTuned hps: %s\n" % (self.model.best_hps))
-        sys.stdout.flush()
-        print(
-            "\tTuned in {} s with fitness {}".format(t,
-                self.model.output_dict["function"]
-            )
-        )
+        table = BeautifulTable()
+        SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+        tuning_time = "{}{}{}".format("Re-t" if hasattr(self, "model") and retuning else "T","uning time"," of {}".format(self.name) if self.name != "" else "")
+        table.columns.header = [tuning_time, "Fitness"] + ["\u03F4" + str(i).translate(SUB) for i in range(self.d)] +  ["p" + str(i).translate(SUB) for i in range(self.d)] + ["noise"]
+        row = ["{:.4f} s".format(t), self.model.output_dict["function"]] + list(self.model.best_hps)
+        table.rows.append(row)
+        print(end='\r')
+        print(table)
+
+
+    def get_state(self):
+        """
+        Get the state of the model. 
+        Excludes correlation function 'corr', which should be set at class initiation.
+        """
+        # OK.__dict__:  dict_keys(['corr', 'hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r'])
+        # corr is a (compiled) function
+        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr'})}
+
+    def set_state(self, data_dict):
+        """
+        Set the state of the already initialised model.
+        """
+        # best to do this explicitly!
+        # then if something misses we will know instead of being blind
+        keylist = ['hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r']
+        for key in keylist:
+            setattr(self, key, data_dict[key])
 
 
 @njit(cache=True)

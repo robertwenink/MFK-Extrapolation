@@ -23,7 +23,7 @@ def fix_colors(surf):
     surf._edgecolors2d = surf._edgecolor3d
 
 class Plotting:
-    def __init__(self, setup):
+    def __init__(self, setup, inset_kwargs = None):
         self.n_per_d = 100
         self.d_plot = setup.d_plot
         self.d = setup.d
@@ -34,6 +34,7 @@ class Plotting:
         self.colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         self.markers = ["^", "o", "p", "8"] # "^", "o", ">", "s", "<", "8", "v", "p"
         self.s_standard = plt.rcParams['lines.markersize'] ** 2
+        self.truth_s_increase = 40
         self.std_mult = 5 # 5 is 100% confidence interval
 
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
@@ -58,6 +59,13 @@ class Plotting:
         else:
             self.plot = lambda X, y, predictor, l: None
 
+        # axes_nrs, inset_rel_limits = [[]], xlim = [[]], y_zoom_centres = []
+        if inset_kwargs != None:
+            self.set_zoom_inset(**inset_kwargs)
+
+    ###########################################################################
+    ## Helper functions                                                     ###
+    ###########################################################################
 
     def create_plotting_grid(self):
         """
@@ -80,13 +88,52 @@ class Plotting:
         )
         self.X_pred[:, self.d_plot] = xs.reshape(-1, len(self.d_plot))
 
-
     def transform_X(self, X):
         """Transform X to have constant values in dimensions unused for plotting."""
         assert X.ndim == 2, "\nProvide X in 2d shape."
         X_t = np.ones(X.shape) * (self.lb + (self.ub - self.lb) / 2)
         X_t[:, self.d_plot] = X[:, self.d_plot]
         return X_t
+
+    def get_labels(self, l, label = "", is_truth=False):
+        """
+        Get the used labels.
+        """
+        
+        if is_truth:
+            label = label if label != "" else "Kriging level {} (truth)".format(l)
+            label_samples = "Samples Kriged truth"
+        else:
+            label = label if label != "" else "Kriging level {}".format(l)
+            label_samples = "Samples level {}".format(l)
+        label_exact = "Exact level {}".format(l)
+
+        return label, label_samples, label_exact
+
+    def get_standards(self, l, label, color, marker, is_truth, show_exact):
+        # Setting the labels used
+        label, label_samples, label_exact = self.get_labels(l,label,is_truth)
+
+        if is_truth:
+            l += 1
+
+        if show_exact:
+            if not is_truth:
+                show_exact = False
+        
+        # color and marker of this level
+        if color == "":
+            color = self.colors[l]
+        if marker == "":
+            marker = self.markers[3] # we only display one set of samples, so better be consistent!
+        
+        color_exact = self.colors[l+1]
+
+        return l, label, label_samples, label_exact, color, marker, show_exact, color_exact
+
+    ###########################################################################
+    ## Plotting                                                             ###
+    ###########################################################################
 
     def init_1d_fig(self):
         fig, self.axes = plt.subplots(2, 1, figsize = (11,7.5))
@@ -99,10 +146,14 @@ class Plotting:
         plot 1d function
         """
 
+        # plot on the inset axis if it is there! Do this by 'recursion'
+        if hasattr(ax,'axin'):
+            ax.axin.colors = ax.colors
+            self.plot_1d_ax(ax.axin,predictor,l,X_sample,y_sample,show_exact,is_truth,color,marker)
+
+
         l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact)
 
-        ax.set_ylabel('y')
- 
         # retrieve predictions
         y_hat, mse = predictor.predict(self.X_pred)
         std = np.sqrt(mse)
@@ -115,7 +166,7 @@ class Plotting:
 
         if X_sample is not None and y_sample is not None:
             # plot sample points
-            ax.scatter(X_sample, y_sample, marker=marker, s = self.s_standard + 10 if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples)
+            ax.scatter(X_sample, y_sample, marker=marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples, zorder = 5)
             ax.colors.append(color)
 
         if show_exact and self.plot_exact_possible:
@@ -127,11 +178,10 @@ class Plotting:
             ax.colors.append(color_exact)
 
     def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
-        self.plot_1d_ax(self.axes[0],predictor,l,X_sample,y_sample,show_exact,is_truth,color,marker)
+        self.plot_1d_ax(self.axes[0],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
         if l >= self.l_hifi:
             show_exact = self.try_show_exact
             self.plot_1d_ax(self.axes[1],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
-
 
 
     def init_2d_fig(self):
@@ -180,41 +230,6 @@ class Plotting:
         self.fig = fig
         self.axes = axes
 
-    def get_labels(self, l, label = "", is_truth=False):
-        """
-        Get the used labels.
-        """
-        
-        if is_truth:
-            label = label if label != "" else "Kriging level {} (truth)".format(l)
-            label_samples = "Samples Kriged truth"
-        else:
-            label = label if label != "" else "Kriging level {}".format(l)
-            label_samples = "Samples level {}".format(l)
-        label_exact = "Exact level {}".format(l)
-
-        return label, label_samples, label_exact
-
-    def get_standards(self, l, label, color, marker, is_truth, show_exact):
-        # Setting the labels used
-        label, label_samples, label_exact = self.get_labels(l,label,is_truth)
-
-        if is_truth:
-            l += 1
-
-        if show_exact:
-            if not is_truth:
-                show_exact = False
-        
-        # color and marker of this level
-        if color == "":
-            color = self.colors[l]
-        if marker == "":
-            marker = self.markers[3] # we only display one set of samples, so better be consistent!
-        
-        color_exact = self.colors[l+1]
-
-        return l, label, label_samples, label_exact, color, marker, show_exact, color_exact
 
     def plot_2d_ax(self,ax,predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
         """
@@ -253,7 +268,7 @@ class Plotting:
 
             if X_sample is not None and y_sample is not None:
                 # add sample locations
-                ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + 10 if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples) # needs s argument, otherwise smaller in 3d!
+                ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples) # needs s argument, otherwise smaller in 3d!
                 ax.colors.append(color)
 
 
@@ -269,7 +284,7 @@ class Plotting:
             ax.CS = CS # Used for giving only the last contour inline labelling
 
             if X_sample is not None:
-                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + 10 if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
+                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
                 ax.colors.append(color)
 
             if show_exact and self.plot_exact_possible:
@@ -300,12 +315,82 @@ class Plotting:
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
-        print("Creating Kriging model of truth")
-        # TODO
-        tune = False
+        if not hasattr(self,'K_truth'):
+            print("Creating Kriging model of truth", end = '\r')
+            self.K_truth = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = tune, append = False, name = "Truth")
+        else:
+            print("Updating Kriging model of truth", end = '\r')
+            self.K_truth.train(mf_model.X_truth, mf_model.Z_truth, tune = True, retuning = True)
 
-        K = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = tune, append = False)
-        self.plot(K, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
+        self.plot(self.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
+
+    def set_zoom_inset(self, axes_nrs, inset_rel_limits = [[]], xlim = [[]], y_zoom_centres = []):
+        """
+        axes_nrs (list): the axis numbers on which we want have an (single) inset.
+        inset_rel_limits (list of list): each list comprised of the location of the inset relative to the main axis,
+            formatted as [x0, y0, width, height] met x0 y0 = 0,0 bottom left
+        xlim: give the xlims per ax
+        y_zoom_centres: only the y_zoom_centre is given. The y_lims are inferred in the same ratio as the limits.
+        """
+        if self.d == 1:
+            for i, ax_nr in enumerate(axes_nrs):
+                ax = self.axes[ax_nr]
+                
+                # set the location of the inset
+                if np.any(inset_rel_limits):
+                    limit = inset_rel_limits[i]
+                else:
+                    limit = [0.5, 0.5, 0.3, 0.4]
+                
+                # assign the inset axes as a variable to the ax, such that we can access it adhoc
+                ax.axin = ax.inset_axes(limit) 
+                ax.axin.set_xlim(xlim[i])
+
+                ax.axin.limit = limit
+                ax.axin.y_zoom_centre = y_zoom_centres[i]
+
+
+    def plot_predicted_points(self, ax, l, X, Z, X_plot_est, Z_plot_est, best):
+        """
+        Plot the predicted points and the best sampled point.
+        """
+
+        color_predicted = 'black'
+        color_best = 'black'
+        ax.colors.append(color_predicted)
+        ax.colors.append(color_best)
+        label_predicted = "Predicted points level {}".format(l)
+        marker_predicted = "+"
+
+        # 3D scatter plot
+        if ax.name == "3d" or self.d == 1:
+            # plot predicted points
+            ax.scatter(
+                *X_plot_est[:, self.d_plot].T,
+                Z_plot_est,
+                c=color_predicted,
+                marker=marker_predicted,
+                label = label_predicted, 
+                s = 70,
+                zorder = 5,
+            )
+
+            # plot best point
+            ax.scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+
+        else: # the 2D scatter plot
+            # plot predicted points
+            ax.scatter(
+                *X_plot_est[:, self.d_plot].T,
+                c=color_predicted,
+                marker=marker_predicted,
+                label = label_predicted, 
+                s = 70,
+                zorder = 5,
+            )
+
+            # plot best point
+            ax.scatter(*X[l][best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
 
     def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_alt = None):
         """
@@ -331,9 +416,20 @@ class Plotting:
             K_mf = K_mf_alt
 
         # reset axes for live plotting purposes
+        # TODO ax clear fokt op inset axes!! ax.axin bestaat niet meer dan nml
         axes = self.axes
         for ax in axes:
-            ax.clear()
+            if hasattr(ax,'axin'):
+                axin = ax.axin
+                ax.axin.collections = []
+                ax.axin.lines = []
+                ax.axin.colors =[]
+                ax.collections = []
+                ax.lines = []
+                ax.axin = axin
+            else:
+                ax.clear()
+            ax.colors =[]
 
         " plot known kriging levels"
         has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
@@ -362,43 +458,9 @@ class Plotting:
 
             # plot the methods prediction points
             for ax in self.axes:
-                color_predicted = 'black'
-                color_best = 'black'
-                ax.colors.append(color_predicted)
-                ax.colors.append(color_best)
-                label_predicted = "Predicted points level {}".format(l)
-                marker_predicted = "+"
-
-                # 3D scatter plot
-                if ax.name == "3d" or  mf_model.d == 1:
-                    # plot predicted points
-                    ax.scatter(
-                        *X_plot_est[:, self.d_plot].T,
-                        Z_plot_est,
-                        c=color_predicted,
-                        marker=marker_predicted,
-                        label = label_predicted, 
-                        s = 70,
-                        zorder = 5,
-                    )
-
-                    # plot best point
-                    ax.scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
-
-                else: # the 2D scatter plot or 1d
-                        
-                    # plot predicted points
-                    ax.scatter(
-                        *X_plot_est[:, self.d_plot].T,
-                        c=color_predicted,
-                        marker=marker_predicted,
-                        label = label_predicted, 
-                        s = 70,
-                        zorder = 5,
-                    )
-
-                    # plot best point
-                    ax.scatter(*X[l][best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+                self.plot_predicted_points(ax, l, X, Z, X_plot_est, Z_plot_est, best)
+                if hasattr(ax,"axin"):
+                    self.plot_predicted_points(ax.axin, l, X, Z, X_plot_est, Z_plot_est, best)
 
         " plot 'full' Kriging level in case of linearity check"
         if len(K_mf)>3:
@@ -408,8 +470,10 @@ class Plotting:
             self.plot_kriged_truth(mf_model, tune = True)
 
         self.set_axis_props(mf_model)
-        # plt.pause(2)
 
+    ###########################################################################
+    ## Formatting                                                           ###
+    ###########################################################################
 
     def set_axis_props(self, mf_model):
         """ set axes properties like color and legend """
@@ -422,6 +486,7 @@ class Plotting:
             is_other = []
             counter = 0
 
+            # !! deze hele klotezooi is nodig om de kleuren te corrigeren, locatie is eigenlijk sidebusiness
             leg = ax.legend()
             if mf_model.d == 1:
                 for i, lh in enumerate(leg.legendHandles):
@@ -433,21 +498,19 @@ class Plotting:
                         loc = -1
                         for jj, j in enumerate(is_line_or_surface_colors):
                             if lh._original_edgecolor == j:
-                                print("{} and {} for colors {} and {}".format(i,j,lh._original_edgecolor,ax.colors[jj]))
                                 loc = jj + 1 + counter
                                 break
                         if loc >= 0:
                             is_line_or_surface.insert(loc,i)
                             counter += 1
-                            print("new line_surface: {}".format(is_line_or_surface))
                         else:
                             is_other.append(i)
             else: 
                 for i, lh in enumerate(leg.legendHandles):
-                    if isinstance(lh,matplotlib.patches.Rectangle) or isinstance(lh,matplotlib.lines.Line2D):
+                    if isinstance(lh,matplotlib.patches.Rectangle) or isinstance(lh,matplotlib.lines.Line2D) or 'level 2' in lh._label:
                         is_line_or_surface.append(i)
                     else:
-                        if len(is_line_or_surface) > 0 and ax.colors[i]==ax.colors[is_line_or_surface[-1]]:
+                        if len(is_line_or_surface) > 0 and ax.colors[i]==ax.colors[is_line_or_surface[-1]]:# and not 'best' in lh._label: #NOTE als best sample aan het eind moet
                             is_line_or_surface.append(i)
                         else:
                             is_other.append(i)            
@@ -468,6 +531,11 @@ class Plotting:
                 extra = [Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)]
 
             handles, labels = ax.get_legend_handles_labels()
+            if mf_model.d == 1:
+                order_sub = order[-4:-2]
+                del order[-4:-2]
+                order += order_sub
+
             leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc='upper '+loc, bbox_to_anchor=bb)
 
             # now reset the color and alpha! (calling ax.legend resets this)
@@ -500,12 +568,42 @@ class Plotting:
 
         for ax in self.axes:
             ax.set_xlabel(self.axis_labels[0])
+            ax.set_ylabel('y')
+ 
             if mf_model.d > 1:
                 ax.set_ylabel(self.axis_labels[1])
+                # ax.set_ylabel('Z')
 
+            # formatting for inset axis!
+            if hasattr(ax,'axin'):
+                # sub region of the original image to display
+                # we basically set different limits on the original data
+                # forrester moet ongeveer gefocust rond x = 0.62, y = -1.3
+                dx = ax.axin.get_xlim()[1] - ax.axin.get_xlim()[0]
+
+                height = ax.get_ylim()[1] - ax.get_ylim()[0] # is not set yet!!
+                width = ax.get_xlim()[1] - ax.get_xlim()[0]
+                rel_width = ax.axin.limit[2]
+                rel_height = ax.axin.limit[3]
+                
+                dy = dx * height/width * rel_height/rel_width
+                
+                ax.axin.set_ylim(ax.axin.y_zoom_centre - dy/2, ax.axin.y_zoom_centre + dy/2)
         
+                # no tick labels
+                ax.axin.set_xticklabels([])
+                ax.axin.set_yticklabels([])    
+
+                # set the connecting lines and boxes
+                ax.indicate_inset_zoom(ax.axin)#, edgecolor="black")
+
+
         plt.tight_layout()
         plt.draw()
+
+###########################################################################
+## Extra Plotting options                                               ###
+###########################################################################
 
 def draw_convergence(solver, solver_type_text):
     # fig, (ax1, ax2, ax3) = plt.subplots(1, 3)

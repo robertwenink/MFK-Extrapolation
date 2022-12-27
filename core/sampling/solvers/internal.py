@@ -355,6 +355,7 @@ class Hartmann6(TestFunction):
     def solve(self, X):
         X = self.check_format_X(X, 6)
         # TODO
+        print("Hartmann6 not implemented yet")
 
     def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]

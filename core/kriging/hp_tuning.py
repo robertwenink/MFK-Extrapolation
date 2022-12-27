@@ -44,12 +44,36 @@ class Tuner:
         self.hps_init = hps_init
         self.f = function
         self.progress_bar = progress_bar
+        self.retuning = False
 
         self.report = []
 
-        self.pop_s = min(int(2 ** (2 + 2 * self.dim)), 1000)
+        self.pop_min = 10
+        self.pop_max = 1000
+        self.pop_s = max(min(int(2 ** (1 + 2 * self.dim)), self.pop_max),self.pop_min)
         # print("Population size = {}".format(self.pop_s))
 
+
+    def set_retuning(self,retuning : bool = False):
+        """
+        Option to reduce load when we just want a small quick retune based on already good hps_init.
+        """
+
+        # if hps init given, allow retuning to be True
+        retuning_possible = True
+        if not np.any(self.hps_init):
+            retuning_possible = False
+        
+        if hasattr(self,'retuning') and retuning_possible:
+            if self.retuning != retuning:
+                if retuning:
+                    self.pop_s = max(int(self.pop_s / 5), self.pop_min)
+                else:
+                    self.pop_s = min(int(self.pop_s * 5), self.pop_max)
+                
+                self.retuning = retuning
+    
+    
     def set_hps_to_tune(self, hps_constraints):
         """
         select which hyper parameters we are going to tune.
@@ -65,6 +89,7 @@ class Tuner:
             else:
                 self.hps_tune_indices.append(False)
         self.hps_constraints = hps_constraints[self.hps_tune_indices]
+
 
     def assert_input(self, function, hps_init, hps_constraints):
         # input hpss' boundaries
@@ -126,8 +151,6 @@ class Tuner:
         return new_hps
 
     def hillclimbing(self, individuals):
-        sys.stdout.write("\rRunning hillclimbing ...")
-        sys.stdout.flush()
         # NOTE sequentially is faster than using multithreading due to overhead.
         for i in range(individuals.shape[0]):
             if individuals[i][self.dim + 1] == 0:  # tune only those not tuned before
@@ -138,7 +161,10 @@ class Tuner:
                 individuals[i][: self.dim] = result.x
                 individuals[i][self.dim] = result.fun
                 individuals[i][self.dim + 1] = result.success
-        sys.stdout.write(" " * 100)
+
+                # give progress bar (wont work if we would use multithreading)
+                if self.progress_bar:
+                    self.progress(i,self.pop_s)
         return individuals
 
     def sim(self, hps):
@@ -150,15 +176,13 @@ class Tuner:
         Print the tuning progress.
         This is a relatively expensive function due to stdout.
         """
-        if count % (int(total / 100)) == 0:
+        if int(count % (total / 100)) == 0:
             bar_len = 50
             filled_len = int(round(bar_len * count / float(total)))
 
             percents = round(100.0 * count / float(total), 1)
             bar = "|" * filled_len + "_" * (bar_len - filled_len)
-
-            sys.stdout.write("\r%s %s%s %s" % (bar, percents, "%", status))
-            sys.stdout.flush()
+            print("Running hillclimbing with population of {} ...\r\n{} {}{} {}".format(self.pop_s,bar, percents, "%", status), end='\r\033[A')
 
     def finalize(self, pop):
         # Sort
@@ -188,12 +212,14 @@ class MultistartHillclimb(Tuner):
         hps_constraints,
         convergence_curve=True,  # TODO niet belangrijk hier
         progress_bar=True,
+        retuning=True,
     ):
         super().__init__(function, hps_init, hps_constraints)
         self.pop_s *= 2  # two times as large initial pop as GA based alg.
         self.run()
 
     def run(self):
+        """Run the tuning process"""
         # inits
         pop = self.initialize_population()
 

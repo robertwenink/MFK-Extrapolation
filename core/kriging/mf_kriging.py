@@ -1,7 +1,7 @@
 import numpy as np
+from beautifultable import BeautifulTable
+
 from core.kriging.OK import OrdinaryKriging
-
-
 from core.sampling.DoE import LHS_subset
 from utils.formatting_utils import correct_formatX
 from utils.error_utils import RMSE_norm_MF
@@ -15,7 +15,7 @@ class MultiFidelityKriging():
         @param kernel (list): list containing kernel function, (initial) hyperparameters, hyper parameter constraints
         @param max_cost: maximum cost available for sampling. 
         @param max_nr_levels: maximum number of Kriging levels that is added to the MF model. Is considered to be the level of the high-fidelity + 1.
-        @param L: fidelity input list TODO
+        @param L: fidelity input list, is being set using set_L() if other values are desired.
         """
 
         super().__init__(*args, **kwarg) # possibly useful later if inhereting from something other than Object!
@@ -42,10 +42,10 @@ class MultiFidelityKriging():
         self.Z_mf = []
         
         # cost variables: total cost per level; expected cost per sample per level 
-        self.costs_tot = {}
-        self.costs_exp = {}
+        self.costs_per_level = {}
+        self.costs_expected = {}
+        self.costs_total = 0
 
-        # TODO
         self.L = np.arange(max_nr_levels) + 1
 
     def set_L(self, L : list):
@@ -53,7 +53,7 @@ class MultiFidelityKriging():
         self.max_nr_levels = len(L)
 
 
-    def create_level(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, append : bool = True):
+    def create_level(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, name = "", append : bool = True, add_empty : bool = False):
         """
         This method clusters and provides all the functionality required for setting up a new kriging level.
         @param X_l: initial X for new level l
@@ -63,35 +63,37 @@ class MultiFidelityKriging():
                 If not provided, try to take the hyperparameters of the previous level.
         @param hps_noise_ub: provide an upperbound to the noise hyperparameter. Used such that no infinite noise can be used (in the prediction).
         @param R_diagonal (np.ndarray): added noise or variance per sample.
+        @param add_empty: create an empty Kriging level, used in case of (re)setting the state of the model.
+        @param name: name of the Kriging level, used for display.
         """
         
         if hps_init is None and self.number_of_levels >= 1:
             hps_init = self.K_mf[-1].hps
 
+        kernel = self.kernel
         if hps_noise_ub and (hps_init is not None):
             # noise upperbound should be larger than previous tuned noise!
-            kernel = self.kernel
             kernel[-1][-1,1] = hps_init[-1] * 2
-        else:
-            kernel = self.kernel
 
-        ok = OrdinaryKriging(kernel, self.d, hps_init=hps_init)
+        name = "Level {}".format(self.number_of_levels) if name == "" else name
 
-        if tune == False:
+        ok = OrdinaryKriging(kernel, self.d, hps_init=hps_init, name = name)
+
+        if tune == False and not add_empty:
             if hps_init is None:
                 raise NameError(
                     "hps_init is not defined! When tune=False, hps_init must be defined"
                 )
 
-        if not np.any(y_l):
+        if not np.any(y_l) and not add_empty:
             if append:
                 self.sample_new(self.number_of_levels, X_l)
                 y_l = self.Z_mf[self.number_of_levels]
             else:
                 y_l, _ = self.solver.solve(X_l, self.L[self.number_of_levels])
 
-        if train:
-            ok.train(X_l, y_l, tune, R_diagonal)
+        if train and not add_empty:
+            ok.train(X_l, y_l, tune, False, R_diagonal)
         
         if append:
             self.K_mf.append(ok)
@@ -107,20 +109,33 @@ class MultiFidelityKriging():
 
         # total cost per level
         try:
-            self.costs_tot[l] += cost
+            self.costs_per_level[l] += cost
         except:
-            self.costs_tot[l] = cost
-            self.costs_exp[l] = cost
+            self.costs_per_level[l] = cost
+            self.costs_expected[l] = cost
 
         # expected cost per sample at a level
-        self.costs_exp[l] = self.costs_tot[l] / self.X_mf[l].shape[0]
+        self.costs_expected[l] = self.costs_per_level[l] / self.X_mf[l].shape[0]
+        self.costs_total = sum(self.costs_per_level.values())
 
-        # print current total costs (all levels)
-        if l == self.max_nr_levels - 1:
-            print("Current cost: {} ; {} hifi samples".format(sum(self.costs_tot.values()),self.X_mf[-1].shape[0]))
-        else:
-            print("Current cost: {}".format(sum(self.costs_tot.values())))
+    def print_stats(self,RMSE):
+        """Print insightfull stats. Best called after adding a high-fidelity sample."""
+        table = BeautifulTable()
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("Total costs: {}".format(self.costs_total))
+        row0 = [self.X_mf[l].shape[0] for l in range(self.number_of_levels)]
+        row1 = [self.costs_per_level[l] for l in range(self.number_of_levels)]
+        row2 = [self.costs_expected[l] for l in range(self.number_of_levels)]
 
+        table.rows.append(row0)
+        table.rows.append(row1)
+        table.rows.append(row2)
+        table.rows.append(RMSE)
+        table.rows.header = ["Number of samples","Costs","Expected costs","RMSE wrt kriged truth"]
+        table.columns.header = ["Level {}".format(l) for l in range(self.number_of_levels)]
+        table.set_style(BeautifulTable.STYLE_MARKDOWN) # type: ignore
+        print(table)
+            
     
     def sample(self, l, X_new):
         """
@@ -130,18 +145,8 @@ class MultiFidelityKriging():
         """
 
         # check per sample if not already sampled at this level
-
-        # NOTE looping way
-        # TODO for loop, parallel sampling.
-        #      in EVA this is done separately, might be better to put it here!
-        # inds = []
-        # for i, x_new in enumerate(X_new):
-        #     # has x not already been sampled before?
-        #     if ~np.any(np.all(x_new == self.X_mf[l], axis=1)):
-        #         inds.append(i)
-
         # NOTE broadcasting way
-        inds = ~(X_new == self.X_unique[:, None]).all(axis=-1).any(axis=0)
+        inds = ~(X_new == self.X_mf[l][:, None]).all(axis=-1).any(axis=0)
         
         if np.any(inds):
             Z_new, cost = self.solver.solve(X_new[inds], self.L[l])
@@ -177,16 +182,20 @@ class MultiFidelityKriging():
 
         self.sample(l, X_new)
 
-        if l == self.max_nr_levels:
+        if l == self.max_nr_levels - 1:
             for i in range(l):
                 self.sample(i, X_new)
                 sampled_levels.append(i)
+
+            # NOTE hase to be after sampling underlying levels, for the correlation checks
+            self.sample_truth(X_new) 
         
         # retrain the sampled levels with the newly added sample.
         # NOTE this is proposed method specific actually (where we dont want to train the top level perse)
         for i in sampled_levels:
             if i != self.max_nr_levels - 1:
-                self.K_mf[i].train(self.X_mf[i], self.Z_mf[i])
+                self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = True)
+
 
 
     def sample_initial_hifi(self, setup):
@@ -206,66 +215,68 @@ class MultiFidelityKriging():
         self.sample_nested(l, X_hifi)
 
 
-    def sample_truth(self, X = None, use_known_X : bool = True):
+    def sample_truth(self, X = None):
         """
         Sample the hifi truth on X_unique or X and compare it with our prediction.
         @param X: optional X to provide, otherwise the current self.X_unique will be used. 
             X does not have to be a subset of X_unique.
-        @param use_known_X: reuse the X where the truth has been sampled if possible, 
-            such that there is no additional sampling required.
         """
-        
-        if X is None:
-            if not hasattr(self,'X_truth'):
-                self.X_truth = self.X_unique
-            X = self.X_truth
-        else:
+
+        if not hasattr(self,'X_truth'):
+            self.X_truth = self.X_unique
+            
+        if X is not None:
             # X does not have to be in X_unique for testing purposes
             # So, create an unique X_truth tracking where the high fidelity has been sampled.
             self.X_truth = self.return_updated_unique(self.X_truth, X)
 
 
-        # sample or retrieve the 'truth'
-        self.Z_truth = self.solver.solve(X,self.L[-1])[0]
+        # sample or re-retrieve the 'truth'
+        self.Z_truth = self.solver.solve(self.X_truth,self.L[-1])[0]
         
         # check correlations and RMSE levels
-        RMSE_norm_MF(X, self.Z_truth, self.K_mf)
+        RMSE = RMSE_norm_MF(self.X_truth, self.Z_truth, self.K_mf)
+        self.print_stats(RMSE)
         check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
-
-
-
-    def set_state(self, setup):
-        """
-        Sets a (saved) state of the data of the MF Kriging model
-        """
-        if hasattr(setup, "X_mf"):
-            self.X_mf = setup.X_mf
-
-            if hasattr(setup, "Z_mf"):
-                self.X_mf = setup.Z_mf
-                self.costs_tot = setup.costs_tot
-                self.costs_exp = setup.costs.exp
-
-            # TODO save whole state, including tuned hyperparameters etc.
-            # just pickle the whole object?
-
 
 
     def get_state(self):
         """
-        Gets the current state of the data of the MF Kriging model
+        Gets the current state of the data of the MF Kriging model.
+        all keys available: ['kernel', 'd', 'solver', 'max_cost', 'number_of_levels', 'max_nr_levels', 'l_hifi', 'pc', 'K_mf', 'X_mf', 'X_unique', 'Z_mf', 'costs_tot', 'costs_exp', 'L', 'Z_pred', 'mse_pred', 'X_truth', 'Z_truth']
+        keys to avoid: kernel, K_mf (moet per Kriging object weer worden ge-init)
         """
         state = {}
+        # MFK: dict_keys(['kernel', 'd', 'solver', 'max_cost', 'number_of_levels', 'max_nr_levels', 'l_hifi', 'pc', 'K_mf', 'X_mf', 'X_unique', 'Z_mf', 'costs_tot', 'costs_exp', 'L', 'Z_pred', 'mse_pred', 'X_truth', 'Z_truth'])
         
-        if hasattr(self, "X_mf"):
-            state["X_mf"] = self.X_mf
+        K_mf_list = []
+        for K in self.K_mf:
+            K_mf_list.append(K.get_state())
 
-            if hasattr(self, "Z_mf"):
-                state["Z_mf"] = self.Z_mf
-                state["costs_tot"] = self.costs_tot
-                state["costs_exp"] = self.costs_exp
-
+        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver'})}
+        state['K_mf_list'] = K_mf_list
         return state
+
+
+    def set_state(self, data_dict):
+        """
+        Sets a (saved) state of the data of the MF Kriging model
+        
+        Of each model in K_mf we need to retrieve the dictionary too, init them, then set the dictionary. 
+        'kernel' is a (numba) function so cant be get or set and needs to be re-initialised -> init the classes like normal, then assign data
+        idem for 'solver'
+        """
+
+        # NOTE not set explicilty like in OK, quite long list
+        for key in data_dict:
+            if key not in ['K_mf_list','number_of_levels']:
+                setattr(self, key, data_dict[key])
+            
+
+        for l in range(data_dict['number_of_levels']):
+            k = self.create_level([],add_empty=True)
+            k.set_state(data_dict['K_mf_list'][l])
+
 
     def set_unique(self):
         """
@@ -313,7 +324,10 @@ class ProposedMultiFidelityKriging(MultiFidelityKriging):
         self.Z_pred = np.array([])
         self.mse_pred = np.array([])
 
-class MultiFidelityEGO():
+class EfficientGlobalOptimization(object):
+    pass
+
+class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, EfficientGlobalOptimization):
     # initial EI
     ei = 1
     ei_criterion = 2 * np.finfo(np.float32).eps
