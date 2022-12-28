@@ -1,3 +1,4 @@
+# pyright: reportGeneralTypeIssues=false,
 import numpy as np
 from beautifultable import BeautifulTable
 
@@ -185,7 +186,7 @@ class MultiFidelityKriging():
         for i in range(l):
             self.sample(i, X_new)
             sampled_levels.append(i)
-            
+
         if l == self.max_nr_levels - 1:
             # NOTE hase to be after sampling underlying levels, for the correlation checks
             self.sample_truth(X_new) 
