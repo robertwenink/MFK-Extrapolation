@@ -22,7 +22,7 @@ from utils.linearity_utils import check_linearity
 
 
 # inits based on input settings
-setup = Input(0)
+setup = Input(2)
 
 solver = get_solver(setup)
 kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
@@ -69,9 +69,6 @@ else:
 
     mf_model.sample_truth()
 
-# # if not check_linearity(mf_model, pp):
-# #     print("Not linear enough, but continueing for now.")
-
 setup.create_input_file(mf_model)
 
 # draw the result
@@ -80,6 +77,11 @@ pp.draw_current_levels(mf_model)
 
 plt.draw()
 plt.pause(1)
+
+if not check_linearity(mf_model, pp):
+    print("Linearity check: NOT LINEAR enough, but continueing for now.")
+else:
+    print("Linearity check: LINEAR enough!!")
 
 # TODO MF EGO gedeelte naar de bijbehorend klasse porten
 # oftewel alles hieronder moet naar ten eerste een EGO class; die samen met MFKriging of proposedMFKriging parent is voor MF-EGO
@@ -135,23 +137,6 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost:
     pp.draw_current_levels(mf_model)
     plt.pause(1)
 
-
-
-#####################################
-# Postprocessing
-#####################################
-
-
-
-# if setup.SAVE_DATA:
-#     setup.X = X
-#     setup.Z = Z
-#     setup.create_input_file()
-# mf_model.get_state()
-
-
-# # check_correlations(Z[0], Z[1], Z[2])
-# RMSE_norm(Z_hifi_full, K_mf[-1].predict(X0))
 
 print("Simulation finished")
 show = True

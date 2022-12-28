@@ -58,17 +58,17 @@ class Input:
         or opening GUI in which said file will be created (2).
         """
         if option == 0:
-            # try:
-            print("Trying to read previously defined file")
-            f = open(os.path.join(INPUTS_DIR, "previous_inputfile.txt"), "r+")
-            self.filename = f.readline()
-            f.close()
-            self.read_input()
-            # except:
-            #     option = 1
-            #     print(
-            #         "No previously specified file (correctly) defined, falling back to opening file"
-            #     )
+            try:
+                print("Trying to read previously defined file")
+                f = open(os.path.join(INPUTS_DIR, "previous_inputfile.txt"), "r+")
+                self.filename = f.readline()
+                f.close()
+                self.read_input()
+            except:
+                option = 1
+                print(
+                    "No previously specified file (correctly) defined, falling back to opening file"
+                )
         if option == 1:
             self.open_file_prompt()
         if option == 2:

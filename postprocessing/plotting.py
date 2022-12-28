@@ -343,7 +343,7 @@ class Plotting:
                 ax.axin.y_zoom_centre = y_zoom_centres[i]
 
 
-    def plot_predicted_points(self, ax, l, X, Z, X_plot_est, Z_plot_est, best):
+    def plot_predicted_points(self, ax, l, X_s, Z_s, X_plot_est, Z_plot_est, best, label = ""):
         """
         Plot the predicted points and the best sampled point.
         """
@@ -352,7 +352,7 @@ class Plotting:
         color_best = 'black'
         ax.colors.append(color_predicted)
         ax.colors.append(color_best)
-        label_predicted = "Predicted points level {}".format(l)
+        label_predicted = label if label != "" else "Predicted points level {}".format(l)
         marker_predicted = "+"
 
         # 3D scatter plot
@@ -369,7 +369,7 @@ class Plotting:
             )
 
             # plot best point
-            ax.scatter(*X[l][best, self.d_plot].T, Z[-1][best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+            ax.scatter(*X_s[best, self.d_plot].T, Z_s[best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
 
         else: # the 2D scatter plot
             # plot predicted points
@@ -383,9 +383,9 @@ class Plotting:
             )
 
             # plot best point
-            ax.scatter(*X[l][best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+            ax.scatter(*X_s[best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
 
-    def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_alt = None):
+    def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_extra = None):
         """
 
         TODO for plotting: 
@@ -404,9 +404,6 @@ class Plotting:
         K_mf = mf_model.K_mf
         L = mf_model.L
         self.l_hifi = mf_model.l_hifi
-
-        if K_mf_alt != None:
-            K_mf = K_mf_alt
 
         # reset axes for live plotting purposes
         # TODO ax clear fokt op inset axes!! ax.axin bestaat niet meer dan nml
@@ -436,33 +433,45 @@ class Plotting:
         " plot prediction kriging "
         if has_prediction:
             l = self.l_hifi
-
-            # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-            # includes sample points, but not the predicted points!
-            self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
             
-            # set up to plot our prediction`s` estimated part of points seperately in black
-            X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
-            Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
+            if K_mf_extra == None: # very crowded otherwise!
+                # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
+                # includes sample points, but not the predicted points!
+                self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
+                
+                # set up to plot our prediction`s` estimated part of points seperately in black
+                X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
+                Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
 
-            # set up to plot best out of all the *sampled* hifi locations
-            # NOTE not per definition the best location of all previous levels too
-            best = np.argmin(Z[l])
+                # set up to plot best out of all the *sampled* hifi locations
+                # NOTE not per definition the best location of all previous levels too
+                best = np.argmin(Z[l])
 
-            # plot the methods prediction points
-            for ax in self.axes:
-                self.plot_predicted_points(ax, l, X, Z, X_plot_est, Z_plot_est, best)
-                if hasattr(ax,"axin"):
-                    self.plot_predicted_points(ax.axin, l, X, Z, X_plot_est, Z_plot_est, best)
+                # plot the methods prediction points
+                for ax in self.axes:
+                    self.plot_predicted_points(ax, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
+                    if hasattr(ax,"axin"):
+                        self.plot_predicted_points(ax.axin, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
+            else:
+                self.plot(K_mf[l], l, label="Predicted level {}".format(l))
 
         " plot 'full' Kriging level in case of linearity check"
-        if len(K_mf)>3:
-            self.plot(X[-1], Z[-1], K_mf[-1], label="Full Kriging (linearity check)")
+        # Is per definition a prediction!
+        if K_mf_extra != None:
+            l = mf_model.number_of_levels + 1
+            self.plot(K_mf_extra, l, K_mf_extra.X_s, K_mf_extra.Z_s, label=K_mf_extra.name)
+
+            X_plot_est = mf_model.return_unique_exc(X_exclude=K_mf_extra.X_s)
+            Z_plot_est = K_mf_extra.predict(self.transform_X(X_plot_est))[0]
+            best = np.argmin(K_mf_extra.Z_s)
+            for ax in self.axes:
+                self.plot_predicted_points(ax, l, K_mf_extra.X_s, K_mf_extra.Z_s, X_plot_est, Z_plot_est, best, label="Predicted points of\n"+K_mf_extra.name)
 
         if hasattr(mf_model, "K_truth"):
             self.plot_kriged_truth(mf_model)
 
         self.set_axis_props(mf_model)
+
 
     ###########################################################################
     ## Formatting                                                           ###
@@ -590,6 +599,5 @@ class Plotting:
                 # set the connecting lines and boxes
                 ax.indicate_inset_zoom(ax.axin)#, edgecolor="black")
 
-
-        plt.tight_layout()
         plt.draw()
+        plt.tight_layout()

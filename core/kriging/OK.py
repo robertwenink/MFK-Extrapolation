@@ -19,6 +19,8 @@ class OrdinaryKriging:
     def __init__(self, kernel, d, hps_init=None, name = "", *args, **kwarg):
         super().__init__(*args, **kwarg)
 
+        # TODO y naar z veranderen? -> in dat geval ook bij plotting voor linearity check veranderen.
+
         self.corr, self.hps, self.hps_constraints = kernel
         self.d = d
         self.name = name

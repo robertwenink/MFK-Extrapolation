@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+
 from core.proposed_method import *
 from core.kriging.mf_kriging import ProposedMultiFidelityKriging
 from postprocessing.plotting import Plotting
@@ -37,10 +39,11 @@ def overlap_amount(s1, e1, s2, e2):
 def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
     """
     There should already be a high-fidelity / truth Kriging model as part of mf_model.
+    # TODO zonder noise is de (geplotte) oplossing toch anders, hoe kan dat? Zou nml perfect moeten zij.
     """
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
-    print("### Checking linearity")
+    print("Checking linearity ...",end='\r')
     assert mf_model.Z_mf[-1].shape[0] >= 2, "\nMinimum of 2 samples at highest level required"
     
 
@@ -52,7 +55,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
     start_full = mf_model.Z_pred - 5 * mf_model.mse_pred
     end_full = mf_model.Z_pred + 5 * mf_model.mse_pred
 
-    # TODO extremely ugly
+    # TODO extremely ugly ( but correct )
     inds = [
         i
         for sublist in [np.where(mf_model.X_mf[-1] == item)[0].tolist() for item in mf_model.X_unique]
@@ -61,7 +64,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
 
     linear = True
     nr_samples = mf_model.Z_mf[-1].shape[0]
-    pp.draw_current_levels(mf_model)
+    
     for i_exclude in range(nr_samples):
         i_include = np.delete(inds, i_exclude)
         X_s = np.delete(mf_model.X_mf[-1], i_exclude, 0)
@@ -77,8 +80,10 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        K_mf_partial = mf_model.create_level(mf_model.X_unique, Z_pred_partial, tune = True, append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
+        K_mf_partial = mf_model.create_level(mf_model.X_unique, Z_pred_partial, tune = True, name = "Linearity Check {}".format(i_exclude), append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
         K_mf_partial.reinterpolate()
+        K_mf_partial.X_s = X_s
+        K_mf_partial.Z_s = Z_s
 
         # 0.5 corresponds with a fraction representing one side of the 100% confidence interval
         # i_include are sampeled points, so we exclude them ...
@@ -100,6 +105,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         # draw the result
         # TODO een optie opnemen om een extra level weer te geven zoals de truth.
         # K_mf_alt = [*Z_k, Z_k_partial, Z_k_full] # zonder *Z_k wss
-        pp.draw_current_levels(mf_model)
+        pp.draw_current_levels(mf_model, K_mf_extra=K_mf_partial)
+        plt.pause(1)
 
     return linear
