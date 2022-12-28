@@ -31,9 +31,6 @@ mf_model = ProposedMultiFidelityKriging(kernel, setup.d, solver, max_cost = 1500
 doe = get_doe(setup)
 pp = Plotting(setup)
 
-# list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-# mf_model.set_L([1, 3, 4])
-
 ###############################
 # main
 ###############################
@@ -45,6 +42,9 @@ if hasattr(setup,'model') and reuse_values:
     mf_model.set_state(setup.model)
 else:
     X_l = doe(setup, n_per_d = 10)
+    
+    # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
+    mf_model.set_L([1, 3, 4])
     
     # create Krigings of levels, same initial hps
     if setup.d == 2:
@@ -67,10 +67,11 @@ else:
     K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
     K_mf_new.reinterpolate()
 
+    mf_model.sample_truth()
+
 # # if not check_linearity(mf_model, pp):
 # #     print("Not linear enough, but continueing for now.")
 
-mf_model.sample_truth()
 setup.create_input_file(mf_model)
 
 # draw the result
@@ -79,8 +80,6 @@ pp.draw_current_levels(mf_model)
 
 plt.draw()
 plt.pause(1)
-plt.show()
-sys.exit()
 
 # TODO MF EGO gedeelte naar de bijbehorend klasse porten
 # oftewel alles hieronder moet naar ten eerste een EGO class; die samen met MFKriging of proposedMFKriging parent is voor MF-EGO
@@ -89,10 +88,10 @@ ei_criterion = 2 * np.finfo(np.float32).eps
 " sample from the predicted distribution in EGO fashion"
 while np.sum(mf_model.costs_total) < mf_model.max_cost:
     # select points to asses expected improvement
-    X_infill = pp.X_pred  # TODO does not work for d>2
+    X_infill = pp.X_pred  # TODO does not work for d>2 omdat X-pred de median neemt voor alle waardes in d not in dplot
 
     # predict and calculate Expected Improvement
-    y_pred, sigma_pred = K_mf_new.predict(X_infill)
+    y_pred, sigma_pred = mf_model.K_mf[-1].predict(X_infill) 
     y_min = np.min(mf_model.Z_mf[-1])
     ei = np.zeros(X_infill.shape[0])
     for i in range(len(y_pred)):
@@ -126,10 +125,10 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost:
     # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
     # NOTE for top-level we require re-interpolation if we apply noise
 
-    K_mf_new.train(
-        mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / K_mf_new.sigma_hat
+    mf_model.K_mf[-1].train(
+        mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
     )
-    K_mf_new.reinterpolate()
+    mf_model.K_mf[-1].reinterpolate()
 
     # " output "
     X_unique_exc = mf_model.return_unique_exc(mf_model.X_mf[mf_model.l_hifi])

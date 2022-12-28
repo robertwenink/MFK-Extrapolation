@@ -29,16 +29,16 @@ class Plotting:
         self.d = setup.d
         self.plot_contour = setup.plot_contour
 
-        # create self.X_plot, and X_pred
+        # plotting options and settings
         self.axes = []
         self.colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         self.markers = ["^", "o", "p", "8"] # "^", "o", ">", "s", "<", "8", "v", "p"
         self.s_standard = plt.rcParams['lines.markersize'] ** 2
         self.truth_s_increase = 40
         self.std_mult = 5 # 5 is 100% confidence interval
-
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
         
+        # create self.X_plot, and X_pred
         self.lb = setup.search_space[1]
         self.ub = setup.search_space[2]
         self.create_plotting_grid()
@@ -310,21 +310,12 @@ class Plotting:
                     self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
 
 
-    def plot_kriged_truth(self, mf_model : MultiFidelityKriging, tune : bool = True):
+    def plot_kriged_truth(self, mf_model : MultiFidelityKriging):
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
-        #TODO Dit wordt niet meegenomen in de save in input!!
-        #TODO
-        tune = False
-        if not hasattr(self,'K_truth'):
-            print("Creating Kriging model of truth", end = '\r')
-            self.K_truth = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = tune, append = False, name = "Truth")
-        else:
-            print("Updating Kriging model of truth", end = '\r')
-            self.K_truth.train(mf_model.X_truth, mf_model.Z_truth, tune = True, retuning = True)
 
-        self.plot(self.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
+        self.plot(mf_model.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
 
     def set_zoom_inset(self, axes_nrs, inset_rel_limits = [[]], xlim = [[]], y_zoom_centres = []):
         """
@@ -468,8 +459,8 @@ class Plotting:
         if len(K_mf)>3:
             self.plot(X[-1], Z[-1], K_mf[-1], label="Full Kriging (linearity check)")
 
-        if hasattr(mf_model, "X_truth"):
-            self.plot_kriged_truth(mf_model, tune = True)
+        if hasattr(mf_model, "K_truth"):
+            self.plot_kriged_truth(mf_model)
 
         self.set_axis_props(mf_model)
 

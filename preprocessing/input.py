@@ -29,18 +29,22 @@ class Encoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
-
 def convert_dict_to_array(d):
-    # Base case: if value is a numerical list, convert to NumPy array
-    if isinstance(d, list) and all(isinstance(i, (int, float, np.ndarray)) for i in d):
-        return np.array(d)
-
-    # Recursive case: if value is a dictionary or nested list, convert each value to a NumPy array
-    if isinstance(d, (dict, list)):
-        if isinstance(d, dict):
-            return {int(key) if key.isdigit() else key: convert_dict_to_array(value) for key, value in d.items()}
+    # Base case: if value is a numerical list (of lists), convert to NumPy array
+    if isinstance(d, list):
+        # in case of list of lists of numerical
+        if (all(isinstance(i, list) and all(isinstance(j, (int, float)) for j in i) for i in d) and len({len(i) for i in d}) == 1):
+            return np.array(d)
+        # in case of list of numerical
+        elif all(isinstance(i, (int, float)) for i in d):
+            return np.array(d)
+        # then a list (of lists) but not fully numerical
         else:
             return [convert_dict_to_array(value) for value in d]
+    
+    # Recursive case: if value is a dictionary go level deeper
+    if isinstance(d, dict):
+        return {int(key) if key.isdigit() else key: convert_dict_to_array(value) for key, value in d.items()}
 
     # Return value as is if it is not a numerical list or dictionary
     return d
@@ -54,17 +58,17 @@ class Input:
         or opening GUI in which said file will be created (2).
         """
         if option == 0:
-            try:
-                print("Trying to read previously defined file")
-                f = open(os.path.join(INPUTS_DIR, "previous_inputfile.txt"), "r+")
-                self.filename = f.readline()
-                f.close()
-                self.read_input()
-            except:
-                option = 1
-                print(
-                    "No previously specified file (correctly) defined, falling back to opening file"
-                )
+            # try:
+            print("Trying to read previously defined file")
+            f = open(os.path.join(INPUTS_DIR, "previous_inputfile.txt"), "r+")
+            self.filename = f.readline()
+            f.close()
+            self.read_input()
+            # except:
+            #     option = 1
+            #     print(
+            #         "No previously specified file (correctly) defined, falling back to opening file"
+            #     )
         if option == 1:
             self.open_file_prompt()
         if option == 2:
@@ -107,7 +111,7 @@ class Input:
         for key in data_dict:
             if not key == "filename":
                 # if exists: sets attribute 'model' too, containing the state dict of the model.
-                setattr(self, key, data_dict[key])
+                setattr(self, str(key), data_dict[key])
         
         print("Reading successful")
         self.write_previous_filename()

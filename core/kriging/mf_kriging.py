@@ -37,7 +37,7 @@ class MultiFidelityKriging():
         self.K_mf = []
 
         # multifidelity X and Z, each entry and np.ndarray
-        self.X_mf = [] # TODO miss ook dict maken!
+        self.X_mf = [] # NOTE gaat bij input readen ervanuit dat de lijsten van verschillende lengtes zijn (wat eigenlijk altijd zo is)!
         self.X_unique = np.array([])
         self.Z_mf = []
         
@@ -182,11 +182,11 @@ class MultiFidelityKriging():
 
         self.sample(l, X_new)
 
+        for i in range(l):
+            self.sample(i, X_new)
+            sampled_levels.append(i)
+            
         if l == self.max_nr_levels - 1:
-            for i in range(l):
-                self.sample(i, X_new)
-                sampled_levels.append(i)
-
             # NOTE hase to be after sampling underlying levels, for the correlation checks
             self.sample_truth(X_new) 
         
@@ -239,6 +239,13 @@ class MultiFidelityKriging():
         self.print_stats(RMSE)
         check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
 
+        if not hasattr(self,'K_truth'):
+            print("Creating Kriging model of truth", end = '\r')
+            self.K_truth = self.create_level(self.X_truth, self.Z_truth, tune = True, append = False, name = "Truth")
+        else:
+            print("Updating Kriging model of truth", end = '\r')
+            self.K_truth.train(self.X_truth, self.Z_truth, tune = True, retuning = True)
+
 
     def get_state(self):
         """
@@ -253,8 +260,13 @@ class MultiFidelityKriging():
         for K in self.K_mf:
             K_mf_list.append(K.get_state())
 
-        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver'})}
+        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver','K_truth'})}
+
+        if hasattr(self,'K_truth'):
+            state['K_truth'] = self.K_truth.get_state()
+
         state['K_mf_list'] = K_mf_list
+
         return state
 
 
@@ -270,8 +282,9 @@ class MultiFidelityKriging():
         # NOTE not set explicilty like in OK, quite long list
         for key in data_dict:
             if key not in ['K_mf_list','number_of_levels']:
-                if 'X_' in key:
-                    setattr(self, key, correct_formatX(data_dict[key],self.d))
+                if 'K_truth' in key:
+                    self.K_truth = self.create_level([],append = False, add_empty=True, name = data_dict['K_truth']['name']) 
+                    self.K_truth.set_state(data_dict['K_truth'])
                 else:
                     setattr(self, key, data_dict[key])
 
@@ -279,6 +292,7 @@ class MultiFidelityKriging():
         for l in range(data_dict['number_of_levels']):
             k = self.create_level([],add_empty=True)
             k.set_state(data_dict['K_mf_list'][l])
+
 
 
     def set_unique(self):
@@ -319,7 +333,12 @@ class MultiFidelityKriging():
         
 
 class ProposedMultiFidelityKriging(MultiFidelityKriging):
-
+    """
+    TODO eigenlijk zou 'MultiFidelityKriging' de implementatie van LaGratiet moeten zijn!
+     ik moet dus in 'MultiFidelityKriging' de implemenatie van SMT importeren en zorgen dat dezelfde data interface bestaat.
+     dan is dus de integratie van LaGratiet in mijn proposed method ook straightforward omdat K1 dan al LaGratiet MF-Kriging is!!
+     wel interesant te bedenken: werkt voor de proposed method onafhankelijke noise estimates beter?
+    """
     def __init__(self, *args, **kwarg):
         super().__init__(*args, **kwarg)
 
@@ -328,9 +347,17 @@ class ProposedMultiFidelityKriging(MultiFidelityKriging):
         self.mse_pred = np.array([])
 
 class EfficientGlobalOptimization(object):
-    pass
+    """This class performs the EGO algorithm on a given layer"""
+
+    def __init__(self, *args, **kwarg):
+        super().__init__(*args, **kwarg)
+
+        # initial EI
+        self.ei = 1
+        self.ei_criterion = 2 * np.finfo(np.float32).eps
 
 class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, EfficientGlobalOptimization):
-    # initial EI
-    ei = 1
-    ei_criterion = 2 * np.finfo(np.float32).eps
+    
+    def __init__(self, *args, **kwarg):
+        super().__init__(*args, **kwarg)
+        pass
