@@ -6,7 +6,7 @@ from core.sampling.DoE import LHS_subset
 from utils.formatting_utils import correct_formatX
 from utils.error_utils import RMSE_norm_MF
 from utils.correlation_utils import check_correlations
-
+from utils.formatting_utils import correct_formatX
 
 class MultiFidelityKriging():
 
@@ -270,9 +270,12 @@ class MultiFidelityKriging():
         # NOTE not set explicilty like in OK, quite long list
         for key in data_dict:
             if key not in ['K_mf_list','number_of_levels']:
-                setattr(self, key, data_dict[key])
-            
+                if 'X_' in key:
+                    setattr(self, key, correct_formatX(data_dict[key],self.d))
+                else:
+                    setattr(self, key, data_dict[key])
 
+        # init the new levels
         for l in range(data_dict['number_of_levels']):
             k = self.create_level([],add_empty=True)
             k.set_state(data_dict['K_mf_list'][l])

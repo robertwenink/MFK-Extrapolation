@@ -1,6 +1,13 @@
 import numpy as np
 from numba import njit
 
+def is_list_of_list_of_arrays(input_list):
+    # Check if input is a list
+    if not isinstance(input_list, list):
+        return False
+
+    # Check if each element in the list is a list of NumPy arrays
+    return all(all(isinstance(i, np.ndarray) for i in element) for element in input_list)
 
 def correct_formatX(a,dim):
     """
@@ -15,6 +22,14 @@ def correct_formatX(a,dim):
     1d X: [..,..,..]    -> np.array([a]).T  (make 2d, align amount of samples with first dimension, return)
     if 2d but list      -> np.array(a)
     """
+
+    if isinstance(a,(str,dict,int,float)):
+        # then what are you doing here
+        return a
+
+    # for X_mf
+    if is_list_of_list_of_arrays(a):
+        return [np.array(i) for i in a]
 
     if not isinstance(a, np.ndarray):
         a = np.array(a)

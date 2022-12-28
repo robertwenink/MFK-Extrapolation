@@ -18,26 +18,34 @@ from PyQt5 import QtCore as qtc
 
 INPUTS_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 
-def convert_np_to_list(obj):
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
+class Encoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 
 def convert_dict_to_array(d):
     # Base case: if value is a numerical list, convert to NumPy array
-    if isinstance(d, list) and all(isinstance(i, (int, float)) for i in d):
+    if isinstance(d, list) and all(isinstance(i, (int, float, np.ndarray)) for i in d):
         return np.array(d)
 
     # Recursive case: if value is a dictionary or nested list, convert each value to a NumPy array
     if isinstance(d, (dict, list)):
         if isinstance(d, dict):
-            return {key: convert_dict_to_array(value) for key, value in d.items()}
+            return {int(key) if key.isdigit() else key: convert_dict_to_array(value) for key, value in d.items()}
         else:
             return [convert_dict_to_array(value) for value in d]
 
     # Return value as is if it is not a numerical list or dictionary
     return d
-        
+
+
 class Input:
     def __init__(self, option=0):
         """
@@ -118,7 +126,7 @@ class Input:
 
         # dumping
         json.dump(
-           d, open(os.path.join(INPUTS_DIR, self.filename), "w"), default = convert_np_to_list, indent=4
+           d, open(os.path.join(INPUTS_DIR, self.filename), "w"), cls = Encoder, indent=4
         )
         self.write_previous_filename()
 

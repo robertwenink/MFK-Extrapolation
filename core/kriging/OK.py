@@ -164,7 +164,7 @@ class OrdinaryKriging:
 
         # such that we do not have to save:
         # r, diff_matrix, R_in, mu_hat, sigma_hat
-        self.train(self.X,self.Y,False,False,self.R_diagonal)
+        self.train(self.X,self.y,False,False,self.R_diagonal)
 
 
 @njit(cache=True)

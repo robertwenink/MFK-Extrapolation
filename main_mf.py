@@ -39,10 +39,10 @@ pp = Plotting(setup)
 ###############################
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = False
+reuse_values = True
 tune = True
-if reuse_values:
-    mf_model.set_state(setup)
+if hasattr(setup,'model') and reuse_values:
+    mf_model.set_state(setup.model)
 else:
     X_l = doe(setup, n_per_d = 10)
     
@@ -62,26 +62,25 @@ else:
     " level 2 / hifi initialisation "
     mf_model.sample_initial_hifi(setup)
 
-" initial prediction "
-Z_pred, mse_pred = weighted_prediction(mf_model)
-K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
-K_mf_new.reinterpolate()
+    " initial prediction "
+    Z_pred, mse_pred = weighted_prediction(mf_model)
+    K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
+    K_mf_new.reinterpolate()
 
-# if not check_linearity(mf_model, pp):
-#     print("Not linear enough, but continueing for now.")
+# # if not check_linearity(mf_model, pp):
+# #     print("Not linear enough, but continueing for now.")
 
 mf_model.sample_truth()
 setup.create_input_file(mf_model)
-sys.exit()
 
 # draw the result
-X_unique_exc = mf_model.return_unique_exc(mf_model.X_mf[mf_model.l_hifi])
 pp.set_zoom_inset([0], xlim  = [[0.7,0.82]], y_zoom_centres = [-8]) # not set: inset_rel_limits = [[]], 
 pp.draw_current_levels(mf_model)
 
 plt.draw()
 plt.pause(1)
-# sys.exit(0) 
+plt.show()
+sys.exit()
 
 # TODO MF EGO gedeelte naar de bijbehorend klasse porten
 # oftewel alles hieronder moet naar ten eerste een EGO class; die samen met MFKriging of proposedMFKriging parent is voor MF-EGO

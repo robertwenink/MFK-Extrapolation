@@ -7,6 +7,7 @@ import matplotlib
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import axes3d
 
+from preprocessing.input import Input
 from core.sampling.solvers.solver import get_solver
 from core.sampling.solvers.internal import TestFunction
 from core.proposed_method import *
@@ -17,13 +18,12 @@ from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityK
 # ['Solarize_Light2', '_classic_test_patch', 'bmh', 'classic', 'dark_background', 'fast', 'fivethirtyeight', 'ggplot', 'grayscale', 'seaborn', 'seaborn-bright', 'seaborn-colorblind', 'seaborn-dark', 'seaborn-dark-palette', 'seaborn-darkgrid', 'seaborn-deep', 'seaborn-muted', 'seaborn-notebook', 'seaborn-paper', 'seaborn-pastel', 'seaborn-poster', 'seaborn-talk', 'seaborn-ticks', 'seaborn-white', 'seaborn-whitegrid', 'tableau-colorblind10']
 # plt.style.use("seaborn")
 
-
 def fix_colors(surf):
     surf._facecolors2d = surf._facecolor3d
     surf._edgecolors2d = surf._edgecolor3d
 
 class Plotting:
-    def __init__(self, setup, inset_kwargs = None):
+    def __init__(self, setup : Input, inset_kwargs = None):
         self.n_per_d = 100
         self.d_plot = setup.d_plot
         self.d = setup.d
@@ -314,6 +314,9 @@ class Plotting:
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
+        #TODO Dit wordt niet meegenomen in de save in input!!
+        #TODO
+        tune = False
         if not hasattr(self,'K_truth'):
             print("Creating Kriging model of truth", end = '\r')
             self.K_truth = mf_model.create_level(mf_model.X_truth, mf_model.Z_truth, tune = tune, append = False, name = "Truth")
