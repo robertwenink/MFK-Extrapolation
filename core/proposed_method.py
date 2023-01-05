@@ -20,18 +20,13 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     @return extrapolated predictions Z2_p, corresponding mse S2_p (squared!)
     """
 
-    K0 = K_mf[-2]
-    K1 = K_mf[-1]
+    K0 = K_mf[0]
+    K1 = K_mf[1]
 
     # get values corresponding to x_b of previous 2 levels
     z0_b, s0_b = K0.predict(x_b)
     z1_b, s1_b = K1.predict(x_b)
     s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)
-
-    # this is only the base noise,actual noise can deviate due to correlations
-    # TODO unused yet
-    S0_noise = K0.sigma_hat * K0.hps[-1]
-    S1_noise = K1.sigma_hat * K1.hps[-1]
 
     # get all other values of previous 2 levels
     Z0, S0 = K0.predict(X_unique)
@@ -121,10 +116,10 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     S2_p[ind] = 0
 
     # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
-    return Z2_p, S2_p ** 2, Sf ** 2
+    return Z2_p, S2_p ** 2, Sf ** 2, Ef
 
 
-def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s = [], assign : bool = True):
+def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
     at the (partly) unknown level.
@@ -142,30 +137,32 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
     """
 
     X_unique, K_mf =  mf_model.X_unique, mf_model.K_mf
+    if X_test.size != 0:
+        X_unique = X_test
 
     if not (np.any(X_s) and np.any(Z_s)):
         X_s, Z_s = mf_model.X_mf[-1],  mf_model.Z_mf[-1]
     
     # In case there is only one sample, nothing to weigh
     if len(Z_s) == 1:
-        Z_pred, mse_pred, _ = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf)
+        Z_pred, mse_pred, _, Ef_weighed = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf)
     else:
         " Collect new results "
         # NOTE if not in X_unique, we could just add a 0 to all previous,
         # might be faster but more edge-cases
-        D, D_mse, D_Sf = [], [], []
+        D, D_mse, D_Sf, D_Ef = [], [], [], []
         for i in range(X_s.shape[0]):
-            Z_p, mse_p, Sf = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
-            D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf)
-        D, D_mse, D_Sf = np.array(D), np.array(D_mse), np.array(D_Sf)
+            Z_p, mse_p, Sf, Ef = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
+            D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf), D_Ef.append(Ef) # type: ignore
+        D, D_mse, D_Sf, D_Ef = np.array(D), np.array(D_mse), np.array(D_Sf), np.array(D_Ef)
 
         " Weighing "
         # 1) distance based: take the (tuned) Kriging correlation function
         # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
         # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
         c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
-    
-        mask = c == 1.0  # then sampled point
+
+        mask = np.isclose(c,1.0)  # then sampled point
         idx = mask.any(axis=0)  # get columns with sampled points
 
         # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
@@ -178,7 +175,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
     
         mult = np.exp(-D_Sf/np.mean(D_Sf))
         c = (c.T * mult).T
-    
+
         " Scale to sum to 1; correct for sampled locations "
         # Contributions coefficients should sum up to 1.
         # Furthermore, sampled locations should be the only contribution for themselves.
@@ -198,9 +195,12 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         c_mse = c_z - mask  # always 0 variance for samples
         mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
+        Ef_weighed = np.dot(D_Ef, c_z)
+
+
     # assign the found values to the mf_model, in order to be easily retrieved.
     if assign:
         mf_model.Z_pred = Z_pred
         mf_model.mse_pred = mse_pred
 
-    return Z_pred, mse_pred
+    return Z_pred, mse_pred, Ef_weighed

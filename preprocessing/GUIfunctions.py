@@ -201,9 +201,6 @@ class GUI(qtw.QWidget, Ui_Form):
 
         gui_data["SAVE_DATA"] = self.saveSampleDataCheckBox.isChecked()
 
-        # livePlotCheckBox
-        gui_data["live_plot"] = self.livePlotCheckBox.isChecked()
-
         # dimensionsToPlotLineEdit
         gui_data["d_plot"] = self.parse_dimensions_to_plot(
             str(self.dimensionsToPlotLineEdit.text()), search_space

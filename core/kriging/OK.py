@@ -42,7 +42,7 @@ class OrdinaryKriging:
         return y_hat, mse_var
 
 
-    def train(self, X, y, tune=False, retuning = True, R_diagonal=0):
+    def train(self, X, y, tune : bool = False, retuning : bool = True, R_diagonal=0):
         """Train the class on matrix X and the corresponding sampled values of array y"""
         self.X = correct_formatX(X, self.d)
         self.y = y
@@ -55,15 +55,20 @@ class OrdinaryKriging:
 
         R = self.corr(self.X, self.X, self.hps)
 
-        # add prediction regression terms
-        np.fill_diagonal(R, np.diag(R) + self.hps[-1])
-        if R_diagonal is not None:
-            np.fill_diagonal(R, np.diag(R) + R_diagonal)
+        # add regularization constant!! 
+        # I prefer this over pseudoinverse pinv because pinv is slower
+        self.regularization = np.finfo(np.float32).eps
 
+        # add prediction regression terms
+        if R_diagonal is not None:
+            np.fill_diagonal(R, np.diag(R) + R_diagonal + self.regularization)
+        else:
+            np.fill_diagonal(R, np.diag(R) + self.hps[-1] + self.regularization)
+        
         n = self.X.shape[0]
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around
-        self.R_in = linalg.inv(R)
+        self.R_in = linalg.pinv(R)
         self.mu_hat = _mu_hat(self.R_in, y)
         self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
         
@@ -97,10 +102,10 @@ class OrdinaryKriging:
 
         if hps.shape[0] == 1:
             # in case of single evaluation.
-            if np.linalg.cond(R) < 1/np.finfo(np.float32).eps:
+            if np.linalg.cond(R) < 1/np.finfo(np.float64).eps:
                 # https://stackoverflow.com/questions/13249108/efficient-pythonic-check-for-singular-matrix
                 # computes many inverses simultaneously = somewhat faster; no njit
-                R_in = np.linalg.inv(R)
+                R_in = np.linalg.pinv(R)
                 return _fitness_func_loop(R_in, self.y, R).item()
             else:
                 return -1e8
@@ -124,6 +129,7 @@ class OrdinaryKriging:
                 hps_constraints=self.hps_constraints,
                 progress_bar=True,
                 convergence_curve=False,
+                retuning = retuning #! set explicitly to False if creating a new OK!
             )
         else:
             self.model.set_retuning(retuning)
@@ -166,7 +172,7 @@ class OrdinaryKriging:
 
         # such that we do not have to save:
         # r, diff_matrix, R_in, mu_hat, sigma_hat
-        self.train(self.X,self.y,False,False,self.R_diagonal)
+        self.train(self.X, self.y, tune = False, retuning = True, R_diagonal = self.R_diagonal)
 
 
 @njit(cache=True)
@@ -204,6 +210,10 @@ def _predictor(R_in, r, y, mu_hat):
 
 @njit(cache=True)
 def _sigma_mu_hat(R_in, y, n):
+    """
+    Convenience function with sigma mu hat calculations in one.
+    log for more numerically stable tuning optimization.
+    """
     t = y - np.sum(R_in * y) / np.sum(R_in)
     return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
 

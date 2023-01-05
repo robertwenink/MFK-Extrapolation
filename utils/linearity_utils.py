@@ -70,7 +70,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         i_include = np.delete(inds, i_exclude)
         X_s = np.delete(mf_model.X_mf[-1], i_exclude, 0)
         Z_s = np.delete(mf_model.Z_mf[-1], i_exclude, 0)
-        Z_pred_partial, mse_pred_partial = weighted_prediction(
+        Z_pred_partial, mse_pred_partial, _ = weighted_prediction(
             mf_model,
             X_s = X_s,
             Z_s = Z_s,

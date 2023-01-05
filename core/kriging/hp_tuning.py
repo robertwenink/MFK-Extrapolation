@@ -25,6 +25,7 @@ class Tuner:
         hps_init,
         hps_constraints,
         progress_bar=True,
+        retuning = False
     ):
 
         """
@@ -44,7 +45,6 @@ class Tuner:
         self.hps_init = hps_init
         self.f = function
         self.progress_bar = progress_bar
-        self.retuning = False
 
         self.report = []
 
@@ -53,6 +53,8 @@ class Tuner:
         self.pop_s = max(min(int(2 ** (1 + 2 * self.dim)), self.pop_max),self.pop_min)
         # print("Population size = {}".format(self.pop_s))
 
+        self.retuning = False
+        self.set_retuning(retuning)
 
     def set_retuning(self,retuning : bool = False):
         """
@@ -212,11 +214,11 @@ class MultistartHillclimb(Tuner):
         function,
         hps_init,
         hps_constraints,
-        convergence_curve=True,  # TODO niet belangrijk hier
+        convergence_curve=True,  # TODO niet belangrijk hier maar erin gelaten om zelfde call te hebben als GA
         progress_bar=True,
         retuning=True,
     ):
-        super().__init__(function, hps_init, hps_constraints)
+        super().__init__(function, hps_init, hps_constraints, progress_bar = progress_bar, retuning = retuning)
         self.pop_s *= 2  # two times as large initial pop as GA based alg.
         self.run()
 

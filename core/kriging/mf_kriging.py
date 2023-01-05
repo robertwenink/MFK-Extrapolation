@@ -45,6 +45,7 @@ class MultiFidelityKriging():
         # cost variables: total cost per level; expected cost per sample per level 
         self.costs_per_level = {}
         self.costs_expected = {}
+        self.costs_expected_nested = {}
         self.costs_total = 0
 
         self.L = np.arange(max_nr_levels) + 1
@@ -73,8 +74,9 @@ class MultiFidelityKriging():
 
         kernel = self.kernel
         if hps_noise_ub and (hps_init is not None):
+            #TODO this is done for the complete MF_KRIGING!!!!
             # noise upperbound should be larger than previous tuned noise!
-            kernel[-1][-1,1] = hps_init[-1] * 2
+            kernel[-1][-1,1] = min(max(hps_init[-1] * 2, kernel[-1][-1,1]),0.5)
 
         name = "Level {}".format(self.number_of_levels) if name == "" else name
 
@@ -94,7 +96,8 @@ class MultiFidelityKriging():
                 y_l, _ = self.solver.solve(X_l, self.L[self.number_of_levels])
 
         if train and not add_empty:
-            ok.train(X_l, y_l, tune, False, R_diagonal)
+            retuning = True if add_empty else False
+            ok.train(X_l, y_l, tune, retuning, R_diagonal)
         
         if append:
             self.K_mf.append(ok)
@@ -114,9 +117,11 @@ class MultiFidelityKriging():
         except:
             self.costs_per_level[l] = cost
             self.costs_expected[l] = cost
+            self.costs_expected_nested[l] = cost
 
         # expected cost per sample at a level
         self.costs_expected[l] = self.costs_per_level[l] / self.X_mf[l].shape[0]
+        self.costs_expected_nested[l] = sum([self.costs_expected[i] for i in range(l+1)])
         self.costs_total = sum(self.costs_per_level.values())
 
     def print_stats(self,RMSE):
@@ -194,7 +199,7 @@ class MultiFidelityKriging():
         # retrain the sampled levels with the newly added sample.
         # NOTE this is proposed method specific actually (where we dont want to train the top level perse)
         for i in sampled_levels:
-            if i != self.max_nr_levels - 1:
+            if i != self.max_nr_levels - 1: # because we first should do the weighing procedure again.
                 self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = True)
 
 
@@ -206,11 +211,11 @@ class MultiFidelityKriging():
         """
 
         # select best sampled (!) point of previous level and sample again there
-        x_b = self.X_mf[-1][np.argmin(self.Z_mf[-1])]
+        x_new = self.X_mf[-1][np.argmin(self.Z_mf[-1])]
         l = self.l_hifi
 
         # select other points for cross validation, in LHS style
-        X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_b, self.pc),setup.d)
+        X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_new, self.pc),setup.d)
 
         self.sample_new(l,X_hifi)
         self.sample_nested(l, X_hifi)
@@ -238,7 +243,10 @@ class MultiFidelityKriging():
         # check correlations and RMSE levels
         RMSE = RMSE_norm_MF(self.X_truth, self.Z_truth, self.K_mf)
         self.print_stats(RMSE)
-        check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
+
+        # TODO select only those indices where the truth is known! This is needed during EGO.
+        if self.Z_mf[0].shape[0] == self.Z_mf[1].shape[0] == self.Z_truth.shape[0]:
+            check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
 
         if not hasattr(self,'K_truth'):
             print("Creating Kriging model of truth", end = '\r')
@@ -362,3 +370,88 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, Effic
     def __init__(self, *args, **kwarg):
         super().__init__(*args, **kwarg)
         pass
+
+    def level_selection(self, x_new, Ef_weighed):
+        # select level l on which we will sample, based on location of ei and largest source of uncertainty there (corrected for expected cost).
+        # source of uncertainty is from each component in proposed method which already includes approximated noise levels.
+        # in practice this means: only for small S1 will we sample S0, otherwise S1. Nested DoE not required.
+        # For convenience: we will now threat the proposed method as a two-level MF (0 & 1) and 2
+        # this especially makes sense since the proposed method operates on the premise that sampling 
+        # an extra level (level 0) is worth it compared to the gains of the prediction!
+
+        # 1) check of de kriging variances gelijk zijn, aka of de predicted variances van de kriging toplevel 
+        # ongeveer overeenkomen met de prediction gebaseerd op lagere levels. Dus punt x_new virtueel aan X_unique voor weighted_prediction toevoegen en vergelijken.
+        # 1) variances van Kriging unknown scheiden
+        # 2) meenemen in de weighing
+        # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
+
+        K0 = self.K_mf[0]
+        K1 = self.K_mf[1]
+        K2 = self.K_mf[2] # prediction!
+
+        # this is an ESTIMATE of the base noise, actual noise can deviate due to correlations and regularization
+        # get the part of the noise that could be reduced by sampling it!
+        s0_red, s0 = _std_reducable(K0, x_new)
+        s1_red, s1 = _std_reducable(K1, x_new)
+        s2_red, s2 = _std_reducable(K2, x_new) # kan op x_new 0 zijn
+        print(s0_red,s1_red,s2_red)
+        
+        # NOTE sigma_red should contain the amount of reduction at the top/prediction level we get by sampling it!
+        # this will be different between mine and meliani`s
+        # s2 = s1 + weighted(Ef) * (s1 - s0) + weighted(Sf) * (z1 - z0)
+        # last term does not provide an expected reduction, so we only require a weighed Ef
+        s1_exp_red = s1_red + Ef_weighed * abs(s1 + s0)
+        sigma_red = [s1_exp_red, s1_exp_red, s2_red]
+        print(sigma_red)
+        maxx = 0
+        ind_max = 0
+        # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.
+        for i in range(1,3):
+            #TODO is dit de goede formule?
+            value = sigma_red[i]**2/self.costs_expected_nested[i]
+            maxx = max(maxx,value)
+            # NOTE gives preference to highest level, which is good:
+            # if no reductions expected anywhere lower, we should sample the highest (our only 'truth')
+            if value == maxx:
+                ind_max = i
+        
+        return ind_max
+
+
+
+def _std_reducable(predictor, x_new):
+    """
+    Finds the part of the mse that is reducable by i.e. sampling.
+    If this number is low, near zero, or negative -> sampling not usefull!
+    Does this by re-calculating mu_hat sigma_hat and mse using a correlation matrix R where only the noise part is added.
+    """
+    y = predictor.y
+    z0_new, s0 = predictor.predict(x_new)
+    s0 = np.sqrt(s0)
+    noise_hp = 1 + predictor.hps[-1]
+
+    if np.isclose(noise_hp, 0.0):
+        return s0, s0
+
+    R = predictor.corr(predictor.X, predictor.X, predictor.hps)    
+    np.fill_diagonal(R, np.ones(predictor.X.shape[0]) + noise_hp + predictor.regularization) # reset to 1s only on diag
+    R_in = np.linalg.pinv(R)
+
+    r = predictor.corr(predictor.X, x_new, predictor.hps)
+
+    """Estimated variance sigma squared of the Gaussian process, according to (Jones 2001)"""
+    t = y - np.sum(np.dot(R_in, y)) / np.sum(R_in) # y - mu_hat
+    sigma_hat = np.dot(t.T, np.dot(R_in, t)) / y.shape[0]
+
+    """Mean squared error of the predictor, according to (Jones 2001)"""
+    # hiervan willen we de mse allen op de diagonaal, i.e. de mse van een punt naar een ander onsampled punt is niet onze interesse.
+    # t0 = 1 - np.diag(np.dot(rtR_in , r)) # to make this faster we only need to calculates the columns/rows corresponding to the diagonals.
+    t = 1 - np.sum(np.multiply(np.dot(r.T,R_in), r.T), axis=-1)
+    mse_noise_only = np.abs(sigma_hat * (t + t ** 2 / np.sum(R_in)))
+
+    mse_reducable = s0 - mse_noise_only
+
+    # return mse_reducable
+    mse_reducable = np.sqrt(max(mse_reducable,0))
+    return float(mse_reducable), s0
+    # return np.sqrt(abs(mse_reducable)) * np.sign(mse_reducable)

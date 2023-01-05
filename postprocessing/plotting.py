@@ -23,7 +23,7 @@ def fix_colors(surf):
     surf._edgecolors2d = surf._edgecolor3d
 
 class Plotting:
-    def __init__(self, setup : Input, inset_kwargs = None):
+    def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0):
         self.n_per_d = 100
         self.d_plot = setup.d_plot
         self.d = setup.d
@@ -33,7 +33,7 @@ class Plotting:
         self.axes = []
         self.colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         self.markers = ["^", "o", "p", "8"] # "^", "o", ">", "s", "<", "8", "v", "p"
-        self.s_standard = plt.rcParams['lines.markersize'] ** 2
+        self.s_standard = plt.rcParams['lines.markersize'] ** 2 # 6 ^ 2 = 36
         self.truth_s_increase = 40
         self.std_mult = 5 # 5 is 100% confidence interval
         self.axis_labels = [setup.search_space[0][i] for i in self.d_plot]
@@ -49,15 +49,13 @@ class Plotting:
         self.try_show_exact = False
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
 
-        if setup.live_plot:
-            if setup.d == 1 or len(setup.d_plot) == 1:
-                self.plot = self.plot_1d
-                self.init_1d_fig()
-            else:
-                self.plot = self.plot_2d
-                self.init_2d_fig()
+        if setup.d == 1 or len(setup.d_plot) == 1:
+            self.plot = self.plot_1d
+            self.init_1d_fig()
         else:
-            self.plot = lambda X, y, predictor, l: None
+            self.plot = self.plot_2d
+            self.init_2d_fig()
+        self.plotting_pause = plotting_pause
 
         # axes_nrs, inset_rel_limits = [[]], xlim = [[]], y_zoom_centres = []
         if inset_kwargs != None:
@@ -95,24 +93,24 @@ class Plotting:
         X_t[:, self.d_plot] = X[:, self.d_plot]
         return X_t
 
-    def get_labels(self, l, label = "", is_truth=False):
+    def get_labels(self, l, label = "", is_truth=False, label_samples = ""):
         """
         Get the used labels.
         """
         
         if is_truth:
             label = label if label != "" else "Kriging level {} (truth)".format(l)
-            label_samples = "Samples Kriged truth"
+            label_samples = label_samples if label_samples != "" else "Samples Kriged truth"
         else:
             label = label if label != "" else "Kriging level {}".format(l)
-            label_samples = "Samples level {}".format(l)
+            label_samples = label_samples if label_samples != "" else "Samples level {}".format(l)
         label_exact = "Exact level {}".format(l)
 
         return label, label_samples, label_exact
 
-    def get_standards(self, l, label, color, marker, is_truth, show_exact):
+    def get_standards(self, l, label, color, marker, is_truth, show_exact, label_samples):
         # Setting the labels used
-        label, label_samples, label_exact = self.get_labels(l,label,is_truth)
+        label, label_samples, label_exact = self.get_labels(l,label,is_truth, label_samples)
 
         if is_truth:
             l += 1
@@ -136,12 +134,12 @@ class Plotting:
     ###########################################################################
 
     def init_1d_fig(self):
-        fig, self.axes = plt.subplots(2, 1, figsize = (11,7.5))
+        fig, self.axes = plt.subplots(2, 1, figsize = (11.5,7.5))
         fig.suptitle("{}".format(self.figure_title))
         for ax in self.axes:
             ax.colors = []
 
-    def plot_1d_ax(self, ax, predictor, l, X_sample = None, y_sample = None, show_exact: bool = True, is_truth : bool = False, label="", color = "", marker = ""):
+    def plot_1d_ax(self, ax, predictor, l, X_sample = None, y_sample = None, show_exact: bool = True, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
         plot 1d function
         """
@@ -152,7 +150,7 @@ class Plotting:
             self.plot_1d_ax(ax.axin,predictor,l,X_sample,y_sample,show_exact,is_truth,color,marker)
 
 
-        l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact)
+        l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact, label_samples)
 
         # retrieve predictions
         y_hat, mse = predictor.predict(self.X_pred)
@@ -177,11 +175,11 @@ class Plotting:
             ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5 ) 
             ax.colors.append(color_exact)
 
-    def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
-        self.plot_1d_ax(self.axes[0],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+    def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
+        self.plot_1d_ax(self.axes[0],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker, label_samples)
         if l >= self.l_hifi:
             show_exact = self.try_show_exact
-            self.plot_1d_ax(self.axes[1],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+            self.plot_1d_ax(self.axes[1],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker, label_samples)
 
 
     def init_2d_fig(self):
@@ -199,14 +197,18 @@ class Plotting:
         ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
         ax.set_title("prediction surface")
         axes.append(ax)
+
+        # will be formatted per line as sublist [min_std, min, max, max_std] 
+        # with eg min_std being the minimum of line - variance
+        ax.lims = [] 
         ind += 1
 
         # exact surface
         if self.plot_exact_possible:
             ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
             ax.set_title("exact surface")
-            ax.set_zlabel("Z")
             axes.append(ax)
+            ax.lims = []
             ind += 1
 
         if self.plot_contour:
@@ -230,7 +232,7 @@ class Plotting:
         self.axes = axes
 
 
-    def plot_2d_ax(self,ax,predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
+    def plot_2d_ax(self,ax,predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
         There are 4 desired axes / modes of plotting:
         1) Normal surfaces (+ exact if possible), (with or without samples)
@@ -239,7 +241,7 @@ class Plotting:
         4) Predicted + truth contours (+ exact if possible), (with or without samples)
         """
 
-        l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact)
+        l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact, label_samples)
 
         " STEP 1: data preparation "
         # retrieve predictions from the provided predictor
@@ -264,6 +266,7 @@ class Plotting:
             ax.plot_surface(*self.X_plot, y_hat - self.std_mult * std, alpha=0.1, color=color)
             ax.plot_surface(*self.X_plot, y_hat + self.std_mult * std, alpha=0.1 , color=color)
             ax.colors.append(color)
+            ax.lims.append([np.min(y_hat - self.std_mult * std), np.min(y_hat), np.max(y_hat), np.max(y_hat + self.std_mult * std)])
 
             if X_sample is not None and y_sample is not None:
                 # add sample locations
@@ -294,7 +297,7 @@ class Plotting:
                 
 
 
-    def plot_2d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = ""):
+    def plot_2d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
         Plotting for surfaces and possibly contours of the predicted function in 2d.
         Exact function values plotted if available.
@@ -304,10 +307,10 @@ class Plotting:
             if i == 1 or i == 3: # right two plots, here we only want the truth / +exact
                 show_exact = self.try_show_exact # NOTE not showing exact for now!!
                 if l >= self.l_hifi:
-                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker,label_samples)
             else:
                 if not is_truth:
-                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker)
+                    self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker,label_samples)
 
 
     def plot_kriged_truth(self, mf_model : MultiFidelityKriging):
@@ -459,7 +462,7 @@ class Plotting:
         # Is per definition a prediction!
         if K_mf_extra != None:
             l = mf_model.number_of_levels + 1
-            self.plot(K_mf_extra, l, K_mf_extra.X_s, K_mf_extra.Z_s, label=K_mf_extra.name)
+            self.plot(K_mf_extra, l, K_mf_extra.X_s, K_mf_extra.Z_s, label=K_mf_extra.name, label_samples="Samples "+K_mf_extra.name)
 
             X_plot_est = mf_model.return_unique_exc(X_exclude=K_mf_extra.X_s)
             Z_plot_est = K_mf_extra.predict(self.transform_X(X_plot_est))[0]
@@ -599,5 +602,53 @@ class Plotting:
                 # set the connecting lines and boxes
                 ax.indicate_inset_zoom(ax.axin)#, edgecolor="black")
 
+        " Setting / sharing the z-axis ranges for the 3d plots "
+        # first limit creating
+        # goal is to make the main line still vieable, even if there are large stds involved (in which we are not always interested)
+        lim = []
+        mult = 2
+        for ax in self.axes:
+            if ax.name == '3d':
+                # one lim per lineset (main +- std)
+                lims = np.array(ax.lims)
+                lims_extr = np.min(lims[:,:2],axis = 0)
+                lims_extr = np.append(lims, np.max(np.array(ax.lims)[:,2:],axis = 0))
+
+                # last lim of either prediction, truth, or even exact (last lim presumed to be most precise)
+                range_last_main = lims[-1,2] - lims[-1,1]
+                range_last_std = lims[-1,3] - lims[-1,0]
+                range_last_avg = (range_last_main + range_last_std) / 2
+
+                # do not take more than 2x (mult) the average (main and +- std) of the last data range
+                # but, always show the full range_last_std
+                if lims_extr[-1] - lims_extr[0] <= mult * range_last_avg:
+                    lim.append([lims_extr[0], lims_extr[-1]])
+                else:
+                    lim.append([lims[-1,0], lims[-1,-1]])
+
+        if np.any(lim):
+            zlim = np.array([np.min(lim, axis = 0)[0], np.max(lim, axis = 0)[1]])
+
+            # take 5% extra as in matplotlib standards
+            zlim = zlim * 1.05
+
+            # limit setting 
+            for ax in self.axes:
+                if ax.name == '3d':
+                    ax.set_zlim(zlim)
+        
+        if self.d == 1:
+            maxx = -1000000000
+            minn = 1000000000
+            for line in self.axes[0].get_lines():
+                y = line.get_ydata()
+                minn = np.min([np.min(y), minn])
+                maxx = np.max([np.max(y), maxx])
+            lim0 = self.axes[0].get_ylim()
+            lim1 = self.axes[1].get_ylim()
+            print(minn * 1.1)
+            self.axes[0].set_ylim([np.min([lim1[0], minn * 1.05]),np.max([lim1[1], maxx * 1.05])]) 
+
         plt.draw()
+        plt.pause(self.plotting_pause)
         plt.tight_layout()

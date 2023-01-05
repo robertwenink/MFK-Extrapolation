@@ -101,7 +101,7 @@ def corr_matrix_kriging_tune(hps, diff_matrix,R_diagonal=0):
         R[i] = corr_matrix_kriging_tune_inner(
             diff_matrix, hps[i, :d], hps[i, d : 2 * d]
         )
-        # add correlation with self
+        # add correlation with self (noise parameter)
         np.fill_diagonal(R[i], np.diag(R[i]) + hps[i, 2 * d] + R_diagonal)
     return R
 
