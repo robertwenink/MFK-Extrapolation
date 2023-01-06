@@ -69,9 +69,9 @@ class Tuner:
         if hasattr(self,'retuning') and retuning_possible:
             if self.retuning != retuning:
                 if retuning:
-                    self.pop_s = max(int(self.pop_s / 5), self.pop_min)
+                    self.pop_s = max(int(self.pop_s / 10), self.pop_min)
                 else:
-                    self.pop_s = min(int(self.pop_s * 5), self.pop_max)
+                    self.pop_s = min(int(self.pop_s * 10), self.pop_max)
                 
                 self.retuning = retuning
     

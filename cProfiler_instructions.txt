@@ -1,0 +1,16 @@
+# To do timing of the full project:
+python3 -m cProfile -o times.prof EVA/main.py
+
+
+# Then to retrieve a readable format:
+python3 -m pstats times.prof
+
+# and pass arguments
+
+times.prof% strip
+times.prof% sort cumtime
+times.prof% stats 10
+
+
+# all commands can be seen using:
+times.prof% help

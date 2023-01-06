@@ -23,7 +23,7 @@ def fix_colors(surf):
     surf._edgecolors2d = surf._edgecolor3d
 
 class Plotting:
-    def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0):
+    def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1):
         self.n_per_d = 100
         self.d_plot = setup.d_plot
         self.d = setup.d
@@ -60,6 +60,9 @@ class Plotting:
         # axes_nrs, inset_rel_limits = [[]], xlim = [[]], y_zoom_centres = []
         if inset_kwargs != None:
             self.set_zoom_inset(**inset_kwargs)
+
+        self.counter = 0
+        self.plot_once_every = plot_once_every
 
     ###########################################################################
     ## Helper functions                                                     ###
@@ -157,14 +160,14 @@ class Plotting:
         std = np.sqrt(mse)
 
         # plot prediction and mse
-        ax.plot(*self.X_plot, y_hat, linestyle= '--' if is_truth else "-", label=label, color=color, alpha=0.7)
-        ax.plot(*self.X_plot, y_hat + self.std_mult * std, color=color, alpha=0.2)
-        ax.plot(*self.X_plot, y_hat - self.std_mult * std, color=color, alpha=0.2)
+        ax.plot(*self.X_plot, y_hat, linestyle= '--' if is_truth else "-", label=label, color=color, alpha=0.7, animated=False)
+        ax.plot(*self.X_plot, y_hat + self.std_mult * std, color=color, alpha=0.2, animated=False)
+        ax.plot(*self.X_plot, y_hat - self.std_mult * std, color=color, alpha=0.2, animated=False)
         ax.colors.append(color)
 
         if X_sample is not None and y_sample is not None:
             # plot sample points
-            ax.scatter(X_sample, y_sample, marker=marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples, zorder = 5)
+            ax.scatter(X_sample, y_sample, marker=marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples, zorder = 5, animated=False)
             ax.colors.append(color)
 
         if show_exact and self.plot_exact_possible:
@@ -172,7 +175,7 @@ class Plotting:
             # exact result of the level we try to predict
             y_exact, _ = self.solver.solve(self.X_pred) #l argument possible
             y_exact = y_exact.reshape(self.X_plot[0].shape)
-            ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5 ) 
+            ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5, animated=False) 
             ax.colors.append(color_exact)
 
     def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
@@ -262,31 +265,31 @@ class Plotting:
         if ax.name == "3d":
             # if the axis is 3d, we will plot a surface
     
-            fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.5, color=color, label=label))
-            ax.plot_surface(*self.X_plot, y_hat - self.std_mult * std, alpha=0.1, color=color)
-            ax.plot_surface(*self.X_plot, y_hat + self.std_mult * std, alpha=0.1 , color=color)
+            fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=0.5, color=color, label=label, animated=False))
+            ax.plot_surface(*self.X_plot, y_hat - self.std_mult * std, alpha=0.1, color=color, animated=False)
+            ax.plot_surface(*self.X_plot, y_hat + self.std_mult * std, alpha=0.1 , color=color, animated=False)
             ax.colors.append(color)
             ax.lims.append([np.min(y_hat - self.std_mult * std), np.min(y_hat), np.max(y_hat), np.max(y_hat + self.std_mult * std)])
 
             if X_sample is not None and y_sample is not None:
                 # add sample locations
-                ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples) # needs s argument, otherwise smaller in 3d!
+                ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples, animated=False) # needs s argument, otherwise smaller in 3d!
                 ax.colors.append(color)
 
 
             if show_exact and self.plot_exact_possible:
-                fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.5, label = label_exact, color = color_exact))
+                fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.5, label = label_exact, color = color_exact, animated=False))
                 ax.colors.append(color_exact)
         else:
             # then we are plotting a contour, 2D data (only X, no y)
             # there is no difference between plotting the normal and truth here
-            CS = ax.contour(*self.X_plot, y_hat, colors=color)
+            CS = ax.contour(*self.X_plot, y_hat, colors=color) # contour is not animated!
             CS.collections[-1].set_label(label)
             ax.colors.append(color)
             ax.CS = CS # Used for giving only the last contour inline labelling
 
             if X_sample is not None:
-                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
+                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples, animated=False)
                 ax.colors.append(color)
 
             if show_exact and self.plot_exact_possible:
@@ -369,10 +372,11 @@ class Plotting:
                 label = label_predicted, 
                 s = 70,
                 zorder = 5,
+                animated=False,
             )
 
             # plot best point
-            ax.scatter(*X_s[best, self.d_plot].T, Z_s[best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+            ax.scatter(*X_s[best, self.d_plot].T, Z_s[best], s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample", animated=False)
 
         else: # the 2D scatter plot
             # plot predicted points
@@ -383,10 +387,11 @@ class Plotting:
                 label = label_predicted, 
                 s = 70,
                 zorder = 5,
+                animated=False,
             )
 
             # plot best point
-            ax.scatter(*X_s[best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample")
+            ax.scatter(*X_s[best, self.d_plot].T, s = 300, marker = "*", color = color_best, zorder = 6, facecolor="none", label="Current best sample", animated=False)
 
     def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_extra = None):
         """
@@ -402,78 +407,80 @@ class Plotting:
         @param K_mf: list of the Kriging predictors of each level
         @param X_unique: unique X present in X_l. At these locations we estimate our prediction points.
         """
-        X = mf_model.X_mf # contains the hifi sampled level too
-        Z = mf_model.Z_mf # contains the hifi sampled level too
-        K_mf = mf_model.K_mf
-        L = mf_model.L
-        self.l_hifi = mf_model.l_hifi
+        if self.counter % self.plot_once_every == 0:
+            X = mf_model.X_mf # contains the hifi sampled level too
+            Z = mf_model.Z_mf # contains the hifi sampled level too
+            K_mf = mf_model.K_mf
+            L = mf_model.L
+            self.l_hifi = mf_model.l_hifi
 
-        # reset axes for live plotting purposes
-        # TODO ax clear fokt op inset axes!! ax.axin bestaat niet meer dan nml
-        axes = self.axes
-        for ax in axes:
-            if hasattr(ax,'axin'):
-                axin = ax.axin
-                ax.axin.collections = []
-                ax.axin.lines = []
-                ax.axin.colors =[]
-                ax.collections = []
-                ax.lines = []
-                ax.axin = axin
-            else:
-                ax.clear()
-            ax.colors =[]
+            # reset axes for live plotting purposes
+            # TODO ax clear fokt op inset axes!! ax.axin bestaat niet meer dan nml
+            axes = self.axes
+            for ax in axes:
+                if hasattr(ax,'axin'):
+                    axin = ax.axin
+                    ax.axin.collections = []
+                    ax.axin.lines = []
+                    ax.axin.colors =[]
+                    ax.collections = []
+                    ax.lines = []
+                    ax.axin = axin
+                else:
+                    ax.clear()
+                ax.colors =[]
 
-        " plot known kriging levels"
-        has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
-        for l in range(mf_model.number_of_levels - 1 if has_prediction else mf_model.number_of_levels):
-            if mf_model.d == 1:
-                self.plot(K_mf[l], l, X[l], Z[l]) # for 1d the added points is not too confusing
-            else:
-                self.plot(K_mf[l], l)
-            # self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l)) # with samples
+            " plot known kriging levels"
+            has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
+            for l in range(mf_model.number_of_levels - 1 if has_prediction else mf_model.number_of_levels):
+                if mf_model.d == 1:
+                    self.plot(K_mf[l], l, X[l], Z[l]) # for 1d the added points is not too confusing
+                else:
+                    self.plot(K_mf[l], l)
+                # self.plot(X[l], Z[l], K_mf[l], l, label="Kriging level {}".format(l)) # with samples
 
-        " plot prediction kriging "
-        if has_prediction:
-            l = self.l_hifi
-            
-            if K_mf_extra == None: # very crowded otherwise!
-                # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
-                # includes sample points, but not the predicted points!
-                self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
+            " plot prediction kriging "
+            if has_prediction:
+                l = self.l_hifi
                 
-                # set up to plot our prediction`s` estimated part of points seperately in black
-                X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
-                Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
+                if K_mf_extra == None: # very crowded otherwise!
+                    # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
+                    # includes sample points, but not the predicted points!
+                    self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
+                    
+                    # set up to plot our prediction`s` estimated part of points seperately in black
+                    X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
+                    Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
 
-                # set up to plot best out of all the *sampled* hifi locations
-                # NOTE not per definition the best location of all previous levels too
-                best = np.argmin(Z[l])
+                    # set up to plot best out of all the *sampled* hifi locations
+                    # NOTE not per definition the best location of all previous levels too
+                    best = np.argmin(Z[l])
 
-                # plot the methods prediction points
+                    # plot the methods prediction points
+                    for ax in self.axes:
+                        self.plot_predicted_points(ax, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
+                        if hasattr(ax,"axin"):
+                            self.plot_predicted_points(ax.axin, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
+                else:
+                    self.plot(K_mf[l], l, label="Predicted level {}".format(l))
+
+            " plot 'full' Kriging level in case of linearity check"
+            # Is per definition a prediction!
+            if K_mf_extra != None:
+                l = mf_model.number_of_levels + 1
+                self.plot(K_mf_extra, l, K_mf_extra.X_s, K_mf_extra.Z_s, label=K_mf_extra.name, label_samples="Samples "+K_mf_extra.name)
+
+                X_plot_est = mf_model.return_unique_exc(X_exclude=K_mf_extra.X_s)
+                Z_plot_est = K_mf_extra.predict(self.transform_X(X_plot_est))[0]
+                best = np.argmin(K_mf_extra.Z_s)
                 for ax in self.axes:
-                    self.plot_predicted_points(ax, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
-                    if hasattr(ax,"axin"):
-                        self.plot_predicted_points(ax.axin, l, X[-1], Z[-1], X_plot_est, Z_plot_est, best)
-            else:
-                self.plot(K_mf[l], l, label="Predicted level {}".format(l))
+                    self.plot_predicted_points(ax, l, K_mf_extra.X_s, K_mf_extra.Z_s, X_plot_est, Z_plot_est, best, label="Predicted points of\n"+K_mf_extra.name)
 
-        " plot 'full' Kriging level in case of linearity check"
-        # Is per definition a prediction!
-        if K_mf_extra != None:
-            l = mf_model.number_of_levels + 1
-            self.plot(K_mf_extra, l, K_mf_extra.X_s, K_mf_extra.Z_s, label=K_mf_extra.name, label_samples="Samples "+K_mf_extra.name)
+            if hasattr(mf_model, "K_truth"):
+                self.plot_kriged_truth(mf_model)
 
-            X_plot_est = mf_model.return_unique_exc(X_exclude=K_mf_extra.X_s)
-            Z_plot_est = K_mf_extra.predict(self.transform_X(X_plot_est))[0]
-            best = np.argmin(K_mf_extra.Z_s)
-            for ax in self.axes:
-                self.plot_predicted_points(ax, l, K_mf_extra.X_s, K_mf_extra.Z_s, X_plot_est, Z_plot_est, best, label="Predicted points of\n"+K_mf_extra.name)
-
-        if hasattr(mf_model, "K_truth"):
-            self.plot_kriged_truth(mf_model)
-
-        self.set_axis_props(mf_model)
+            self.set_axis_props(mf_model)
+        self.counter += 1
 
 
     ###########################################################################

@@ -50,6 +50,9 @@ class MultiFidelityKriging():
 
         self.L = np.arange(max_nr_levels) + 1
 
+        self.tune_counter = 0
+        self.tune_every = 3
+
     def set_L(self, L : list):
         self.L = L
         self.max_nr_levels = len(L)
@@ -198,9 +201,13 @@ class MultiFidelityKriging():
         
         # retrain the sampled levels with the newly added sample.
         # NOTE this is proposed method specific actually (where we dont want to train the top level perse)
+        tune = False
+        if self.tune_counter % self.tune_every == 0:
+            tune = True
         for i in sampled_levels:
             if i != self.max_nr_levels - 1: # because we first should do the weighing procedure again.
-                self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = True)
+                self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = tune)
+        self.tune_counter += 1
 
 
 
@@ -385,26 +392,20 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, Effic
         # 2) meenemen in de weighing
         # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
 
-        K0 = self.K_mf[0]
-        K1 = self.K_mf[1]
-        K2 = self.K_mf[2] # prediction!
-
-        # this is an ESTIMATE of the base noise, actual noise can deviate due to correlations and regularization
-        # get the part of the noise that could be reduced by sampling it!
-        s0_red, s0 = _std_reducable(K0, x_new)
-        s1_red, s1 = _std_reducable(K1, x_new)
-        s2_red, s2 = _std_reducable(K2, x_new) # kan op x_new 0 zijn
-        print(s0_red,s1_red,s2_red)
+        s0_red = self._std_reducable2(0, x_new)
+        s1_red = self._std_reducable2(1, x_new)
+        s2_red = self._std_reducable2(2, x_new) # kan op x_new 0 zijn
+        # print(s0_red,s1_red,s2_red)
         
         # NOTE sigma_red should contain the amount of reduction at the top/prediction level we get by sampling it!
         # this will be different between mine and meliani`s
         # s2 = s1 + weighted(Ef) * (s1 - s0) + weighted(Sf) * (z1 - z0)
         # last term does not provide an expected reduction, so we only require a weighed Ef
-        s1_exp_red = s1_red + Ef_weighed * abs(s1 + s0)
-        sigma_red = [s1_exp_red, s1_exp_red, s2_red]
+        s1_exp_red = s1_red + abs(Ef_weighed * (s0_red + s1_red))
+        sigma_red = [s1_exp_red.item(), s1_exp_red.item(), s2_red]
         print(sigma_red)
         maxx = 0
-        ind_max = 0
+        l = 0
         # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.
         for i in range(1,3):
             #TODO is dit de goede formule?
@@ -413,45 +414,64 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, Effic
             # NOTE gives preference to highest level, which is good:
             # if no reductions expected anywhere lower, we should sample the highest (our only 'truth')
             if value == maxx:
-                ind_max = i
+                l = i
         
-        return ind_max
+        
+        # check per sample if not already sampled at this level
+        # NOTE broadcasting way
+        inds = ~(x_new == self.X_mf[l][:, None]).all(axis=-1).any(axis=0)
+        if ~np.any(inds):
+            l += 1 # then already sampled! given we stop when we resample the highest level, try to higher the level we are on!
+            print("Highered level, sampling l = {} now!".format(l))
+        
+        return l
 
 
 
-def _std_reducable(predictor, x_new):
-    """
-    Finds the part of the mse that is reducable by i.e. sampling.
-    If this number is low, near zero, or negative -> sampling not usefull!
-    Does this by re-calculating mu_hat sigma_hat and mse using a correlation matrix R where only the noise part is added.
-    """
-    y = predictor.y
-    z0_new, s0 = predictor.predict(x_new)
-    s0 = np.sqrt(s0)
-    noise_hp = 1 + predictor.hps[-1]
+    def _std_reducable(self, l, x_new):
+        """
+        Tries to find the part of the mse that is reducable by i.e. sampling.
+        This time, by taking the variance at sampled points from the predictor and averaging those.
+        Seems a more logical and reasonable solution.
+        """
+        _, s = self.K_mf[l].predict(self.X_mf[l])
+        _, s_new = self.K_mf[l].predict(x_new)
+        return np.sqrt(s_new.item()) - np.average(np.sqrt(s))
 
-    if np.isclose(noise_hp, 0.0):
-        return s0, s0
 
-    R = predictor.corr(predictor.X, predictor.X, predictor.hps)    
-    np.fill_diagonal(R, np.ones(predictor.X.shape[0]) + noise_hp + predictor.regularization) # reset to 1s only on diag
-    R_in = np.linalg.pinv(R)
+    def _std_reducable2(self, l, x_new):
+        """
+        Finds the part of the mse that is reducable by i.e. sampling.
+        Does this by predicting at location x_new, training as if it was sampled, predicting.
+        What is left is the base variance present even at the new sample (without tuning).
+        Comparing gives the expected reducable variance.
+        """
+        predictor = self.K_mf[l]
+        noise_hp = predictor.hps[-1]
 
-    r = predictor.corr(predictor.X, x_new, predictor.hps)
+        # get the full noise prediction
+        y_add, s0 = predictor.predict(x_new)
+        s0 = np.sqrt(s0) 
+        
+        X_old = predictor.X
+        y_old = predictor.y
+        R_diagonal_old = predictor.R_diagonal
 
-    """Estimated variance sigma squared of the Gaussian process, according to (Jones 2001)"""
-    t = y - np.sum(np.dot(R_in, y)) / np.sum(R_in) # y - mu_hat
-    sigma_hat = np.dot(t.T, np.dot(R_in, t)) / y.shape[0]
+        X = np.append(X_old, x_new, axis=0)
+        y = np.append(y_old, y_add)
+        if np.any(R_diagonal_old != 0):
+            R_diagonal = np.append(R_diagonal_old,0)
+        else:
+            R_diagonal = R_diagonal_old
+        
+        # do a fake training by training on extended dataset with extend y = expectation, then retaining on old dataset
+        predictor.train(X, y, R_diagonal = R_diagonal)
+        y_updated, s0_updated = predictor.predict(x_new)
+        predictor.train(X_old, y_old, R_diagonal = R_diagonal_old)
 
-    """Mean squared error of the predictor, according to (Jones 2001)"""
-    # hiervan willen we de mse allen op de diagonaal, i.e. de mse van een punt naar een ander onsampled punt is niet onze interesse.
-    # t0 = 1 - np.diag(np.dot(rtR_in , r)) # to make this faster we only need to calculates the columns/rows corresponding to the diagonals.
-    t = 1 - np.sum(np.multiply(np.dot(r.T,R_in), r.T), axis=-1)
-    mse_noise_only = np.abs(sigma_hat * (t + t ** 2 / np.sum(R_in)))
+        s_reducable = (np.sqrt(s0) - np.sqrt(s0_updated)).item()
 
-    mse_reducable = s0 - mse_noise_only
-
-    # return mse_reducable
-    mse_reducable = np.sqrt(max(mse_reducable,0))
-    return float(mse_reducable), s0
-    # return np.sqrt(abs(mse_reducable)) * np.sign(mse_reducable)
+        # mse_reducable = np.sqrt(max(mse_reducable,0))
+        # return float(mse_reducable), s0
+        print("s = {} of which reducable {}".format(s0,s_reducable))
+        return s_reducable

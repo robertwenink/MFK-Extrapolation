@@ -26,10 +26,10 @@ setup = Input(0)
 
 solver = get_solver(setup)
 kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
-mf_model = MultiFidelityEGO(kernel, setup.d, solver, max_cost = 1500e5)
+mf_model = MultiFidelityEGO(kernel, setup.d, solver, max_cost = 150000)
 
 doe = get_doe(setup)
-pp = Plotting(setup, plotting_pause = 0.5)
+pp = Plotting(setup, plotting_pause = 0.01, plot_once_every=5)
 
 ###############################
 # main
@@ -73,10 +73,10 @@ setup.create_input_file(mf_model)
 
 # draw the result
 pp.set_zoom_inset([0], xlim  = [[0.7,0.82]], y_zoom_centres = [-8]) # not set: inset_rel_limits = [[]], 
-# pp.draw_current_levels(mf_model)
+pp.draw_current_levels(mf_model)
 
 
-do_check = True
+do_check = False
 if do_check and not check_linearity(mf_model, pp):
     print("Linearity check: NOT LINEAR enough, but continueing for now.")
 else:
@@ -94,9 +94,8 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
     # predict and calculate Expected Improvement
     y_pred, sigma_pred = mf_model.K_mf[-1].predict(X_infill) 
     y_min = np.min(mf_model.Z_mf[-1])
-    ei = np.zeros(X_infill.shape[0])
-    for i in range(len(y_pred)):
-        ei[i] = EI(y_min, y_pred[i], np.sqrt(sigma_pred[i]))
+
+    ei = EI(y_min, y_pred, np.sqrt(sigma_pred))
 
     # select best point to sample
     print("Maximum EI: {:4f}".format(np.max(ei)))
@@ -105,20 +104,13 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
     # terminate if criterion met, or when we revisit a point
     # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
     # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
+    # this means the effective maximum EI can be higher than the criterion!
     if np.all(ei < ei_criterion) or (x_new == mf_model.X_mf[-1]).all(axis=-1).any(axis = 0):
         break
 
     # TODO implement level selection
     _, _, Ef_weighed = weighted_prediction(mf_model, X_test=x_new)
     l = mf_model.level_selection(x_new, Ef_weighed)
-
-    # check per sample if not already sampled at this level
-    # NOTE broadcasting way
-    inds = ~(x_new == mf_model.X_mf[l][:, None]).all(axis=-1).any(axis=0)
-    if ~np.any(inds):
-        l += 1 # then already sampled! given we stop when we resample the highest level, try to higher the level we are on!
-        print("Highered level, sampling l = {} now!".format(l))
-
     print("Sampling on level {} at {}".format(l,x_new))
     
     mf_model.sample_nested(l, x_new)
@@ -140,9 +132,7 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
 
 
 print("Simulation finished")
-show = True
-if show: 
-    plt.show()
-else:
-    plt.draw()
-    plt.pause(10)
+pp.plot_once_every = 1
+pp.draw_current_levels(mf_model)
+plt.show()
+

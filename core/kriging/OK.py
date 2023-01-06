@@ -194,9 +194,10 @@ def _mse(R_in, r, rtR_in, sigma_hat):
     # hiervan willen we de mse allen op de diagonaal, i.e. de mse van een punt naar een ander onsampled punt is niet onze interesse.
     # t0 = 1 - np.diag(np.dot(rtR_in , r)) # to make this faster we only need to calculates the columns/rows corresponding to the diagonals.
     t = 1 - np.sum(np.multiply(rtR_in, r.T), axis=-1)
+    t2 = t ** 2 / np.sum(R_in)
     # t2 = 1 - np.sum(rtR_in,axis=-1)
     # np.abs because numbers close to zero / e-13 can get negative due to rounding errors (in R_in?)
-    mse = np.abs(sigma_hat * (t + t ** 2 / np.sum(R_in)))
+    mse = np.abs(sigma_hat * (t + t2))
     return mse
 
 

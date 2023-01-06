@@ -107,6 +107,5 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         # TODO een optie opnemen om een extra level weer te geven zoals de truth.
         # K_mf_alt = [*Z_k, Z_k_partial, Z_k_full] # zonder *Z_k wss
         pp.draw_current_levels(mf_model, K_mf_extra=K_mf_partial)
-        plt.pause(1)
 
     return linear
