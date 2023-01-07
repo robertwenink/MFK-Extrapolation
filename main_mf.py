@@ -19,6 +19,7 @@ from postprocessing.plotting import Plotting
 
 from utils.formatting_utils import correct_formatX
 from utils.linearity_utils import check_linearity
+from utils.selection_utils import isin
 
 
 # inits based on input settings
@@ -44,7 +45,7 @@ else:
     X_l = doe(setup, n_per_d = 10)
     
     # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-    mf_model.set_L([1, 2, 10])
+    mf_model.set_L([2, 3, 6])
     
     # create Krigings of levels, same initial hps
     if setup.d == 2:
@@ -75,7 +76,6 @@ setup.create_input_file(mf_model)
 pp.set_zoom_inset([0], xlim  = [[0.7,0.82]], y_zoom_centres = [-8]) # not set: inset_rel_limits = [[]], 
 pp.draw_current_levels(mf_model)
 
-
 do_check = False
 if do_check and not check_linearity(mf_model, pp):
     print("Linearity check: NOT LINEAR enough, but continueing for now.")
@@ -105,7 +105,7 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
     # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
     # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
     # this means the effective maximum EI can be higher than the criterion!
-    if np.all(ei < ei_criterion) or (x_new == mf_model.X_mf[-1]).all(axis=-1).any(axis = 0):
+    if np.all(ei < ei_criterion) or isin(x_new,mf_model.X_mf[-1]):
         break
 
     # TODO implement level selection

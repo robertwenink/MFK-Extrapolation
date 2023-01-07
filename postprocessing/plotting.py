@@ -656,6 +656,7 @@ class Plotting:
             print(minn * 1.1)
             self.axes[0].set_ylim([np.min([lim1[0], minn * 1.05]),np.max([lim1[1], maxx * 1.05])]) 
 
+        plt.tight_layout()
         plt.draw()
         plt.pause(self.plotting_pause)
-        plt.tight_layout()
+        

@@ -4,10 +4,12 @@ from beautifultable import BeautifulTable
 
 from core.kriging.OK import OrdinaryKriging
 from core.sampling.DoE import LHS_subset
+
 from utils.formatting_utils import correct_formatX
 from utils.error_utils import RMSE_norm_MF
 from utils.correlation_utils import check_correlations
 from utils.formatting_utils import correct_formatX
+from utils.selection_utils import isin_indices, isin
 
 class MultiFidelityKriging():
 
@@ -155,7 +157,7 @@ class MultiFidelityKriging():
 
         # check per sample if not already sampled at this level
         # NOTE broadcasting way
-        inds = ~(X_new == self.X_mf[l][:, None]).all(axis=-1).any(axis=0)
+        inds = isin_indices(X_new, self.X_mf[l], inversed = True)
         
         if np.any(inds):
             Z_new, cost = self.solver.solve(X_new[inds], self.L[l])
@@ -419,8 +421,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, Effic
         
         # check per sample if not already sampled at this level
         # NOTE broadcasting way
-        inds = ~(x_new == self.X_mf[l][:, None]).all(axis=-1).any(axis=0)
-        if ~np.any(inds):
+        if isin(x_new,self.X_mf[l]):
             l += 1 # then already sampled! given we stop when we resample the highest level, try to higher the level we are on!
             print("Highered level, sampling l = {} now!".format(l))
         

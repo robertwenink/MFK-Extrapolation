@@ -30,3 +30,4 @@ def RMSE_norm_MF(X, Z_truth, K_mf):
         RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth, K_l.predict(X)[0])*100))
     
     return RMSE
+
