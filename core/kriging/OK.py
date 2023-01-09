@@ -102,10 +102,14 @@ class OrdinaryKriging:
 
         if hps.shape[0] == 1:
             # in case of single evaluation.
-            if np.linalg.cond(R) < 1/np.finfo(np.float64).eps:
+            if np.linalg.cond(R) < 1/np.finfo(np.float64).eps: 
+                #NOTE cond is 1/6 totale sim tijd; svd als subroutine wordt door zowel cond als pinv gebruikt, is deze overlap bruikbaar?
+                # cond ~~ min(LA.svd(a, compute_uv=False))*min(LA.svd(LA.inv(a), compute_uv=False)) https://numpy.org/doc/stable/reference/generated/numpy.linalg.cond.html
+                # inv is 4x zo snel als pinv!! 6 vs 26 seconden voor ongeveer zelfde hoeveelheid calls.
+
                 # https://stackoverflow.com/questions/13249108/efficient-pythonic-check-for-singular-matrix
                 # computes many inverses simultaneously = somewhat faster; no njit
-                R_in = np.linalg.pinv(R)
+                R_in = np.linalg.inv(R)
                 return _fitness_func_loop(R_in, self.y, R).item()
             else:
                 return -1e8

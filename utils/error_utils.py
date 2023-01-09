@@ -20,7 +20,7 @@ def MAE_norm(Z, Z_predict):
     return MAE
 
 
-def RMSE_norm_MF(X, Z_truth, K_mf):
+def RMSE_norm_MF(X, Z_truth, K_mf, no_samples = False):
     #TODO RMSE zou eigenlijk alleen moeten worden bepaald op plekken waar er GEEN samples op level 2 zijn, alleen predicted points!
     # anders gaat de RMSE automatisch omlaag, wat misleidend is.
     levels = []

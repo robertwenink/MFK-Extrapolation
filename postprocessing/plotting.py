@@ -24,7 +24,7 @@ def fix_colors(surf):
 
 class Plotting:
     def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1):
-        self.n_per_d = 100
+        self.n_per_d = 75
         self.d_plot = setup.d_plot
         self.d = setup.d
         self.plot_contour = setup.plot_contour
@@ -415,7 +415,6 @@ class Plotting:
             self.l_hifi = mf_model.l_hifi
 
             # reset axes for live plotting purposes
-            # TODO ax clear fokt op inset axes!! ax.axin bestaat niet meer dan nml
             axes = self.axes
             for ax in axes:
                 if hasattr(ax,'axin'):
@@ -653,7 +652,6 @@ class Plotting:
                 maxx = np.max([np.max(y), maxx])
             lim0 = self.axes[0].get_ylim()
             lim1 = self.axes[1].get_ylim()
-            print(minn * 1.1)
             self.axes[0].set_ylim([np.min([lim1[0], minn * 1.05]),np.max([lim1[1], maxx * 1.05])]) 
 
         plt.tight_layout()

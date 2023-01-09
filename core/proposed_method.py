@@ -46,8 +46,12 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
         # bivariate : https://mathworld.wolfram.com/BivariateNormalDistribution.html
         return f * np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi), f
 
-    # 1000 steps; evaluates norm to 0.9999994113250346
-    lambs = np.arange(-5, 5, 0.01)
+    # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz part
+    # 1000 steps; evaluates norm to 0.9999994113250346 ( met 1000x1000 evaluations!!)
+    # 200 steps to 0.9999986775391365
+    # 100 to       0.9999984361381121
+    # 20 to        0.9999895499778308
+    lambs = np.arange(-5, 5, 0.5)
     lamb1, lamb2 = np.meshgrid(lambs, lambs)
 
     # evaluate expectation
@@ -118,7 +122,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
     return Z2_p, S2_p ** 2, Sf ** 2, Ef
 
-
+# TODO 0.46 seconden per call! zware functie! gemiddeld 4 Kriging+unkown_z calls per call, gemiddelde 0.119s
 def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
@@ -136,6 +140,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
     @param assign: Assign the results Z_pred and mse_pred as property to the mf_model.
     """
 
+    # data pre-setting
     X_unique, K_mf =  mf_model.X_unique, mf_model.K_mf
     if X_test.size != 0:
         X_unique = X_test
@@ -150,6 +155,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         " Collect new results "
         # NOTE if not in X_unique, we could just add a 0 to all previous,
         # might be faster but more edge-cases
+        n = X_s.shape[0]
         D, D_mse, D_Sf, D_Ef = [], [], [], []
         for i in range(X_s.shape[0]):
             Z_p, mse_p, Sf, Ef = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)

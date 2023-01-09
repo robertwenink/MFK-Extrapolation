@@ -134,5 +134,5 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
 print("Simulation finished")
 pp.plot_once_every = 1
 pp.draw_current_levels(mf_model)
-plt.show()
+# plt.show()
 

@@ -1,9 +1,9 @@
 # To do timing of the full project:
-python3 -m cProfile -o times.prof EVA/main.py
+python -m cProfile -o times.prof main_mf.py
 
 
 # Then to retrieve a readable format:
-python3 -m pstats times.prof
+python -m pstats times.prof
 
 # and pass arguments
 
