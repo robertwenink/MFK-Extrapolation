@@ -328,60 +328,6 @@ class Plotting:
                 ax.CS = CS # Used for giving only the last contour inline labelling
                 ax._plot_ref[l].append(CS)
                 
-    def update_2d_ax(self,ax,predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
-        l, _,_,label_exact, color,_, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact, label_samples)
-        # l, label, label_samples, label_exact, color, marker, show_exact, color_exact = self.get_standards(l, label, color, marker, is_truth, show_exact, label_samples)
-
-        " STEP 1: data preparation "
-        # retrieve predictions from the provided predictor
-        y_hat, mse = predictor.predict(self.X_pred)
-
-        # reshape to X_plot shape
-        # y_hat = y_hat.reshape(self.X_plot[0].shape)
-        # std = np.sqrt(mse.reshape(self.X_plot[0].shape))
-
-        # ADDITIONALLY get (and later plot) the exact level solution simultaneously
-        y_exact = 0
-        if show_exact and self.plot_exact_possible:
-            y_exact, _ = self.solver.solve(self.X_pred)
-            y_exact = y_exact.reshape(self.X_plot[0].shape)
-
-        i = 0
-        " STEP 2: plotting "
-        if ax.name == "3d":
-            # if the axis is 3d, we will plot a surface
-            y = [*y_hat]
-            ax._plot_ref[l][i].set_data(*self.X_plot)
-            ax._plot_ref[l][i].set_3d_properties(y_hat)
-            i+=1
-            ax._plot_ref[l][i].set_3d_properties(y_hat - self.std_mult * std)
-            i+=1
-            ax._plot_ref[l][i].set_3d_properties(y_hat + self.std_mult * std)
-            i+=1
-
-            if X_sample is not None and y_sample is not None:
-                # add sample locations
-                ax._plot_ref[l][i].set_offsets(y_sample)
-                i+=1
-
-            if show_exact and self.plot_exact_possible:
-                ax._plot_ref[l][i].set_3d_properties(y_exact)
-                i+=1
-        else:
-            #TODO for contours look at https://stackoverflow.com/questions/42386372/increase-the-speed-of-redrawing-contour-plot-in-matplotlib
-            # then we are plotting a contour, 2D data (only X, no y)
-            # there is no difference between plotting the normal and truth here
-            CS = ax.contour(*self.X_plot, y_hat, colors=color) # contour is not animated!
-            CS.collections[-1].set_label(label)
-            ax.CS = CS # Used for giving only the last contour inline labelling
-
-            if X_sample is not None:
-                ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
-
-            if show_exact and self.plot_exact_possible:
-                CS = ax.contour(*self.X_plot, y_exact, colors=color_exact)
-                CS.collections[-1].set_label(label_exact)
-                ax.CS = CS # Used for giving only the last contour inline labelling
 
     def plot_2d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
