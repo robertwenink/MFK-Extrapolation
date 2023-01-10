@@ -1,10 +1,10 @@
 import numpy as np
 import sys 
+import matplotlib.pyplot as plt
 
 np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
-import matplotlib.pyplot as plt
 
 from preprocessing.input import Input
 
@@ -30,7 +30,7 @@ kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression)
 mf_model = MultiFidelityEGO(kernel, setup.d, solver, max_cost = 150000)
 
 doe = get_doe(setup)
-pp = Plotting(setup, plotting_pause = 0.01, plot_once_every=5)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=2)
 
 ###############################
 # main
@@ -45,7 +45,7 @@ else:
     X_l = doe(setup, n_per_d = 10)
     
     # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-    mf_model.set_L([2, 3, 6])
+    mf_model.set_L([2, 3, 30])
     
     # create Krigings of levels, same initial hps
     if setup.d == 2:
@@ -87,6 +87,7 @@ else:
 ei_criterion = 2 * np.finfo(np.float32).eps * 1e3
 
 " sample from the predicted distribution in EGO fashion"
+mf_model.max_cost = np.inf
 while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, MultiFidelityEGO):
     # select points to asses expected improvement
     X_infill = pp.X_pred  # TODO does not work for d>2 omdat X-pred de median neemt voor alle waardes in d not in dplot
@@ -132,7 +133,10 @@ while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, 
 
 
 print("Simulation finished")
-pp.plot_once_every = 1
-pp.draw_current_levels(mf_model)
-# plt.show()
+
+# if not just plotted, plot
+if pp.counter % pp.plot_once_every != 1 and pp.plot_once_every > 1:
+    pp.plot_once_every = 1
+    pp.draw_current_levels(mf_model)
+plt.show()
 

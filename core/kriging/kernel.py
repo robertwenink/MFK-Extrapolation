@@ -7,7 +7,7 @@ For Kriging we have to use a kernel that is able to scale the dimensions accordi
 # pyright: reportGeneralTypeIssues=false
 
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 def get_available_kernel_names():
     """Helper function for the GUI"""
@@ -115,7 +115,7 @@ def corr_matrix_kriging_tune_inner(diff_matrix, theta, p):
     return np.exp(-arr)
 
 
-@njit(cache=True, fastmath=True) 
+@njit(cache=True, fastmath=True, parallel = True) 
 def corr_matrix_kriging(X, X_other, hps):
     """
     Kriging basis function according to (Jones 2001) and (Sacks 1989).
@@ -131,7 +131,7 @@ def corr_matrix_kriging(X, X_other, hps):
     
     # ugly but fast due to prange and memory efficiency
     arr = np.zeros((X.shape[0], X_other.shape[0]))
-    for i in range(X_other.shape[0]):
+    for i in prange(X_other.shape[0]):
         diff = np.abs(X - X_other[i, :])
         for di in range(d):
             arr[:, i] += 10**theta[di] * diff[:, di] ** p[di]

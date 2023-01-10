@@ -88,7 +88,6 @@ class OrdinaryKriging:
             R_diagonal=self.R_diagonal,
         )
         
-
     def fitness_func(self, hps):
         """
         Fitness function for the tuning process.
@@ -102,15 +101,17 @@ class OrdinaryKriging:
 
         if hps.shape[0] == 1:
             # in case of single evaluation.
-            if np.linalg.cond(R) < 1/np.finfo(np.float64).eps: 
+            if numba_cond(R[0]) < 1/np.finfo(np.float64).eps: 
                 #NOTE cond is 1/6 totale sim tijd; svd als subroutine wordt door zowel cond als pinv gebruikt, is deze overlap bruikbaar?
                 # cond ~~ min(LA.svd(a, compute_uv=False))*min(LA.svd(LA.inv(a), compute_uv=False)) https://numpy.org/doc/stable/reference/generated/numpy.linalg.cond.html
                 # inv is 4x zo snel als pinv!! 6 vs 26 seconden voor ongeveer zelfde hoeveelheid calls.
 
                 # https://stackoverflow.com/questions/13249108/efficient-pythonic-check-for-singular-matrix
                 # computes many inverses simultaneously = somewhat faster; no njit
-                R_in = np.linalg.inv(R)
-                return _fitness_func_loop(R_in, self.y, R).item()
+                R_in = np.linalg.inv(R[0])
+                # R_in = numba_inv(R[0])
+                # return _fitness_func_loop(R_in, self.y, R).item()
+                return fitness_direct(R_in,self.y,R[0])
             else:
                 return -1e8
         else:
@@ -178,6 +179,15 @@ class OrdinaryKriging:
         # r, diff_matrix, R_in, mu_hat, sigma_hat
         self.train(self.X, self.y, tune = False, retuning = True, R_diagonal = self.R_diagonal)
 
+@njit(cache=True)
+def numba_cond(R):
+    """Factor 2 faster with numba!"""
+    return np.linalg.cond(R)
+
+@njit(cache=True)
+def numba_inv(R):
+    # TODO, mogelijk sneller, maar slechtere resultaten?
+    return np.linalg.inv(R)
 
 @njit(cache=True)
 def _mu_hat(R_in, y):
@@ -222,6 +232,12 @@ def _sigma_mu_hat(R_in, y, n):
     t = y - np.sum(R_in * y) / np.sum(R_in)
     return -n * np.log(np.dot(t.T, np.dot(R_in, t)) / n)
 
+@njit(cache=True)
+def fitness_direct(R_in,y,R):
+    """
+    Slightly less overhead than fitness_func_loop for the single data case.
+    """
+    return _sigma_mu_hat(R_in, y, y.shape[0]) - np.linalg.slogdet(R)[1]
 
 @njit(cache=True)
 def _fitness_func_loop(R_in_list, y, R):

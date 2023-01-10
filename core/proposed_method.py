@@ -51,7 +51,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # 200 steps to 0.9999986775391365
     # 100 to       0.9999984361381121
     # 20 to        0.9999895499778308
-    lambs = np.arange(-5, 5, 0.5)
+    lambs = np.arange(-5, 5, 0.1)
     lamb1, lamb2 = np.meshgrid(lambs, lambs)
 
     # evaluate expectation
