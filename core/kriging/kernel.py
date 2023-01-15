@@ -20,33 +20,33 @@ def get_kernel(kernel_name : str, d : int, noise_regression : bool):
     
     @return kernel function, initial hyperparameters, hyper parameter constraints
     """
-    if kernel_name == "kriging":
-        # define function to use
-        func = corr_matrix_kriging
+    # if kernel_name == "kriging": # -> no different kernels for now.
+    # define function to use
+    func = corr_matrix_kriging
 
-        # define the format/type of the hyperparameters, place in a list that is easy to unpack
-        hps = np.array([[1] * d, [2] * d]).reshape(-1,1)        
-        
-        # we should always include this regression hyperparameter, otherwise functions break down
-        hps = np.append(hps, [0])
+    # define the format/type of the hyperparameters, place in a list that is easy to unpack
+    hps = np.array([[1] * d, [2] * d]).reshape(-1,1)        
+    
+    # we should always include this regression hyperparameter, otherwise functions break down
+    hps = np.append(hps, [0])
 
-        # uses the same structure as setup.search_space.
-        # par > x is encoded as x + np.finfo(float).eps for lowerbounds; likewise,
-        # par < x is encoded as x - np.finfo(float).eps for upperbounds.
-        # We can now externally always use >= and <= respectively.
-        # hps_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
-        # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
-        # further, close to 0 makes no sense.
-        hps_constraints = np.array(
-            [[[-10, 2]] * d, [[np.inf, np.inf]] * d]
-        ).reshape(-1,2)
+    # uses the same structure as setup.search_space.
+    # par > x is encoded as x + np.finfo(float).eps for lowerbounds; likewise,
+    # par < x is encoded as x - np.finfo(float).eps for upperbounds.
+    # We can now externally always use >= and <= respectively.
+    # hps_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
+    # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
+    # further, close to 0 makes no sense.
+    hps_constraints = np.array(
+        [[[-10, 2]] * d, [[np.inf, np.inf]] * d]
+    ).reshape(-1,2)
 
-        if noise_regression:
-            hps_constraints = np.append(hps_constraints,[[0, 0.2]], axis=0)  
-        else:
-            hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)  
+    if noise_regression:
+        hps_constraints = np.append(hps_constraints,[[0, 0.2]], axis=0)  
+    else:
+        hps_constraints = np.append(hps_constraints,[[0, 0]], axis=0)  
 
-        return func, hps, hps_constraints
+    return func, hps, hps_constraints
 
 
 # NOTE currently unused, but of importance for the linear, cubic, thin plate spline, multiquadric, etc kernels

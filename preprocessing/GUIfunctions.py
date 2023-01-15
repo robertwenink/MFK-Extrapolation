@@ -206,9 +206,6 @@ class GUI(qtw.QWidget, Ui_Form):
             str(self.dimensionsToPlotLineEdit.text()), search_space
         )
 
-        # typeOfPlotComboBox
-        gui_data["plot_contour"] = self.includeContourplotCheckBox.isChecked()
-
         # savePlotCheckBox
         gui_data["save_plot"] = self.savePlotCheckBox.isChecked()
 

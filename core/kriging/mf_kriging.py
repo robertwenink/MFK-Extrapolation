@@ -3,7 +3,9 @@ import numpy as np
 from beautifultable import BeautifulTable
 
 from core.kriging.OK import OrdinaryKriging
+from core.kriging.kernel import get_kernel
 from core.sampling.DoE import LHS_subset
+from core.sampling.solvers.solver import get_solver
 
 from utils.formatting_utils import correct_formatX
 from utils.error_utils import RMSE_norm_MF
@@ -11,9 +13,9 @@ from utils.correlation_utils import check_correlations
 from utils.formatting_utils import correct_formatX
 from utils.selection_utils import isin_indices, isin
 
-class MultiFidelityKriging():
+class MultiFidelityKriging(object):
 
-    def __init__(self, kernel, d, solver, max_cost = None, max_nr_levels : int = 3, *args, **kwarg):
+    def __init__(self, setup, max_cost = None, initial_nr_samples = 3, max_nr_levels : int = 3, *args, **kwarg):
         """
         @param kernel (list): list containing kernel function, (initial) hyperparameters, hyper parameter constraints
         @param max_cost: maximum cost available for sampling. 
@@ -21,12 +23,11 @@ class MultiFidelityKriging():
         @param L: fidelity input list, is being set using set_L() if other values are desired.
         """
 
-        super().__init__(*args, **kwarg) # possibly useful later if inhereting from something other than Object!
-
-        self.kernel = kernel
-        self.d = d
-        self.solver = solver
-        self.max_cost = max_cost #1500e5
+        self.kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
+        self.d = setup.d
+        self.solver = get_solver(setup)
+        self.max_cost = max_cost
+        self.initial_nr_samples = initial_nr_samples
 
         self.number_of_levels = 0
         self.max_nr_levels = max_nr_levels
@@ -53,12 +54,10 @@ class MultiFidelityKriging():
         self.L = np.arange(max_nr_levels) + 1
 
         self.tune_counter = 0
-        self.tune_every = 3
+        self.tune_lower_every = 1
+        self.tune_prediction_every = 1
 
-    def set_L(self, L : list):
-        self.L = L
-        self.max_nr_levels = len(L)
-
+    
 
     def create_level(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, name = "", append : bool = True, add_empty : bool = False):
         """
@@ -110,11 +109,35 @@ class MultiFidelityKriging():
 
         return ok
 
+    def set_L(self, L : list):
+        """
+        Set the levels passed to the solver for fidelity (and cost) calculation.
+        """
+        self.L = L
+        self.max_nr_levels = len(L)
+    
+    def set_L_costs(self, C):
+        """Deviate from the standard implemented cost model and set standard costs per level in L."""
+        assert len(C) == len(self.L), "Provide a costs list the length of L!"
+        self.C = C
+
+        # reset all costs if possible
+        try:
+            for l in range(self.number_of_levels):
+                self.costs_per_level[l] = C[l] * self.X_mf[l].shape[0]
+                self.costs_expected[l] = C[l]
+                self.costs_expected_nested[l] = sum([self.costs_expected[i] for i in range(l+1)])
+        except:
+            pass
+
     def update_costs(self, cost, l):
         """
         Updates the total costs and expected cost per sample for level l.
         Prints the cost.
         """
+
+        if hasattr(self,'C'):
+            cost = self.C[l]
 
         # total cost per level
         try:
@@ -204,13 +227,12 @@ class MultiFidelityKriging():
         # retrain the sampled levels with the newly added sample.
         # NOTE this is proposed method specific actually (where we dont want to train the top level perse)
         tune = False
-        if self.tune_counter % self.tune_every == 0:
+        if self.tune_counter % self.tune_lower_every == 0:
             tune = True
         for i in sampled_levels:
             if i != self.max_nr_levels - 1: # because we first should do the weighing procedure again.
                 self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = tune)
         self.tune_counter += 1
-
 
 
     def sample_initial_hifi(self, setup):
@@ -224,7 +246,7 @@ class MultiFidelityKriging():
         l = self.l_hifi
 
         # select other points for cross validation, in LHS style
-        X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_new, self.pc),setup.d)
+        X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_new, self.initial_nr_samples),setup.d)
 
         self.sample_new(l,X_hifi)
         self.sample_nested(l, X_hifi)
@@ -248,10 +270,6 @@ class MultiFidelityKriging():
 
         # sample or re-retrieve the 'truth'
         self.Z_truth = self.solver.solve(self.X_truth,self.L[-1])[0]
-        
-        # check correlations and RMSE levels
-        RMSE = RMSE_norm_MF(self.X_truth, self.Z_truth, self.K_mf)
-        self.print_stats(RMSE)
 
         # TODO select only those indices where the truth is known! This is needed during EGO.
         if self.Z_mf[0].shape[0] == self.Z_mf[1].shape[0] == self.Z_truth.shape[0]:
@@ -278,7 +296,7 @@ class MultiFidelityKriging():
         for K in self.K_mf:
             K_mf_list.append(K.get_state())
 
-        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver','K_truth'})}
+        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
 
         if hasattr(self,'K_truth'):
             state['K_truth'] = self.K_truth.get_state()
@@ -364,20 +382,41 @@ class ProposedMultiFidelityKriging(MultiFidelityKriging):
         self.Z_pred = np.array([])
         self.mse_pred = np.array([])
 
-class EfficientGlobalOptimization(object):
+class EfficientGlobalOptimization():
     """This class performs the EGO algorithm on a given layer"""
 
-    def __init__(self, *args, **kwarg):
-        super().__init__(*args, **kwarg)
-
+    def __init__(self, setup, *args, **kwarg):
         # initial EI
         self.ei = 1
         self.ei_criterion = 2 * np.finfo(np.float32).eps
+        self.lb = setup.search_space[1]
+        self.ub = setup.search_space[2]
+        self.create_EI_grid(setup.d)
 
-class MultiFidelityEGO(ProposedMultiFidelityKriging, MultiFidelityKriging, EfficientGlobalOptimization):
+    def create_EI_grid(self, d):
+        """
+        Build a (1d or 2d) grid used for finding the maximum EI. Specify n points in each dimension d.
+        !! DICTATES THE PRECISION AND THEREBY AMOUNT OF SAMPLING BEFORE STOPPING !!
+        Dimensions d are specified by the dimensions to plot in setup.d_plot.
+        Coordinates of the other dimensions are fixed in the centre of the range.
+        """
+        EI_n_per_d = 601 # NOTE might be high! is for branin resolution of 0.025
+        lin = np.linspace(self.lb, self.ub, EI_n_per_d)
+        
+        # otherwise weird meshgrid of np.arrays
+        lis = [lin[:, i] for i in range(d)]
+
+        # create plotting meshgrid
+        self.X_infill = np.stack(np.meshgrid(*lis), axis=-1).reshape(-1, d)
+
+
+class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization):
     
-    def __init__(self, *args, **kwarg):
-        super().__init__(*args, **kwarg)
+    def __init__(self, setup, *args, **kwarg):
+        super().__init__(setup, *args, **kwarg)
+        # Ik snap die inheritance structuur niet, onderstaand lijkt goed uit te leggen
+        # https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
+        EfficientGlobalOptimization.__init__(self, setup, *args, **kwarg) 
         pass
 
     def level_selection(self, x_new, Ef_weighed):

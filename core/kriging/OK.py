@@ -163,7 +163,7 @@ class OrdinaryKriging:
         """
         # OK.__dict__:  dict_keys(['corr', 'hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r'])
         # corr is a (compiled) function
-        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat'})}
+        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat', 'X_infill'})}
 
     def set_state(self, data_dict):
         """

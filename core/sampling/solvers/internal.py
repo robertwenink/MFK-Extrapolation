@@ -28,7 +28,7 @@ class Solver(ABC):
         First make sure X is of the correct format.
         X always is of the form [[..,..],[..,..],..]
         """
-        X = correct_formatX(X, d_req == 1)
+        X = correct_formatX(X, dim=d_req)
 
         if d_req != None:
             assert X.shape[1] == d_req, "Dimension should be {}".format(d_req)
@@ -59,6 +59,10 @@ class TestFunction(Solver):
     @abstractmethod
     def get_preferred_search_space(self, d):
         pass
+
+    @abstractmethod
+    def get_optima(self, d):
+        return [0], 0
 
     def __init__(self, setup=None):
         """
@@ -176,6 +180,9 @@ class Forrester2008(TestFunction):
 
     @TestFunction._modify
     def solve(self, X):
+        """
+        Wolfram alpha: min{(6 x - 2)^2 sin(12 x - 4)|0<=x<=1}≈-6.02074 at x≈0.757249
+        """
         X = self.check_format_X(X, d_req=1)
 
         # last term is not from forrester2008
@@ -184,6 +191,9 @@ class Forrester2008(TestFunction):
 
     def get_preferred_search_space(self, d):
         return [["x"], [0], [1]]
+
+    def get_optima(self, d):
+        return correct_formatX([[0.757249]],d), [-6.02074]
 
 
 class Branin(TestFunction):
@@ -212,6 +222,9 @@ class Branin(TestFunction):
 
     def get_preferred_search_space(self, d):
         return [["x0", "x1"], [-5, 0], [10, 15]]
+
+    def get_optima(self, d):
+        return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],d), 0.397887
 
 
 class Runge(TestFunction):
@@ -244,6 +257,9 @@ class Stybtang(TestFunction):
 
     def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-5] * d, [5] * d]
+
+    def get_optima(self, d):
+        return correct_formatX([[-2.903534]*d],d), -39.16599*d
 
 
 class Curretal88exp(TestFunction):
@@ -286,6 +302,7 @@ class Rastrigin(TestFunction):
     def solve(self, X):
         """
         https://www.sfu.ca/~ssurjano/rastr.html
+        The Rastrigin function has several local minima. It is highly multimodal, but locations of the minima are regularly distributed.
         The function is usually evaluated on the hypercube xi ∈ [-5.12, 5.12], for all i = 1, …, d.
         global minimum: f(x*)=0, at x*=[0]*d
         """
@@ -296,6 +313,9 @@ class Rastrigin(TestFunction):
 
     def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-5.12] * d, [5.12] * d]
+
+    def get_optima(self, d):
+        return correct_formatX([[0]*d],d), 0
 
 
 class Rosenbrock(TestFunction):
@@ -317,6 +337,8 @@ class Rosenbrock(TestFunction):
     def get_preferred_search_space(self, d):
         return [["x{}".format(i) for i in range(d)], [-2.048] * d, [2.048] * d]
 
+    def get_optima(self, d):
+        return correct_formatX([[1]*d],d), 0
 
 class Hartmann6(TestFunction):
     """

@@ -5,47 +5,47 @@ import matplotlib.pyplot as plt
 np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
+from utils.formatting_utils import correct_formatX
+from utils.linearity_utils import check_linearity
+from utils.selection_utils import isin, get_best_sample
 
 from preprocessing.input import Input
 
 from core.proposed_method import weighted_prediction
 from core.sampling.DoE import get_doe
-from core.sampling.solvers.solver import get_solver
 from core.sampling.infill_criteria import EI
 from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityKriging, MultiFidelityEGO
-from core.kriging.kernel import get_kernel
 
 from postprocessing.plotting import Plotting
-
-from utils.formatting_utils import correct_formatX
-from utils.linearity_utils import check_linearity
-from utils.selection_utils import isin
+from postprocessing.plot_convergence import ConvergencePlotting
 
 
 # inits based on input settings
 setup = Input(0)
 
-solver = get_solver(setup)
-kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
-mf_model = MultiFidelityEGO(kernel, setup.d, solver, max_cost = 150000)
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000)
+# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000)
 
 doe = get_doe(setup)
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=2)
-
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=10, fast_plot=False)
+# cp = ConvergencePlotting(setup)
 ###############################
 # main
 ###############################
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
 reuse_values = True
+use_endstate = True
 tune = True
-if hasattr(setup,'model') and reuse_values:
+if hasattr(setup,'model_end') and use_endstate:
+    mf_model.set_state(setup.model_end)
+elif hasattr(setup,'model') and reuse_values:
     mf_model.set_state(setup.model)
 else:
     X_l = doe(setup, n_per_d = 10)
     
     # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-    mf_model.set_L([2, 3, 30])
+    mf_model.set_L([2, 3, None])
     
     # create Krigings of levels, same initial hps
     if setup.d == 2:
@@ -70,10 +70,11 @@ else:
     K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
     K_mf_new.reinterpolate()
 
+mf_model.set_L_costs([1,9,10000])
 setup.create_input_file(mf_model)
 
 # draw the result
-pp.set_zoom_inset([0], xlim  = [[0.7,0.82]], y_zoom_centres = [-8]) # not set: inset_rel_limits = [[]], 
+pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2]) # not set: inset_rel_limits = [[]], 
 pp.draw_current_levels(mf_model)
 
 do_check = False
@@ -84,59 +85,61 @@ else:
 
 # TODO MF EGO gedeelte naar de bijbehorend klasse porten
 # oftewel alles hieronder moet naar ten eerste een EGO class; die samen met MFKriging of proposedMFKriging parent is voor MF-EGO
-ei_criterion = 2 * np.finfo(np.float32).eps * 1e3
 
 " sample from the predicted distribution in EGO fashion"
-mf_model.max_cost = np.inf
-while np.sum(mf_model.costs_total) < mf_model.max_cost and isinstance(mf_model, MultiFidelityEGO):
-    # select points to asses expected improvement
-    X_infill = pp.X_pred  # TODO does not work for d>2 omdat X-pred de median neemt voor alle waardes in d not in dplot
+if isinstance(mf_model, MultiFidelityEGO):
+    mf_model.max_cost = np.inf
+    while np.sum(mf_model.costs_total) < mf_model.max_cost:
+        # predict and calculate Expected Improvement
+        y_pred, sigma_pred = mf_model.K_mf[-1].predict(mf_model.X_infill) 
+        y_min = get_best_sample(mf_model)
 
-    # predict and calculate Expected Improvement
-    y_pred, sigma_pred = mf_model.K_mf[-1].predict(X_infill) 
-    y_min = np.min(mf_model.Z_mf[-1])
+        ei = EI(y_min, y_pred, np.sqrt(sigma_pred))
 
-    ei = EI(y_min, y_pred, np.sqrt(sigma_pred))
+        # select best point to sample
+        print("Maximum EI: {:4f}".format(np.max(ei)))
+        x_new = correct_formatX(mf_model.X_infill[np.argmax(ei)], setup.d)
 
-    # select best point to sample
-    print("Maximum EI: {:4f}".format(np.max(ei)))
-    x_new = correct_formatX(X_infill[np.argmax(ei)], setup.d)
+        # terminate if criterion met, or when we revisit a point
+        # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
+        # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
+        # this means the effective maximum EI can be higher than the criterion!
+        if np.all(ei < mf_model.ei_criterion) or isin(x_new,mf_model.X_mf[-1]):
+            break
 
-    # terminate if criterion met, or when we revisit a point
-    # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
-    # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
-    # this means the effective maximum EI can be higher than the criterion!
-    if np.all(ei < ei_criterion) or isin(x_new,mf_model.X_mf[-1]):
-        break
+        _, _, Ef_weighed = weighted_prediction(mf_model, X_test=x_new)
+        l = mf_model.level_selection(x_new, Ef_weighed)
+        print("Sampling on level {} at {}".format(l,x_new))
+        
+        mf_model.sample_nested(l, x_new)
 
-    # TODO implement level selection
-    _, _, Ef_weighed = weighted_prediction(mf_model, X_test=x_new)
-    l = mf_model.level_selection(x_new, Ef_weighed)
-    print("Sampling on level {} at {}".format(l,x_new))
-    
-    mf_model.sample_nested(l, x_new)
+        # weigh each prediction contribution according to distance to point.
+        Z_pred, mse_pred, _ = weighted_prediction(mf_model)
 
-    # weigh each prediction contribution according to distance to point.
-    Z_pred, mse_pred, _ = weighted_prediction(mf_model)
+        # build new kriging based on prediction
+        # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
+        # NOTE for top-level we require re-interpolation if we apply noise
+        if mf_model.tune_counter % mf_model.tune_prediction_every == 0:
+            tune = True
+        else: 
+            tune = False
+        mf_model.K_mf[-1].train(
+            mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
+        )
+        mf_model.K_mf[-1].reinterpolate()
 
-    # build new kriging based on prediction
-    # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
-    # NOTE for top-level we require re-interpolation if we apply noise
-
-    mf_model.K_mf[-1].train(
-        mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
-    )
-    mf_model.K_mf[-1].reinterpolate()
-
-    # " output "
-    pp.draw_current_levels(mf_model)
+        # " output "
+        pp.draw_current_levels(mf_model)
 
 
-print("Simulation finished")
+    print("Simulation finished")
+
+setup.create_input_file(mf_model, endstate = True)
 
 # if not just plotted, plot
 if pp.counter % pp.plot_once_every != 1 and pp.plot_once_every > 1:
     pp.plot_once_every = 1
     pp.draw_current_levels(mf_model)
+
 plt.show()
 

@@ -1,5 +1,5 @@
 import numpy as np
-from beautifultable import BeautifulTable
+from utils.selection_utils import isin_indices
 
 def RMSE(Z, Z_predict):
     """Test the root mean squared error of Z compared to the prediction"""
@@ -20,14 +20,27 @@ def MAE_norm(Z, Z_predict):
     return MAE
 
 
-def RMSE_norm_MF(X, Z_truth, K_mf, no_samples = False):
-    #TODO RMSE zou eigenlijk alleen moeten worden bepaald op plekken waar er GEEN samples op level 2 zijn, alleen predicted points!
+def RMSE_norm_MF(X, Z_truth, mf_model, no_samples = False):
+    """
+    Calculate multifidelity RMSE.
+    @param no_samples (bool): only calculate RMSE based on predicted points i.e. points not sampled at the highest level.
+    """
+    # RMSE zou eigenlijk alleen moeten worden bepaald op plekken waar er GEEN samples op level 2 zijn, alleen predicted points!
     # anders gaat de RMSE automatisch omlaag, wat misleidend is.
-    levels = []
     RMSE = []
-    for i, K_l in enumerate(K_mf):
-        levels.append("Level " + str(i))
-        RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth, K_l.predict(X)[0])*100))
+    for i, K_l in enumerate(mf_model.K_mf):
+        if no_samples:
+            inds = isin_indices(X,mf_model.X_mf[-1],inversed=True)
+            RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth[inds], K_l.predict(X[inds])[0])*100))
+        else:
+            RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth, K_l.predict(X)[0])*100))
     
     return RMSE
+
+def RMSE_focussed(X, Z_truth, mf_model, focus_perc, no_samples = False):
+    """
+    Version of 'RMSE_norm_MF' where the RMSE is calculated based on 
+    specific areas that are within focus_perc % of the optimum value.
+    """
+    pass
 

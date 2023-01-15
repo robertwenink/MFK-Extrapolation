@@ -6,16 +6,10 @@ import sys
 import time
 import matplotlib.pyplot as plt
 
-import tqdm
-from itertools import repeat
-import os
-import functools
 from multiprocessing.dummy import Pool as ThreadPool
 
 from scipy.optimize import minimize
 from pyDOE2 import lhs
-
-from utils.formatting_utils import correct_format_hps
 
 
 class Tuner:
@@ -45,7 +39,7 @@ class Tuner:
         self.hps_init = hps_init
         self.f = function
         self.progress_bar = progress_bar
-
+ 
         self.report = []
 
         self.pop_min = 10
@@ -69,9 +63,9 @@ class Tuner:
         if hasattr(self,'retuning') and retuning_possible:
             if self.retuning != retuning:
                 if retuning:
-                    self.pop_s = max(int(self.pop_s / 10), self.pop_min)
+                    self.pop_s = max(int(self.pop_s / 50), self.pop_min)
                 else:
-                    self.pop_s = min(int(self.pop_s * 10), self.pop_max)
+                    self.pop_s = min(int(self.pop_s * 50), self.pop_max)
                 
                 self.retuning = retuning
     

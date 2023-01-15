@@ -14,3 +14,6 @@ times.prof% stats 10
 
 # all commands can be seen using:
 times.prof% help
+
+# werkt erg goed en visualiseert:
+snakeviz times.prof 
