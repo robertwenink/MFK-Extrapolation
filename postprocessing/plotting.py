@@ -72,6 +72,7 @@ class Plotting:
             self.set_zoom_inset(**inset_kwargs)
 
         self.counter = 0
+        self.tight = False
         self.plot_once_every = plot_once_every
 
     ###########################################################################
@@ -150,10 +151,12 @@ class Plotting:
     ###########################################################################
 
     def init_1d_fig(self):
-        fig, self.axes = plt.subplots(2, 1, figsize = (11.5,7.5))
+        fig, self.axes = plt.subplots(2, 1, figsize = (12,7.5))
         fig.suptitle("{}".format(self.figure_title))
         for ax in self.axes:
             ax.colors = []
+        fig.canvas.manager.window.move(0,0)
+        self.fig = fig
 
     def plot_1d_ax(self, ax, predictor, l, X_sample = None, y_sample = None, show_exact: bool = True, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
@@ -200,7 +203,7 @@ class Plotting:
 
     def init_2d_fig(self):
         "initialise figure"
-        fig = plt.figure(figsize=(15,10))
+        fig = plt.figure(figsize=(15.3,10))
         fig.suptitle("{}".format(self.figure_title))
 
         axes = []
@@ -245,6 +248,9 @@ class Plotting:
             ax.colors = []
             ax._plot_ref = {}
 
+        fig.canvas.manager.window.move(0,0)
+        fig.canvas.draw()
+        plt.show(block=False)
         self.fig = fig
         self.axes = axes
 
@@ -476,7 +482,7 @@ class Plotting:
         """
         if self.counter % self.plot_once_every == 0:
             # check correlations and RMSE levels
-            RMSE = RMSE_norm_MF(mf_model.X_truth, mf_model.Z_truth, mf_model, no_samples=True)
+            RMSE = RMSE_norm_MF(mf_model, no_samples=True)
             mf_model.print_stats(RMSE)
 
             t_start = time.time()
@@ -539,10 +545,10 @@ class Plotting:
             " plot best point "
             # set up to plot best out of all the *sampled* hifi locations
             # NOTE not per definition the best location of all previous levels too
-            best = get_best_sample(mf_model, arg=True)
+            ind_best = get_best_sample(mf_model, arg=True)
 
             for ax in self.axes:
-                self.plot_best(ax, X[-1], Z[-1], best)
+                self.plot_best(ax, X[-1], Z[-1], ind_best)
 
             " plot 'full' Kriging level in case of linearity check"
             # Is per definition a prediction!
@@ -570,11 +576,11 @@ class Plotting:
 
             self.set_axis_props(mf_model)
 
-            if self.counter == 0:
-                plt.tight_layout() # kost 2.4 s
-            plt.draw()
-            plt.pause(self.plotting_pause)
+            self.fig.canvas.draw()
+            plt.show(block=False)
+            
 
+            
             print("##############################")
             print("### Plotting took {:.4f} s ###".format(time.time() - t_start))
             print("##############################")
@@ -758,4 +764,7 @@ class Plotting:
             lim1 = self.axes[1].get_ylim()
             self.axes[0].set_ylim([np.min([lim1[0], minn * 1.05]),np.max([lim1[1], maxx * 1.05])]) 
 
-        
+
+        if not self.tight:
+            self.fig.tight_layout() 
+            self.tight = True

@@ -3,6 +3,7 @@ This file contains all internal solvers used for testing, plus the abstract clas
 """
 # pyright: reportGeneralTypeIssues=false
 import numpy as np
+from typing import Callable, Any
 
 from abc import ABC, abstractmethod
 from utils.formatting_utils import correct_formatX
@@ -129,8 +130,9 @@ class TestFunction(Solver):
             )
         else:
             return lambda X, l: conv_base_func(l) * np.ones(X.shape[0])
-
-    def _modify(func):
+    
+    @staticmethod
+    def _modify(func : Callable) -> Any:
         """decorator to add noise and multi fidelity functionality"""
 
         def wrapper(self, X, l=None):

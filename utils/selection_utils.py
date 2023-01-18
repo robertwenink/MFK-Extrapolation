@@ -19,10 +19,21 @@ def isin_indices(X_test, X, inversed = False):
     return mask
 
 def get_best_sample(model, arg = False):
+    """
+    returns the best sample as X, y
+    if arg = True, return only the sample index 
+    """
     if isinstance(model,mf.MultiFidelityKriging):
-        return np.argmin(model.Z_mf[-1]) if arg else np.min(model.Z_mf[-1])
+        best_ind = np.argmin(model.Z_mf[-1])
+        if not arg:
+            return correct_formatX(model.X_mf[-1][best_ind], model.d), model.Z_mf[-1][best_ind] 
+
     elif isinstance(model,ok.OrdinaryKriging):
-        return np.argmin(model.y) if arg else np.min(model.y)
+        best_ind = np.argmin(model.y)
+        if not arg:
+            return correct_formatX(model.X[best_ind], model.d), model.y[best_ind] 
+
+    return best_ind # type: ignore
 
 def get_best_prediction(model):
     """

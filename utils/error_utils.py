@@ -20,7 +20,7 @@ def MAE_norm(Z, Z_predict):
     return MAE
 
 
-def RMSE_norm_MF(X, Z_truth, mf_model, no_samples = False):
+def RMSE_norm_MF(mf_model, no_samples = False):
     """
     Calculate multifidelity RMSE.
     @param no_samples (bool): only calculate RMSE based on predicted points i.e. points not sampled at the highest level.
@@ -30,17 +30,17 @@ def RMSE_norm_MF(X, Z_truth, mf_model, no_samples = False):
     RMSE = []
     for i, K_l in enumerate(mf_model.K_mf):
         if no_samples:
-            inds = isin_indices(X,mf_model.X_mf[-1],inversed=True)
-            RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth[inds], K_l.predict(X[inds])[0])*100))
+            inds = isin_indices(mf_model.X_truth,mf_model.X_mf[-1],inversed=True)
+            RMSE.append(RMSE_norm(mf_model.Z_truth[inds], K_l.predict(mf_model.X_truth[inds])[0])*100)
         else:
-            RMSE.append("{:.2f} %".format(RMSE_norm(Z_truth, K_l.predict(X)[0])*100))
+            RMSE.append(RMSE_norm(mf_model.Z_truth, K_l.predict(mf_model.X_truth)[0])*100)
     
     return RMSE
 
-def RMSE_focussed(X, Z_truth, mf_model, focus_perc, no_samples = False):
+def RMSE_focussed(mf_model, focus_perc, no_samples = False):
     """
     Version of 'RMSE_norm_MF' where the RMSE is calculated based on 
     specific areas that are within focus_perc % of the optimum value.
     """
-    pass
+    return 0
 

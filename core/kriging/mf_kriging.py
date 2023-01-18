@@ -6,9 +6,9 @@ from core.kriging.OK import OrdinaryKriging
 from core.kriging.kernel import get_kernel
 from core.sampling.DoE import LHS_subset
 from core.sampling.solvers.solver import get_solver
+import core.proposed_method as wp
 
 from utils.formatting_utils import correct_formatX
-from utils.error_utils import RMSE_norm_MF
 from utils.correlation_utils import check_correlations
 from utils.formatting_utils import correct_formatX
 from utils.selection_utils import isin_indices, isin
@@ -152,7 +152,7 @@ class MultiFidelityKriging(object):
         self.costs_expected_nested[l] = sum([self.costs_expected[i] for i in range(l+1)])
         self.costs_total = sum(self.costs_per_level.values())
 
-    def print_stats(self,RMSE):
+    def print_stats(self,RMSE_list):
         """Print insightfull stats. Best called after adding a high-fidelity sample."""
         table = BeautifulTable()
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -160,11 +160,12 @@ class MultiFidelityKriging(object):
         row0 = [self.X_mf[l].shape[0] for l in range(self.number_of_levels)]
         row1 = [self.costs_per_level[l] for l in range(self.number_of_levels)]
         row2 = [self.costs_expected[l] for l in range(self.number_of_levels)]
+        row3 = ["{:.4f} %".format(RMSE) for RMSE in RMSE_list]
 
         table.rows.append(row0)
         table.rows.append(row1)
         table.rows.append(row2)
-        table.rows.append(RMSE)
+        table.rows.append(row3)
         table.rows.header = ["Number of samples","Costs","Expected costs","RMSE wrt kriged truth"]
         table.columns.header = ["Level {}".format(l) for l in range(self.number_of_levels)]
         table.set_style(BeautifulTable.STYLE_MARKDOWN) # type: ignore
@@ -289,7 +290,6 @@ class MultiFidelityKriging(object):
         all keys available: ['kernel', 'd', 'solver', 'max_cost', 'number_of_levels', 'max_nr_levels', 'l_hifi', 'pc', 'K_mf', 'X_mf', 'X_unique', 'Z_mf', 'costs_tot', 'costs_exp', 'L', 'Z_pred', 'mse_pred', 'X_truth', 'Z_truth']
         keys to avoid: kernel, K_mf (moet per Kriging object weer worden ge-init)
         """
-        state = {}
         # MFK: dict_keys(['kernel', 'd', 'solver', 'max_cost', 'number_of_levels', 'max_nr_levels', 'l_hifi', 'pc', 'K_mf', 'X_mf', 'X_unique', 'Z_mf', 'costs_tot', 'costs_exp', 'L', 'Z_pred', 'mse_pred', 'X_truth', 'Z_truth'])
         
         K_mf_list = []
@@ -419,7 +419,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         EfficientGlobalOptimization.__init__(self, setup, *args, **kwarg) 
         pass
 
-    def level_selection(self, x_new, Ef_weighed):
+    def level_selection(self, x_new):
         # select level l on which we will sample, based on location of ei and largest source of uncertainty there (corrected for expected cost).
         # source of uncertainty is from each component in proposed method which already includes approximated noise levels.
         # in practice this means: only for small S1 will we sample S0, otherwise S1. Nested DoE not required.
@@ -441,10 +441,17 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         # NOTE sigma_red should contain the amount of reduction at the top/prediction level we get by sampling it!
         # this will be different between mine and meliani`s
         # s2 = s1 + weighted(Ef) * (s1 - s0) + weighted(Sf) * (z1 - z0)
+        Z_pred_weighed, mse_pred, Ef_weighed = wp.weighted_prediction(self, X_test=x_new)
+        Z_pred_model, std_pred_model = self.K_mf[-1].predict(x_new)
+        std_pred_weighed, std_pred_model = np.sqrt(mse_pred).item(), np.sqrt(std_pred_model).item()
+        print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(Z_pred_weighed.item() ,Z_pred_model.item()))
+        print("Std_pred_weighed: {:.4f}; std_pred_model: {:4f}".format(std_pred_weighed, std_pred_model))
         # last term does not provide an expected reduction, so we only require a weighed Ef
         s1_exp_red = s1_red + abs(Ef_weighed * (s0_red + s1_red))
         sigma_red = [s1_exp_red.item(), s1_exp_red.item(), s2_red]
+        
         print(sigma_red)
+        
         maxx = 0
         l = 0
         # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.

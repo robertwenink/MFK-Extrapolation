@@ -1,9 +1,16 @@
+# pyright: reportGeneralTypeIssues=false
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
+from screeninfo import get_monitors
+
+import core.kriging.mf_kriging as mf # like this because circular import!
 from core.sampling.solvers.internal import TestFunction
 from core.kriging.kernel import dist_matrix
 from core.sampling.solvers.solver import get_solver
-from utils.error_utils import RMSE_norm_MF, RMSE_focussed
+from utils.error_utils import RMSE_norm_MF
+from utils.error_utils import RMSE_focussed as RMSE_focussed_func
+from utils.selection_utils import get_best_prediction, get_best_sample
 
 class ConvergencePlotting():
     """
@@ -30,7 +37,7 @@ class ConvergencePlotting():
         if isinstance(self.solver,TestFunction):
             self.X_opt, self.Z_opt = self.solver.get_optima(self.d)
 
-        self.iteration_number = []
+        self.iteration_numbers = []
 
         self.values_best = []
         self.values_x_new = []
@@ -40,44 +47,83 @@ class ConvergencePlotting():
 
         self.RMSEs = []
         self.RMSE_focussed = []
+        self.RMSE_focuss_percentage = 20
+        self.main_font_size = 12
 
         self.init_figure()
         
+    def set_state(self, setup):
+        if hasattr(setup, 'convergence_plotting_dict'):
+            for key in setup.convergence_plotting_dict:
+                setattr(self, key, list(setup.convergence_plotting_dict[key]))
+
+    def get_state(self):
+        attribute_dict = {'iteration_numbers','values_best','values_x_new','distances_best','distances_x_new','RMSEs','RMSE_focussed'}
+        state = {k: self.__dict__[k] for k in set(list(attribute_dict))}
+        return state
+
 
     def init_figure(self):
-        fig, ax = plt.subplots()
-        ax2=ax.twinx()
-        ax3=ax.twinx()
-
-        fig.subplots_adjust(right=0.75)
-        ax3.spines.right.set_position(("axes", 1.2))
-
+        self.fig, (ax_opt, ax_rmse) = plt.subplots(1,2, figsize = (11.5,6))
+        
+        " Plots for value and distance convergence "
+        ax_opt.set_title("Value and distance\nconvergence to the optimum")
+        ax_dist=ax_opt.twinx()
+        
+        # # in case of third axes on same plot
+        # ax_rmse=ax_opt.twinx()
+        # fig.subplots_adjust(right=0.75)
+        # ax_rmse.spines.right.set_position(("axes", 1.2))
+        
         # 1) difference to optimum value
-        p1, = ax.plot([], [], color=self.colors[0], marker="o")
-        ax.set_xlabel("Iteration number")
-        ax.set_ylabel("Objective value [-]")
+        p1_best, = ax_opt.plot([], [], color=self.colors[0], label = "Current best sample")
+        p1_ei, = ax_opt.plot([], [], "--", color=self.colors[0], label = "Next sample (best EI)")
+        ax_opt.set_xlabel("Iteration number", fontsize = self.main_font_size)
+        ax_opt.set_ylabel("Objective value [-]", fontsize = self.main_font_size)
 
         # 2) spatial difference to (any) optimum location
         # using a twin object on the same plot for two y-axes!
-        p2, = ax2.plot([], [], color=self.colors[1], marker="o")
-        ax2.set_ylabel("Euclidian parameter distance [-]")
-        
-        # 3) RMSE
-        p3, = ax3.plot([], [], color=self.colors[2], marker="o")
-        ax3.set_ylabel("RMSE [-]")
-        
-        ax.yaxis.label.set_color(p1.get_color())
-        ax2.yaxis.label.set_color(p2.get_color())
-        ax3.yaxis.label.set_color(p3.get_color())
+        p2_best, = ax_dist.plot([], [], color=self.colors[1], label = "Current best sample")
+        p2_ei, = ax_dist.plot([], [], "--", color=self.colors[1], label = "Next sample (best EI)")
+        ax_dist.set_ylabel("Euclidian parameter distance [-]", fontsize = self.main_font_size)
+                
+        # set distinguishable axis properties for twin axes        
+        ax_opt.yaxis.label.set_color(p1_best.get_color())
+        ax_dist.yaxis.label.set_color(p2_best.get_color())
 
-        tkw = dict(size=4, width=1.5)
-        ax.tick_params(axis='y', colors=p1.get_color(), **tkw)
-        ax2.tick_params(axis='y', colors=p2.get_color(), **tkw)
-        ax3.tick_params(axis='y', colors=p3.get_color(), **tkw)
-        ax.tick_params(axis='x', **tkw)
+        tkw = dict(size=4, width=1)
+        ax_opt.tick_params(axis='y', colors=p1_best.get_color(), **tkw)
+        ax_dist.tick_params(axis='y', colors=p2_best.get_color(), **tkw)
 
-        ax.legend(handles=[p1, p2, p3])
-        # plt.show()
+
+        " RMSE plots "
+        ax_rmse.set_title("RMSE convergence")
+        p3_full, = ax_rmse.plot([], [], color=self.colors[2], label = "Full predicted surrogate")
+        p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (opt + {}%)\npredicted surrogate".format(self.RMSE_focuss_percentage))
+        ax_rmse.set_ylabel("RMSE with respect to kriged truth [-]", fontsize = self.main_font_size)
+        ax_rmse.set_xlabel("Iteration number", fontsize = self.main_font_size)
+
+
+        # set legends and layout
+        # ax_opt.legend(handles=[p1_best, p2_best, p1_ei, p2_ei], loc='upper right', bbox_to_anchor = (-0.25, 1.0))
+        ax_opt.legend(loc='upper left', bbox_to_anchor = (-0.12, -0.15), title = "Objective value")
+        ax_dist.legend(loc='upper right', bbox_to_anchor = (1.12, -0.15), title = "Distance to optimum")
+        ax_rmse.legend(loc='upper center', bbox_to_anchor = (0.5, -0.15))
+        
+        self.axes = [ax_opt, ax_dist, ax_rmse]
+        self.artists = [p1_best, p1_ei, p2_best, p2_ei, p3_full, p3_focussed]
+
+        for ax in self.axes:
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # screen_width = get_monitors()[0].width
+        self.fig.canvas.manager.window.move(1201,0) # type: ignore ; to the right
+        self.fig.canvas.manager.window.move(0,800) # type: ignore ; underneath
+        self.fig.tight_layout()
+
+        self.fig.canvas.draw()
+        plt.show(block=False)
+        self.fig.tight_layout()
 
     def plot_convergence(self, model):
         """
@@ -85,7 +131,17 @@ class ConvergencePlotting():
         @param model: either a multi or single-fidelity model
         """
 
+        # gather the new data and update
+        RMSE = RMSE_norm_MF(model, no_samples=True)
+        RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage, no_samples=True)
+        x_best, value_best = get_best_sample(model)
+        x_new, value_x_new = get_best_prediction(model)
+
+        self.update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
+        self.update_plot()
+
     def update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
+        self.iteration_numbers.append(len(self.values_best))
 
         # values
         self.values_best.append(value_best)
@@ -96,5 +152,32 @@ class ConvergencePlotting():
         self.distances_x_new.append(min(dist_matrix(self.X_opt,x_new)))
 
         # RMSE
-        self.RMSEs.append(RMSE)
+        self.RMSEs.append(RMSE[-1])  # TODO alles weergeven?
         self.RMSE_focussed.append(RMSE_focussed)
+
+    def update_plot(self):
+        
+        # self.artists = [p1_best, p1_ei, p2_best, p2_ei, p3_full, p3_focussed]
+        for artist in self.artists:
+            artist.set_xdata(self.iteration_numbers)
+        
+        self.artists[0].set_ydata(self.values_best)
+        self.artists[1].set_ydata(self.values_x_new)
+
+        self.artists[2].set_ydata(self.distances_best)
+        self.artists[3].set_ydata(self.distances_x_new)
+        self.artists[4].set_ydata(self.RMSEs)
+        self.artists[5].set_ydata(self.RMSE_focussed)
+        
+        for ax in self.axes:
+            ax.relim()
+            ax.autoscale_view(True,True,True)
+
+        #     for artist in ax.get_lines(): # works because all with ax.plot()
+        #         ax.draw_artist(artist)
+        #     ax.draw_artist(ax.xaxis)
+        #     ax.draw_artist(ax.yaxis)
+
+        # self.fig.canvas.draw()
+        self.fig.canvas.draw()
+        plt.show(block=False)

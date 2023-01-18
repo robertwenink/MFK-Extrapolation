@@ -122,7 +122,6 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
     return Z2_p, S2_p ** 2, Sf ** 2, Ef
 
-# TODO 0.46 seconden per call! zware functie! gemiddeld 4 Kriging+unkown_z calls per call, gemiddelde 0.119s
 def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
     """
     Function that weights the results of the function 'Kriging_unknown' for multiple samples
@@ -145,6 +144,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
     if X_test.size != 0:
         X_unique = X_test
 
+    #
     if not (np.any(X_s) and np.any(Z_s)):
         X_s, Z_s = mf_model.X_mf[-1],  mf_model.Z_mf[-1]
     

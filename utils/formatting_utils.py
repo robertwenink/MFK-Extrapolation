@@ -23,7 +23,7 @@ def correct_formatX(a,dim):
     if 2d but list      -> np.array(a)
     """
 
-    if isinstance(a,(str,dict,int,float)):
+    if isinstance(a,(str,dict)):
         # then what are you doing here
         return a
 

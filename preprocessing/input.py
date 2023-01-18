@@ -121,7 +121,7 @@ class Input:
             optional = "_" + optional
         self.filename = time.strftime(self.solver_str + " {}d ".format(self.d) + "(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"  # type: ignore 
    
-    def create_input_file(self, model = None, endstate = False):
+    def create_input_file(self, model = None, cp = None, endstate = False):
         """Can be used to create or update the input file according to the contents of __dict__ and model.get_state()"""
  
         d = self.__dict__
@@ -130,6 +130,9 @@ class Input:
                 d['model_end'] = model.get_state()
             else:
                 d['model'] = model.get_state()
+
+        if cp != None:
+            d['convergence_plotting_dict'] = cp.get_state()
 
         # dumping
         json.dump(

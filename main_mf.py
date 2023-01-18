@@ -1,6 +1,7 @@
 import numpy as np
 import sys 
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 11})
 
 np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
@@ -27,8 +28,9 @@ mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000)
 
 doe = get_doe(setup)
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=10, fast_plot=False)
-# cp = ConvergencePlotting(setup)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=10, fast_plot=True)
+cp = ConvergencePlotting(setup)
+
 ###############################
 # main
 ###############################
@@ -39,6 +41,7 @@ use_endstate = True
 tune = True
 if hasattr(setup,'model_end') and use_endstate:
     mf_model.set_state(setup.model_end)
+    cp.set_state(setup)
 elif hasattr(setup,'model') and reuse_values:
     mf_model.set_state(setup.model)
 else:
@@ -69,13 +72,12 @@ else:
     Z_pred, mse_pred, _ = weighted_prediction(mf_model)
     K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
     K_mf_new.reinterpolate()
-
+ 
 mf_model.set_L_costs([1,9,10000])
-setup.create_input_file(mf_model)
+setup.create_input_file(mf_model, cp, endstate = use_endstate)
 
 # draw the result
 pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2]) # not set: inset_rel_limits = [[]], 
-pp.draw_current_levels(mf_model)
 
 do_check = False
 if do_check and not check_linearity(mf_model, pp):
@@ -90,9 +92,13 @@ else:
 if isinstance(mf_model, MultiFidelityEGO):
     mf_model.max_cost = np.inf
     while np.sum(mf_model.costs_total) < mf_model.max_cost:
+        # " output "
+        pp.draw_current_levels(mf_model)
+        cp.plot_convergence(mf_model)
+
         # predict and calculate Expected Improvement
         y_pred, sigma_pred = mf_model.K_mf[-1].predict(mf_model.X_infill) 
-        y_min = get_best_sample(mf_model)
+        _, y_min = get_best_sample(mf_model)
 
         ei = EI(y_min, y_pred, np.sqrt(sigma_pred))
 
@@ -107,8 +113,7 @@ if isinstance(mf_model, MultiFidelityEGO):
         if np.all(ei < mf_model.ei_criterion) or isin(x_new,mf_model.X_mf[-1]):
             break
 
-        _, _, Ef_weighed = weighted_prediction(mf_model, X_test=x_new)
-        l = mf_model.level_selection(x_new, Ef_weighed)
+        l = mf_model.level_selection(x_new)
         print("Sampling on level {} at {}".format(l,x_new))
         
         mf_model.sample_nested(l, x_new)
@@ -128,18 +133,10 @@ if isinstance(mf_model, MultiFidelityEGO):
         )
         mf_model.K_mf[-1].reinterpolate()
 
-        # " output "
-        pp.draw_current_levels(mf_model)
+setup.create_input_file(mf_model, cp, endstate = True)
 
 
-    print("Simulation finished")
-
-setup.create_input_file(mf_model, endstate = True)
-
-# if not just plotted, plot
-if pp.counter % pp.plot_once_every != 1 and pp.plot_once_every > 1:
-    pp.plot_once_every = 1
-    pp.draw_current_levels(mf_model)
+print("Simulation finished")
 
 plt.show()
 
