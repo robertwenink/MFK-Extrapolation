@@ -62,7 +62,7 @@ class TestFunction(Solver):
         pass
 
     @abstractmethod
-    def get_optima(self, d):
+    def get_optima(self):
         return [0], 0
 
     def __init__(self, setup=None):
@@ -73,6 +73,7 @@ class TestFunction(Solver):
         if setup is not None:
             self.solver_noise = setup.solver_noise
             self.mf = setup.mf
+            self.d = setup.d
             if self.mf:
                 # keep this for plotting text
                 self.conv_type = setup.conv_type
@@ -191,11 +192,12 @@ class Forrester2008(TestFunction):
         res = (6 * X - 2) ** 2 * np.sin(12 * X - 4)  # + np.sin(8 * 2 * np.pi * X)
         return res.ravel()
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x"], [0], [1]]
 
-    def get_optima(self, d):
-        return correct_formatX([[0.757249]],d), [-6.02074]
+    def get_optima(self):
+        return correct_formatX([[0.757249]],self.d), [-6.02074]
 
 
 class Branin(TestFunction):
@@ -222,11 +224,12 @@ class Branin(TestFunction):
         t = 1 / (8 * np.pi)
         return (a * (y - b * x ** 2 + c * x - r) ** 2 + s * (1 - t) * np.cos(x) + s) + x
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x0", "x1"], [-5, 0], [10, 15]]
 
-    def get_optima(self, d):
-        return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],d), 0.397887
+    def get_optima(self):
+        return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],self.d), 0.397887
 
 
 class Runge(TestFunction):
@@ -257,11 +260,12 @@ class Stybtang(TestFunction):
         y = np.sum(np.power(X, 4) - 16 * np.power(X, 2) + 5 * X, axis=1) / 2
         return y
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x{}".format(i) for i in range(d)], [-5] * d, [5] * d]
 
-    def get_optima(self, d):
-        return correct_formatX([[-2.903534]*d],d), -39.16599*d
+    def get_optima(self):
+        return correct_formatX([[-2.903534]*self.d],self.d), -39.16599*self.d
 
 
 class Curretal88exp(TestFunction):
@@ -295,7 +299,8 @@ class Curretal88exp(TestFunction):
         res = 0.25 * (self.solve(X1) + self.solve(X2) + self.solve(X3) + self.solve(X4))
         return res
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x{}".format(i) for i in range(d)], [0] * d, [1] * d]
 
 
@@ -313,11 +318,12 @@ class Rastrigin(TestFunction):
         y = 10 * d + np.sum(X ** 2 - 10 * np.cos(2 * np.pi * X), axis=1)
         return y
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x{}".format(i) for i in range(d)], [-5.12] * d, [5.12] * d]
 
-    def get_optima(self, d):
-        return correct_formatX([[0]*d],d), 0
+    def get_optima(self):
+        return correct_formatX([[0]*self.d],self.d), 0
 
 
 class Rosenbrock(TestFunction):
@@ -336,11 +342,12 @@ class Rosenbrock(TestFunction):
         )
         return y
 
-    def get_preferred_search_space(self, d):
+    @staticmethod
+    def get_preferred_search_space(d):
         return [["x{}".format(i) for i in range(d)], [-2.048] * d, [2.048] * d]
 
-    def get_optima(self, d):
-        return correct_formatX([[1]*d],d), 0
+    def get_optima(self):
+        return correct_formatX([[1]*self.d],self.d), 0
 
 class Hartmann6(TestFunction):
     """

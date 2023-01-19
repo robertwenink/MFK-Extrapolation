@@ -2,8 +2,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-from screeninfo import get_monitors
-
 import core.kriging.mf_kriging as mf # like this because circular import!
 from core.sampling.solvers.internal import TestFunction
 from core.kriging.kernel import dist_matrix
@@ -33,9 +31,10 @@ class ConvergencePlotting():
         self.d = setup.d
         self.solver = get_solver(setup)
         self.colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        self.colors[2:3] = []
 
         if isinstance(self.solver,TestFunction):
-            self.X_opt, self.Z_opt = self.solver.get_optima(self.d)
+            self.X_opt, self.Z_opt = self.solver.get_optima()
 
         self.iteration_numbers = []
 
@@ -125,7 +124,7 @@ class ConvergencePlotting():
         plt.show(block=False)
         self.fig.tight_layout()
 
-    def plot_convergence(self, model):
+    def plot_convergence(self, model, update_data = True):
         """
         Plot the convergence stats (and calculate the stats needed). 
         @param model: either a multi or single-fidelity model
@@ -133,11 +132,12 @@ class ConvergencePlotting():
 
         # gather the new data and update
         RMSE = RMSE_norm_MF(model, no_samples=True)
-        RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage, no_samples=True)
+        RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage)
         x_best, value_best = get_best_sample(model)
         x_new, value_x_new = get_best_prediction(model)
 
-        self.update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
+        if update_data:
+            self.update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
         self.update_plot()
 
     def update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
@@ -153,7 +153,7 @@ class ConvergencePlotting():
 
         # RMSE
         self.RMSEs.append(RMSE[-1])  # TODO alles weergeven?
-        self.RMSE_focussed.append(RMSE_focussed)
+        self.RMSE_focussed.append(RMSE_focussed[-1]) # TODO alles weergeven?
 
     def update_plot(self):
         
@@ -181,3 +181,4 @@ class ConvergencePlotting():
         # self.fig.canvas.draw()
         self.fig.canvas.draw()
         plt.show(block=False)
+        plt.pause(0.01)

@@ -94,7 +94,6 @@ if isinstance(mf_model, MultiFidelityEGO):
     while np.sum(mf_model.costs_total) < mf_model.max_cost:
         # " output "
         pp.draw_current_levels(mf_model)
-        cp.plot_convergence(mf_model)
 
         # predict and calculate Expected Improvement
         y_pred, sigma_pred = mf_model.K_mf[-1].predict(mf_model.X_infill) 
@@ -112,6 +111,7 @@ if isinstance(mf_model, MultiFidelityEGO):
         # this means the effective maximum EI can be higher than the criterion!
         if np.all(ei < mf_model.ei_criterion) or isin(x_new,mf_model.X_mf[-1]):
             break
+
 
         l = mf_model.level_selection(x_new)
         print("Sampling on level {} at {}".format(l,x_new))
@@ -132,9 +132,11 @@ if isinstance(mf_model, MultiFidelityEGO):
             mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
         )
         mf_model.K_mf[-1].reinterpolate()
+        cp.plot_convergence(mf_model)
+
 
 setup.create_input_file(mf_model, cp, endstate = True)
-
+cp.plot_convergence(mf_model, update_data = False)
 
 print("Simulation finished")
 

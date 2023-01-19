@@ -461,7 +461,7 @@ class Plotting:
         if hasattr(ax,'axin'):
             self.plot_optima(ax.axin, mf_model)
 
-        X_opt, z_opt = mf_model.solver.get_optima(self.d)
+        X_opt, z_opt = mf_model.solver.get_optima()
         color_opt = "y"
         label_opt = "Analytical optima" if X_opt.shape[0] > 1 else "Analytical optimum"
         if self.d == 1:
@@ -578,7 +578,7 @@ class Plotting:
 
             self.fig.canvas.draw()
             plt.show(block=False)
-            
+            plt.pause(self.plotting_pause)
 
             
             print("##############################")
