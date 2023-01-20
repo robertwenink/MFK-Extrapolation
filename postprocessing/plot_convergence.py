@@ -52,29 +52,31 @@ class ConvergencePlotting():
         self.main_font_size = 12
 
         self.init_figure()
+
         
     def set_state(self, setup):
+        """ (re)set the state"""
         if hasattr(setup, 'convergence_plotting_dict'):
             for key in setup.convergence_plotting_dict:
                 setattr(self, key, list(setup.convergence_plotting_dict[key]))
 
     def get_state(self):
+        """ retrieve current state """
         attribute_dict = {'iteration_numbers','values_best','values_x_new','distances_best','distances_x_new','RMSEs','RMSE_focussed'}
         state = {k: self.__dict__[k] for k in set(list(attribute_dict))}
         return state
 
 
     def init_figure(self):
+        """ 
+        initialise the figure 
+        """
+
         self.fig, (ax_opt, ax_rmse) = plt.subplots(1,2, figsize = (11.5,6))
         
         " Plots for value and distance convergence "
         ax_opt.set_title("Value and distance\nconvergence to the optimum")
         ax_dist=ax_opt.twinx()
-        
-        # # in case of third axes on same plot
-        # ax_rmse=ax_opt.twinx()
-        # fig.subplots_adjust(right=0.75)
-        # ax_rmse.spines.right.set_position(("axes", 1.2))
         
         # 1) difference to optimum value
         p1_best, = ax_opt.plot([], [], color=self.colors[0], label = "Current best sample")
@@ -126,6 +128,7 @@ class ConvergencePlotting():
         plt.show(block=False)
         self.fig.tight_layout()
 
+
     def plot_convergence(self, model, x_new = None, ei = None):
         """
         Plot the convergence stats (and calculate the stats needed). 
@@ -147,6 +150,9 @@ class ConvergencePlotting():
         print("### cp plotting took {:.4f} s, of which getting data: {:.4f} s ###".format(time.time() - t_start, t_data - t_start))
 
     def update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
+        """
+        Update the data of the plot
+        """
         self.iteration_numbers.append(len(self.values_best))
 
         # values
@@ -178,7 +184,8 @@ class ConvergencePlotting():
         for ax in self.axes:
             ax.relim()
             ax.autoscale_view(True,True,True)
-
+            # ax.redraw_in_frame()
+            
         self.fig.canvas.draw()
+        self.fig.canvas.flush_events(); 
         plt.show(block=False)
-        plt.pause(0.001)

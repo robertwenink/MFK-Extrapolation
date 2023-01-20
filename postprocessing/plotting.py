@@ -577,8 +577,9 @@ class Plotting:
             self.set_axis_props(mf_model)
 
             self.fig.canvas.draw()
+
+            self.fig.canvas.flush_events() 
             plt.show(block=False)
-            plt.pause(self.plotting_pause)
 
             
             print("##############################")

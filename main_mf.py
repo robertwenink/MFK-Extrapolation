@@ -28,7 +28,7 @@ mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000)
 
 doe = get_doe(setup)
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=10, fast_plot=True)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True)
 cp = ConvergencePlotting(setup)
 
 ###############################
@@ -37,10 +37,10 @@ cp = ConvergencePlotting(setup)
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
 reuse_values = True
-use_endstate = True
+reload_endstate = True
 tune = True
 
-used_endstate = hasattr(setup,'model_end') and use_endstate
+used_endstate = hasattr(setup,'model_end') and reload_endstate
 if used_endstate:
     mf_model.set_state(setup.model_end)
     cp.set_state(setup)
@@ -134,6 +134,8 @@ if isinstance(mf_model, MultiFidelityEGO):
             mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
         )
         mf_model.K_mf[-1].reinterpolate()
+
+        # plot convergence here and not before break, otherwise on data reload will append the same result over and over
         cp.plot_convergence(mf_model, x_new, ei) # pass these, we do not want to recalculate!!
 
 

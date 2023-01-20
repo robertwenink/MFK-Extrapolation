@@ -45,13 +45,13 @@ def get_best_prediction(model, x_best = None):
     else:
         predictor = model
     
-    if x_best == None:
+    if np.all(x_best == None):
         # expensive due to large X_infill !
         y_pred, _ = predictor.predict(model.X_infill) # type: ignore
         ind = np.argmin(y_pred)
         return correct_formatX(model.X_infill[ind,:],model.d), y_pred[ind] # type: ignore
     else:
-        y_pred, _ = predictor.predict(model.x_best) # type: ignore
+        y_pred, _ = predictor.predict(x_best) # type: ignore
         return x_best, y_pred
     
         

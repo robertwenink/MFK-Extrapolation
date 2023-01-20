@@ -231,6 +231,7 @@ class MultiFidelityKriging(object):
         tune = False
         if self.tune_counter % self.tune_lower_every == 0:
             tune = True
+
         for i in sampled_levels:
             if i != self.max_nr_levels - 1: # because we first should do the weighing procedure again.
                 self.K_mf[i].train(self.X_mf[i], self.Z_mf[i], tune = tune)
@@ -295,16 +296,15 @@ class MultiFidelityKriging(object):
         """
         # MFK: dict_keys(['kernel', 'd', 'solver', 'max_cost', 'number_of_levels', 'max_nr_levels', 'l_hifi', 'pc', 'K_mf', 'X_mf', 'X_unique', 'Z_mf', 'costs_tot', 'costs_exp', 'L', 'Z_pred', 'mse_pred', 'X_truth', 'Z_truth'])
         
+        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
+
         K_mf_list = []
         for K in self.K_mf:
             K_mf_list.append(K.get_state())
-
-        state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
+        state['K_mf_list'] = K_mf_list
 
         if hasattr(self,'K_truth'):
             state['K_truth'] = self.K_truth.get_state()
-
-        state['K_mf_list'] = K_mf_list
 
         return state
 
@@ -318,19 +318,18 @@ class MultiFidelityKriging(object):
         idem for 'solver'
         """
 
-        # NOTE not set explicilty like in OK, quite long list
         for key in data_dict:
-            if key not in ['K_mf_list','number_of_levels']:
-                if 'K_truth' in key:
-                    self.K_truth = self.create_level([],append = False, add_empty=True, name = data_dict['K_truth']['name']) 
-                    self.K_truth.set_state(data_dict['K_truth'])
-                else:
-                    setattr(self, key, data_dict[key])
+            if key not in ['K_mf_list','number_of_levels','K_truth']:
+                setattr(self, key, data_dict[key])
 
         # init the new levels
         for l in range(data_dict['number_of_levels']):
             k = self.create_level([],add_empty=True)
             k.set_state(data_dict['K_mf_list'][l])
+
+        if 'K_truth' in data_dict:
+            self.K_truth = self.create_level([],append = False, add_empty=True) 
+            self.K_truth.set_state(data_dict['K_truth'])
 
 
 
