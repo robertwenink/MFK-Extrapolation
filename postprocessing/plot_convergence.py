@@ -1,6 +1,8 @@
 # pyright: reportGeneralTypeIssues=false
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+import numpy as np
+import time
 
 import core.kriging.mf_kriging as mf # like this because circular import!
 from core.sampling.solvers.internal import TestFunction
@@ -77,7 +79,7 @@ class ConvergencePlotting():
         # 1) difference to optimum value
         p1_best, = ax_opt.plot([], [], color=self.colors[0], label = "Current best sample")
         p1_ei, = ax_opt.plot([], [], "--", color=self.colors[0], label = "Next sample (best EI)")
-        ax_opt.set_xlabel("Iteration number", fontsize = self.main_font_size)
+        ax_opt.set_xlabel("Iteration number [-]", fontsize = self.main_font_size)
         ax_opt.set_ylabel("Objective value [-]", fontsize = self.main_font_size)
 
         # 2) spatial difference to (any) optimum location
@@ -99,8 +101,8 @@ class ConvergencePlotting():
         ax_rmse.set_title("RMSE convergence")
         p3_full, = ax_rmse.plot([], [], color=self.colors[2], label = "Full predicted surrogate")
         p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (opt + {}%)\npredicted surrogate".format(self.RMSE_focuss_percentage))
-        ax_rmse.set_ylabel("RMSE with respect to kriged truth [-]", fontsize = self.main_font_size)
-        ax_rmse.set_xlabel("Iteration number", fontsize = self.main_font_size)
+        ax_rmse.set_ylabel("RMSE with respect to kriged truth [%]", fontsize = self.main_font_size)
+        ax_rmse.set_xlabel("Iteration number [-]", fontsize = self.main_font_size)
 
 
         # set legends and layout
@@ -124,21 +126,25 @@ class ConvergencePlotting():
         plt.show(block=False)
         self.fig.tight_layout()
 
-    def plot_convergence(self, model, update_data = True):
+    def plot_convergence(self, model, x_new = None, ei = None):
         """
         Plot the convergence stats (and calculate the stats needed). 
         @param model: either a multi or single-fidelity model
         """
-
+        t_start = time.time()
         # gather the new data and update
-        RMSE = RMSE_norm_MF(model, no_samples=True)
-        RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage)
-        x_best, value_best = get_best_sample(model)
-        x_new, value_x_new = get_best_prediction(model)
 
-        if update_data:
+        if np.any(x_new):
+            RMSE = RMSE_norm_MF(model, no_samples=True)
+            RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage)
+            x_best, value_best = get_best_sample(model)
+            x_new, value_x_new = get_best_prediction(model, x_new)
+
             self.update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
+        t_data = time.time()
         self.update_plot()
+        
+        print("### cp plotting took {:.4f} s, of which getting data: {:.4f} s ###".format(time.time() - t_start, t_data - t_start))
 
     def update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
         self.iteration_numbers.append(len(self.values_best))
@@ -173,12 +179,6 @@ class ConvergencePlotting():
             ax.relim()
             ax.autoscale_view(True,True,True)
 
-        #     for artist in ax.get_lines(): # works because all with ax.plot()
-        #         ax.draw_artist(artist)
-        #     ax.draw_artist(ax.xaxis)
-        #     ax.draw_artist(ax.yaxis)
-
-        # self.fig.canvas.draw()
         self.fig.canvas.draw()
         plt.show(block=False)
-        plt.pause(0.01)
+        plt.pause(0.001)

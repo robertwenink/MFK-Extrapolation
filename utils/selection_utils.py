@@ -35,12 +35,23 @@ def get_best_sample(model, arg = False):
 
     return best_ind # type: ignore
 
-def get_best_prediction(model):
+def get_best_prediction(model, x_best = None):
     """
-    returns X_best, y_best """
+    @param x_best: location of interest (i.e. best prediction or highest EI)
+    returns X_best, y_best 
+    """
     if isinstance(model,mf.MultiFidelityKriging):
-        y_pred, _ = model.K_mf[-1].predict(model.X_infill) # type: ignore
+        predictor = model.K_mf[-1]
     else:
-        y_pred, _ = model.predict(model.X_infill)
-    ind = np.argmin(y_pred)
-    return correct_formatX(model.X_infill[ind,:],model.d), y_pred[ind] # type: ignore
+        predictor = model
+    
+    if x_best == None:
+        # expensive due to large X_infill !
+        y_pred, _ = predictor.predict(model.X_infill) # type: ignore
+        ind = np.argmin(y_pred)
+        return correct_formatX(model.X_infill[ind,:],model.d), y_pred[ind] # type: ignore
+    else:
+        y_pred, _ = predictor.predict(model.x_best) # type: ignore
+        return x_best, y_pred
+    
+        

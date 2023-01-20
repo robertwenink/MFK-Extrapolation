@@ -11,7 +11,8 @@ import core.proposed_method as wp
 from utils.formatting_utils import correct_formatX
 from utils.correlation_utils import check_correlations
 from utils.formatting_utils import correct_formatX
-from utils.selection_utils import isin_indices, isin
+from utils.selection_utils import isin_indices, isin, get_best_prediction
+
 
 class MultiFidelityKriging(object):
 
@@ -282,6 +283,8 @@ class MultiFidelityKriging(object):
         else:
             print("Updating Kriging model of truth", end = '\r')
             self.K_truth.train(self.X_truth, self.Z_truth, tune = True, retuning = True)
+
+        self.K_truth.X_opt, self.K_truth.z_opt = get_best_prediction(self)
 
 
     def get_state(self):

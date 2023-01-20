@@ -163,19 +163,17 @@ class OrdinaryKriging:
         """
         # OK.__dict__:  dict_keys(['corr', 'hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r'])
         # corr is a (compiled) function
-        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat', 'X_infill'})}
+        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat', 'X_infill', 'regularization'})}
 
     def set_state(self, data_dict):
         """
         Set the state of the already initialised model.
         """
-        # best to do this explicitly!
-        # then if something misses we will know instead of being blind
-        keylist = ['hps', 'hps_constraints', 'd', 'X', 'y', 'R_diagonal']
-        for key in keylist:
+
+        for key in data_dict:
             setattr(self, key, data_dict[key])
 
-        # such that we do not have to save:
+        # do fake training such that we do not have to save:
         # r, diff_matrix, R_in, mu_hat, sigma_hat
         self.train(self.X, self.y, tune = False, retuning = True, R_diagonal = self.R_diagonal)
 

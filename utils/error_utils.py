@@ -47,7 +47,8 @@ def RMSE_focussed(mf_model, focus_perc):
     
     @param focus_perc (float): percentage of the datarange that we asses, above the (known) optimum value.
     """
-    z_infill_truth = mf_model.K_truth.predict(mf_model.X_infill)[0]
+    x_infill = mf_model.X_infill[::100] # TODO
+    z_infill_truth = mf_model.K_truth.predict(x_infill)[0]
     data_range = np.max(z_infill_truth) - np.min(z_infill_truth)
 
     # determining the 'optimum' baseline value
@@ -63,7 +64,7 @@ def RMSE_focussed(mf_model, focus_perc):
     
     RMSE = []
     for K_l in mf_model.K_mf:
-        RMSE.append(RMSE_norm(z_infill_truth[mask], K_l.predict(mf_model.X_infill[mask])[0]))
+        RMSE.append(RMSE_norm(z_infill_truth[mask], K_l.predict(x_infill[mask])[0]))
 
     return RMSE
 

@@ -1,5 +1,5 @@
 import numpy as np
-import sys 
+import sys
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 11})
 
@@ -39,7 +39,9 @@ cp = ConvergencePlotting(setup)
 reuse_values = True
 use_endstate = True
 tune = True
-if hasattr(setup,'model_end') and use_endstate:
+
+used_endstate = hasattr(setup,'model_end') and use_endstate
+if used_endstate:
     mf_model.set_state(setup.model_end)
     cp.set_state(setup)
 elif hasattr(setup,'model') and reuse_values:
@@ -73,8 +75,8 @@ else:
     K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
     K_mf_new.reinterpolate()
  
-mf_model.set_L_costs([1,9,10000])
-setup.create_input_file(mf_model, cp, endstate = use_endstate)
+mf_model.set_L_costs([1,9,10000])   
+setup.create_input_file(mf_model, cp, endstate = used_endstate)
 
 # draw the result
 pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2]) # not set: inset_rel_limits = [[]], 
@@ -132,11 +134,11 @@ if isinstance(mf_model, MultiFidelityEGO):
             mf_model.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / mf_model.K_mf[-1].sigma_hat
         )
         mf_model.K_mf[-1].reinterpolate()
-        cp.plot_convergence(mf_model)
+        cp.plot_convergence(mf_model, x_new, ei) # pass these, we do not want to recalculate!!
 
 
 setup.create_input_file(mf_model, cp, endstate = True)
-cp.plot_convergence(mf_model, update_data = False)
+cp.plot_convergence(mf_model)
 
 print("Simulation finished")
 

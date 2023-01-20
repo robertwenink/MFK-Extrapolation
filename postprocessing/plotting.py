@@ -345,10 +345,11 @@ class Plotting:
                 if not is_truth:
                     self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker,label_samples)
 
-    def plot_kriged_truth_best(self, ax, mf_model, X_opt, z_opt):
+    def plot_kriged_truth_best(self, ax, mf_model):
+        X_opt, z_opt = mf_model.K_truth.X_opt, mf_model.K_truth.z_opt
 
         if hasattr(ax,'axin'):
-            self.plot_kriged_truth_best(ax.axin, mf_model, X_opt, z_opt)
+            self.plot_kriged_truth_best(ax.axin, mf_model)
 
         l, _,_,_,color,_,_,_ = self.get_standards(mf_model.l_hifi, "", "", "", True, "", "")
         label = "Best prediction truth"
@@ -366,9 +367,8 @@ class Plotting:
 
         self.plot(mf_model.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
         
-        X_opt, z_opt = get_best_prediction(mf_model)
         for ax in self.axes:
-            self.plot_kriged_truth_best(ax, mf_model, X_opt, z_opt)
+            self.plot_kriged_truth_best(ax, mf_model)
 
     def set_zoom_inset(self, axes_nrs, x_rel_range : list,  inset_rel_limits = [[]]):
         """
