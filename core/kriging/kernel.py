@@ -37,6 +37,7 @@ def get_kernel(kernel_name : str, d : int, noise_regression : bool):
     # hps_constraints = [["theta", "p"], np.array([0, 0 + np.finfo(np.float32).eps]), np.array([np.inf, 2])]
     # if lowerbound too small/ close to machine precision, high chance at sum(R_in) being 0 during tuning!!
     # further, close to 0 makes no sense.
+    #TODO terug naar normale schaal zetten voor interpretability.
     hps_constraints = np.array(
         [[[-10, 2]] * d, [[np.inf, np.inf]] * d]
     ).reshape(-1,2)

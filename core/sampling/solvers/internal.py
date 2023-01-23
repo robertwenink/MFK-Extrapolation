@@ -211,25 +211,29 @@ class Branin(TestFunction):
         x1 ∈ [-5, 10], x2 ∈ [0, 15].
         a = 1, b = 5.1 ⁄ (4π2), c = 5 ⁄ π, r = 6, s = 10 and t = 1 ⁄ (8π)
         global minima: f(x*)=0.397887, at x*=(-pi,12.275),(pi,2.275) and (9.42478,2.475)
+
+       adaption of Forroster 2008: use + 5x1, we use a parabola instead to maintain the same optimum location.
         """
         X = self.check_format_X(X, d_req=2)
 
-        x = X[:, 0]
-        y = X[:, 1]
+        x1 = X[:, 0]
+        x2 = X[:, 1]
         a = 1
         b = 5.1 / (4 * np.pi ** 2)
         c = 5 / np.pi
         r = 6
         s = 10
         t = 1 / (8 * np.pi)
-        return (a * (y - b * x ** 2 + c * x - r) ** 2 + s * (1 - t) * np.cos(x) + s) + x
+        return (a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s) + (x1 + np.pi)**2 / 10
+        # MINIMIZE ((x2 - 5.1 / (4 * pi ^2) * x2 + 5 / pi * x1 - 6) ** 2 + 10 * ((1 - 1 / (8 * pi)) * cos(x1) + 1) + 5*x1)
 
     @staticmethod
     def get_preferred_search_space(d):
         return [["x0", "x1"], [-5, 0], [10, 15]]
 
     def get_optima(self):
-        return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],self.d), 0.397887
+        # return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],self.d), 0.397887
+        return correct_formatX([[-np.pi,12.275]],self.d), 0.397887
 
 
 class Runge(TestFunction):

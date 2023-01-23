@@ -33,13 +33,16 @@ def correct_formatX(a,dim):
 
     if not isinstance(a, np.ndarray):
         a = np.array(a)
-    if a.ndim == 0:
-        a = np.array([a])
-    if a.ndim == 1:
-        a = np.array([a])
-        if dim == 1:
-            # then not shape (1,2) but (2,1)! so a.T
-            a = a.T
+    
+    a = np.atleast_2d(a)
+    # if a.ndim == 0:
+    #     a = np.array([a])
+    # if a.ndim == 1:
+    #     a = np.array([a])
+    #     if dim == 1:
+    #         # then not shape (1,2) but (2,1)! so a.T
+    #         a = a.T
+
     return a
 
 

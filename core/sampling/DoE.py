@@ -61,7 +61,7 @@ def LHS(setup, n=None, n_per_d : int = 10):
         samples = n_per_d * setup.d
 
     # sampling plan from 0 to 1
-    X = lhs(setup.d, samples=samples, criterion='maximin',iterations=min(int(2*samples), 150)) # type: ignore
+    X = lhs(setup.d, samples=samples, criterion='maximin',iterations=min(int(2*samples), 150), random_state=1) # type: ignore
 
     # scale data according to the search space bounds
     X = (

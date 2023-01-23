@@ -527,7 +527,7 @@ class Plotting:
             if has_prediction:
                 l = self.l_hifi
                 
-                if K_mf_extra == None: # very crowded otherwise!
+                if K_mf_extra == None: # very crowded plot otherwise!
                     # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
                     # includes sample points, but not the predicted points!
                     self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
@@ -577,7 +577,6 @@ class Plotting:
             self.set_axis_props(mf_model)
 
             self.fig.canvas.draw()
-
             self.fig.canvas.flush_events() 
             plt.show(block=False)
 
@@ -678,11 +677,6 @@ class Plotting:
                     ax.clabel(ax.CS, inline=1, fontsize=10)
                 except:
                     pass
-            
-            # # make the start of 'current best' smaller
-            # for lh in leg.legendHandles:
-            #     if 'best' in lh._label:
-            #         lh._legmarker.set_markersize(15) # FAKKING BULLSHIT
 
         for ax in self.axes:
             ax.set_xlabel(self.axis_labels[0])

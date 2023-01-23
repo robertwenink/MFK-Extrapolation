@@ -247,3 +247,4 @@ def _fitness_func_loop(R_in_list, y, R):
         # MLE, omitting factor 1/2
         fit[i] = _sigma_mu_hat(R_in_list[i], y, n) - np.linalg.slogdet(R[i])[1]
     return fit
+

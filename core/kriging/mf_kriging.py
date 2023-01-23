@@ -1,17 +1,20 @@
 # pyright: reportGeneralTypeIssues=false,
 import numpy as np
 from beautifultable import BeautifulTable
+import scipy.stats as scistats
+# from scipy import stats
 
 from core.kriging.OK import OrdinaryKriging
 from core.kriging.kernel import get_kernel
 from core.sampling.DoE import LHS_subset
 from core.sampling.solvers.solver import get_solver
-import core.proposed_method as wp
+import core.proposed_method as wp # like this because circular import!
+from core.sampling.solvers.internal import TestFunction
 
 from utils.formatting_utils import correct_formatX
 from utils.correlation_utils import check_correlations
 from utils.formatting_utils import correct_formatX
-from utils.selection_utils import isin_indices, isin, get_best_prediction
+from utils.selection_utils import isin_indices, isin, get_best_prediction, get_best_sample
 
 
 class MultiFidelityKriging(object):
@@ -402,14 +405,27 @@ class EfficientGlobalOptimization():
         Dimensions d are specified by the dimensions to plot in setup.d_plot.
         Coordinates of the other dimensions are fixed in the centre of the range.
         """
-        EI_n_per_d = 601 # NOTE might be high! is for branin resolution of 0.025
-        lin = np.linspace(self.lb, self.ub, EI_n_per_d)
+        self.EI_n_per_d = 601 # NOTE quite high! is for branin resolution of 0.025
+        lin = np.linspace(self.lb, self.ub, self.EI_n_per_d)
         
         # otherwise weird meshgrid of np.arrays
         lis = [lin[:, i] for i in range(d)]
 
         # create plotting meshgrid
         self.X_infill = np.stack(np.meshgrid(*lis), axis=-1).reshape(-1, d)
+
+    @staticmethod
+    def EI(y_min, y_pred, sigma_pred):
+        """
+        Expected Improvement criterion, see e.g. (Jones 2001, Jones 1998)
+        param y_min: the sampled value belonging to the best X at level l
+        param y_pred: (predicted) points at level l, locations X_pred
+        param sigma_pred: (predicted) variance of points at level l, locations X_pred
+        """
+
+        u = np.where(sigma_pred == 0, 0, (y_min - y_pred) / sigma_pred)  # normalization
+        EI = sigma_pred * (u * scistats.norm.cdf(u) + scistats.norm.pdf(u))
+        return EI
 
 
 class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization):
@@ -420,6 +436,71 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         # https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
         EfficientGlobalOptimization.__init__(self, setup, *args, **kwarg) 
         pass
+
+
+    def optimize(self, pp = None, cp = None):
+        self.max_cost = np.inf
+        while np.sum(self.costs_total) < self.max_cost:
+            if pp != None:
+                # " output "
+                pp.draw_current_levels(self)
+
+            # predict and calculate Expected Improvement
+            y_pred, sigma_pred = self.K_mf[-1].predict(self.X_infill) 
+            _, y_min = get_best_sample(self)
+
+            ei = self.EI(y_min, y_pred, np.sqrt(sigma_pred))
+
+            # select best point to sample
+            print("Maximum EI: {:4f}".format(np.max(ei)))
+            x_new = correct_formatX(self.X_infill[np.argmax(ei)], self.d)
+
+            # terminate if criterion met, or when we revisit a point
+            # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
+            # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
+            # this means the effective maximum EI can be higher than the criterion!
+            if np.all(ei < self.ei_criterion) or isin(x_new,self.X_mf[-1]):
+                break
+
+
+            l = self.level_selection(x_new)
+            print("Sampling on level {} at {}".format(l,x_new))
+            
+            self.sample_nested(l, x_new)
+
+            # weigh each prediction contribution according to distance to point.
+            Z_pred, mse_pred, _ = wp.weighted_prediction(self)
+
+            # build new kriging based on prediction
+            # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
+            # NOTE for top-level we require re-interpolation if we apply noise
+            if self.tune_counter % self.tune_prediction_every == 0:
+                tune = True
+            else: 
+                tune = False
+            self.K_mf[-1].train(
+                self.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / self.K_mf[-1].sigma_hat
+            )
+            self.K_mf[-1].reinterpolate()
+
+            if cp != None:
+                # plot convergence here and not before break, otherwise on data reload will append the same result over and over
+                cp.plot_convergence(self, x_new, ei) # pass these, we do not want to recalculate!!
+
+        s_width = 71
+        print("┏" + "━" * s_width + "┓")
+        print("┃ Best found point \t\tx = {}, f(x) = {: .4f} \t┃".format(get_best_sample(self)[0][0],get_best_sample(self)[1]))
+        if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
+            print("┃ Best (truth) found point \tx = {}, f(x) = {: .4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt))
+        if isinstance(self.solver, TestFunction):
+            X_opt, Z_opt = self.solver.get_optima()
+            X_opt, Z_opt = np.atleast_2d(X_opt), np.atleast_2d(Z_opt)
+            ind = np.argmin(Z_opt)
+            print("┃ Exact optimum at point \tx = {}, f(x) = {: .4f} \t┃".format(X_opt[ind], Z_opt[ind].item()))
+            print("┃ Search resolutions of \tx = {}\t\t\t ┃".format((self.ub - self.lb)/(self.EI_n_per_d-1)))
+        print("┗" + "━" * s_width + "┛")
+             
+
 
     def level_selection(self, x_new):
         # select level l on which we will sample, based on location of ei and largest source of uncertainty there (corrected for expected cost).
