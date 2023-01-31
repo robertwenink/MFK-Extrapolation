@@ -1,4 +1,7 @@
 import numpy as np
+from core.sampling.solvers.internal import TestFunction
+
+from core.sampling.solvers.solver import get_solver
 np.set_printoptions(precision=3,linewidth = 150,sign=' ')
 import sys
 import matplotlib.pyplot as plt
@@ -8,40 +11,62 @@ np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # ty
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
 from utils.linearity_utils import check_linearity
-from utils.formatting_utils import correct_formatX
 
 from preprocessing.input import Input
 
-from core.proposed_method import weighted_prediction
-from core.sampling.DoE import get_doe
-from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityKriging, MultiFidelityEGO
+from core.kriging.mf_kriging import ProposedMultiFidelityKriging, MultiFidelityEGO, MFK_smt, MFK_org
 
 from postprocessing.plotting import Plotting
 from postprocessing.plot_convergence import ConvergencePlotting
 
-from smt.applications import MFK
+# TODO list
+# 1) animate the plotting
+# 2) set_state get_state for new classes DONE
+# 3) RMSE and other analysis tools for base MFK too!! (important for comparison)
+# 4) repeated experiments for testfunctions
+# 5) 
+#    a) bij levelbepaling slechts 1 keer de MFK tunen! -> gebruik get/set_state method
+#    b) voor de lager gelegen methodes: als punten dicht bij elkaar liggen (en er noise rond punten wordt aangenomen) 
+#       dan is een punt als waarheid aannemen tegenproductief in de zin dat noise moet vermeerderen aldaar. 
+#       Ofwel, je krijgt een negatieve hoeveelheid noise vermindering -> FOUT (maar kan goed zijn als je alleen naar het top-level kijkt!)
+#       OPLOSSING: Le Gratiet / Meliani beschrijft hoe je de sigma_red vind voor het model van Le Gratiet.
+# 6) in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
+# 7) for the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
 
+# optional TODO list
+# 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
+
+# schrijven TODO list:
+# 1) level selection procedure
+# 2) integratie van MFK met eigen methode
+# 3) branin aanpassing beschrijven
 
 # inits based on input settings
 setup = Input(0)
+MFK_kwargs = {'print_global' : True,
+                'print_training' : True,
+                'print_prediction' : False,
+                'eval_noise' : False,
+                # 'eval_noise' : setup.noise_regression
+                'n_start': 20, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
+                }
+# mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 2, max_cost = 150000, MFK_kwargs = MFK_kwargs)
+# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000)
-# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000)
+mf_model.set_L([2, 3, None])
+if isinstance(get_solver(setup),TestFunction):
+    mf_model.set_L_costs([1,9,10000])   
 
-doe = get_doe(setup)
-
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True)
-pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2]) # not set: inset_rel_limits = [[]], 
+# init plotting etc
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=4, fast_plot=True)
+pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2])
 cp = ConvergencePlotting(setup)
 
-###############################
-# main
-###############################
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = True
-reload_endstate = True
-tune = True
+reuse_values = False
+reload_endstate = False
 
 used_endstate = hasattr(setup,'model_end') and reload_endstate
 if used_endstate:
@@ -50,72 +75,9 @@ if used_endstate:
 elif hasattr(setup,'model') and reuse_values:
     mf_model.set_state(setup.model)
 else:
-    X_l = doe(setup, n_per_d = 10)
-    
-    # list of the convergence levels we pass to solvers; different to the Kriging level we are assessing.
-    mf_model.set_L([2, 3, None])
-    
-    # create Krigings of levels, same initial hps
-    if setup.d == 2:
-        hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
-        mf_model.create_level(X_l, tune=tune, hps_init=hps)
-    elif setup.d == 1:
-        hps = np.array([1.26756467e+00, 2.00000000e+00, 9.65660595e-04])
-        mf_model.create_level(X_l, tune=tune, hps_init=hps)
-        # forrester moet ongeveer gefocust rond x = 0.62, y = -1.3
-    else:
-        mf_model.create_level(X_l, tune=tune)
-        
-    mf_model.create_level(X_l, tune=tune)
+    mf_model.prepare_proposed(setup)
 
-    " level 2 / hifi initialisation "
-    mf_model.sample_initial_hifi(setup)
-
-    mf_model.sample_truth()
-
-    " initial prediction "
-    Z_pred, mse_pred, _ = weighted_prediction(mf_model)
-    K_mf_new = mf_model.create_level(mf_model.X_unique, Z_pred, append = True, tune = tune, hps_noise_ub = True, R_diagonal= mse_pred / mf_model.K_mf[-1].sigma_hat)
-    K_mf_new.reinterpolate()
-    
-    setup.create_input_file(mf_model, cp, endstate = False)
-
-mf_model.set_L_costs([1,9,10000])   
-
-sm = MFK(theta_bounds = [1e-1, 20],
-         use_het_noise = False,
-         propagate_uncertainty=True, 
-         n_start=10)
-
-for i, K in enumerate(mf_model.K_mf):
-    X = K.X
-    y = K.y.reshape(-1,1)
-    print(f"{X.shape:} {y.shape:}")
-    if i == mf_model.number_of_levels - 1:
-        sm.set_training_values(X, y)
-    else:
-        sm.set_training_values(X, y, name = i)
-
-# sm.set_training_values(mf_model.X_mf,mf_model.Z_mf)
-sm.train()
-
-# HF
-# x = correct_formatX(X[0],setup.d)
-x = X
-
-# for the HF  
-y = sm.predict_values(x)
-var = sm.predict_variances(x)
-
-# values, including intermediate levels
-y0 = sm._predict_intermediate_values(x, 1)
-y1 = sm._predict_intermediate_values(x, 2)
-y2 = sm.predict_values(x)
-
-# mse`s including, including intermediate levels
-MSE, sigma2_rhos = sm.predict_variances_all_levels(x)
-l = 0 # level
-std = np.sqrt(MSE[:,l].reshape(-1,1))
+setup.create_input_file(mf_model, cp, endstate = False)
 
 do_check = False
 if do_check and not check_linearity(mf_model, pp):
@@ -124,13 +86,13 @@ else:
     print("Linearity check: LINEAR enough!!")
 
 
-
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
     mf_model.optimize(pp,cp)
 
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence(mf_model)
+pp.draw_current_levels(mf_model)
 
 print("Simulation finished")
 

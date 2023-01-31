@@ -81,7 +81,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        K_mf_partial = mf_model.create_level(mf_model.X_unique, Z_pred_partial, tune = True, name = "Linearity Check {}".format(i_exclude), append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
+        K_mf_partial = mf_model.create_OKlevel(mf_model.X_unique, Z_pred_partial, tune = True, name = "Linearity Check {}".format(i_exclude), append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
         K_mf_partial.reinterpolate()
         K_mf_partial.X_s = X_s
         K_mf_partial.Z_s = Z_s

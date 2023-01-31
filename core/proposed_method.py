@@ -4,7 +4,7 @@ We could use it as well as modifier for transformed MF testcases.
 """
 import numpy as np
 
-from core.kriging.mf_kriging import ProposedMultiFidelityKriging
+from core.kriging.mf_kriging import ProposedMultiFidelityKriging, MFK
 from utils.formatting_utils import correct_formatX
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
@@ -32,6 +32,14 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     Z0, S0 = K0.predict(X_unique)
     Z1, S1 = K1.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
+
+    if isinstance(K_mf[-1], MFK):
+        # use the MFK solution if available! 
+        # predict_top_level could return either a l1 or l2 prediction.
+        Z1_alt, S1_alt = K_mf[1].predict_top_level(X_unique)
+        S1_alt = np.sqrt(S1_alt)
+    else:
+        Z1_alt, S1_alt = Z1, S1
 
     def exp_f(lamb1, lamb2):
         """get expectation of the function according to
@@ -78,12 +86,6 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # so:   if high Sf/Ef -> use correlation (sc = correlation)
     #       if low Sf/Ef -> use prediction (sc = 1)
     
-    # TODO this is the point at which we can integrate other MF methods!!!!
-    # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
-    # then, we can use Sf not to switch back to L1, but to switch back to the other model if our prediction turns out to be unreliable.
-    # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
-    # so TODO now it is time to get to the MF-EGO approach of Meliani.
-
     corr = K1.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
     lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
 
@@ -91,20 +93,26 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     w = lin
     # * np.exp(-abs(Sf/Ef))
 
+    # NOTE
+    # this is the point at which we can integrate other MF methods!!!!
+    # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
+    # then, we can use Sf not to switch back to L1, but to switch back to the other model if our prediction turns out to be unreliable.
+    # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
+
     # retrieve the (corrected) prediction + std
     # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z1_alt = Z1 # TODO should become equal to external method
-    Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1-w) * Z1_alt # TODO diminish the first term if Sf is high! 
+    Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1-w) * Z1_alt
 
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    S1_alt = S1 # TODO should become equal to external method
     S2_p = w * (S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
 
     # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
     # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
-    # i.e. above might not be equal to that.
-    # NOTE new idea for checking assumption? i.e. if estimated variance deviates too much from kriged variance?
+    # i.e. above might not be equal to that.g
+
+    # NOTE new idea for checking assumption? i.e. if estimated variance deviates too much from kriged variance? 
+    #       -> only works if estimate is correct! (check this somehow?)
     #
     # we might include as well the expected improvement, i.e. if the variance is reduced,
     # do we expect to still see an ei?

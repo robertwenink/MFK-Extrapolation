@@ -42,8 +42,8 @@ class Tuner:
  
         self.report = []
 
-        self.pop_min = 10
-        self.pop_max = 1000
+        self.pop_min = 10 # min 3 ivm lhs
+        self.pop_max = 150
         self.pop_s = max(min(int(2 ** (1 + 2 * self.dim)), self.pop_max),self.pop_min)
         # print("Population size = {}".format(self.pop_s))
 
@@ -63,9 +63,9 @@ class Tuner:
         if hasattr(self,'retuning') and retuning_possible:
             if self.retuning != retuning:
                 if retuning:
-                    self.pop_s = max(int(self.pop_s / 50), self.pop_min)
+                    self.pop_s = max(int(self.pop_s / 10), self.pop_min)
                 else:
-                    self.pop_s = min(int(self.pop_s * 50), self.pop_max)
+                    self.pop_s = min(int(self.pop_s * 10), self.pop_max)
                 
                 self.retuning = retuning
     
@@ -131,6 +131,7 @@ class Tuner:
             samples=self.pop_s-1,
             criterion="maximin",
             iterations=20,
+            random_state=0,
         ) * (self.hps_constraints[i, 1] - self.hps_constraints[i, 0])
 
         # replace worst individual with hps_init, hps_init might differ from pop[0,..]
@@ -213,7 +214,6 @@ class MultistartHillclimb(Tuner):
         retuning=True,
     ):
         super().__init__(function, hps_init, hps_constraints, progress_bar = progress_bar, retuning = retuning)
-        self.pop_s *= 2  # two times as large initial pop as GA based alg.
         self.run()
 
     def run(self):

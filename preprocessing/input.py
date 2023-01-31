@@ -44,7 +44,7 @@ def convert_dict_to_array(d):
     
     # Recursive case: if value is a dictionary go level deeper
     if isinstance(d, dict):
-        return {int(key) if key.isdigit() else key: convert_dict_to_array(value) for key, value in d.items()}
+        return {int(key) if key.isdigit() else None if key == "null" else key: convert_dict_to_array(value) for key, value in d.items()}
 
     # Return value as is if it is not a numerical list or dictionary
     return d

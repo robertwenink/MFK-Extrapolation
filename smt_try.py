@@ -53,8 +53,9 @@ noise0 = [np.array([2e-01, 7e-02, 2e-03, 6e-08,
 theta0 = np.array([[0.5],[0.1]])
 np.random.seed(7)
 sm = MFK(theta0=theta0, theta_bounds = [1e-1, 20],
-         noise0=noise0, use_het_noise = True,
-         propagate_uncertainty=False, n_start=1)
+         noise0=noise0, use_het_noise = False,
+         propagate_uncertainty=True, n_start=1)
+sm = MFK(n_start=1)
 
 # low-fidelity dataset names being integers from 0 to level-1
 sm.set_training_values(Xt_c, yt_c, name=0)
@@ -64,6 +65,15 @@ sm.set_training_values(Xt_e, yt_e)
 print(f"{Xt_e.shape:} {yt_e.shape:}")
 # train the model
 sm.train()
+
+sm.theta0
+sm.noise0
+sm = MFK(n_start=1)
+sm.set_training_values(Xt_c, yt_c, name=0)
+sm.set_training_values(Xt_c, yt_c, name=1)
+sm.set_training_values(Xt_c, yt_c)
+sm.train()
+
 
 # test training
 ntest = 101

@@ -74,6 +74,9 @@ class TestFunction(Solver):
             self.solver_noise = setup.solver_noise
             self.mf = setup.mf
             self.d = setup.d
+            self.lb = setup.search_space[1]
+            self.ub = setup.search_space[2]
+            self.range = self.ub - self.lb
             if self.mf:
                 # keep this for plotting text
                 self.conv_type = setup.conv_type
@@ -158,9 +161,10 @@ class TestFunction(Solver):
                     )
 
                 " transformation "
-                # TODO scale contributions according to size of domain
+                # TODO scale contributions according to size of domain 
+                # -> maar data range is belangrijker! dit transformation model is afgestemd op forrester (ongeveer datarange van 20) -> normalize!
                 # using abs(conv - 1) is a non-linear effect, but is required for mimicking Forrester/Meliani (in which case it is not non-linear??)
-                linear_gain_mod = 2
+                linear_gain_mod = 2 * self.d
                 A = conv
                 B = 10 * (conv - 1) * linear_gain_mod
                 C = -5 * (conv - 1) * linear_gain_mod
@@ -224,7 +228,7 @@ class Branin(TestFunction):
         r = 6
         s = 10
         t = 1 / (8 * np.pi)
-        return (a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s) + (x1 + np.pi)**2 / 10
+        return (a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s) + (x1 + np.pi)**2 / 2
         # MINIMIZE ((x2 - 5.1 / (4 * pi ^2) * x2 + 5 / pi * x1 - 6) ** 2 + 10 * ((1 - 1 / (8 * pi)) * cos(x1) + 1) + 5*x1)
 
     @staticmethod

@@ -14,7 +14,7 @@ from preprocessing.input import Input
 from core.sampling.solvers.solver import get_solver
 from core.sampling.solvers.internal import TestFunction
 from core.proposed_method import *
-from core.kriging.mf_kriging import MultiFidelityKriging, ProposedMultiFidelityKriging
+from core.kriging.mf_kriging import MultiFidelityKrigingBase, ProposedMultiFidelityKriging
 
 from utils.error_utils import RMSE_norm_MF
 from utils.selection_utils import get_best_sample, get_best_prediction
@@ -56,7 +56,7 @@ class Plotting:
         # we can plot the exact iff our solver is a self.plot_exact_possibletion
         self.solver = get_solver(setup)
         self.plot_exact_possible = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
-        self.try_show_exact = False
+        self.try_show_exact = True
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
 
         if setup.d == 1 or len(setup.d_plot) == 1:
@@ -294,7 +294,7 @@ class Plotting:
         " STEP 2: plotting "
         if ax.name == "3d":
             # if the axis is 3d, we will plot a surface
-            alpha_main = 0.3
+            alpha_main = 0.35
             alpha_std = 0.1
 
             fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=alpha_main, color=color, label=label))
@@ -360,7 +360,7 @@ class Plotting:
             ax.scatter(*X_opt[:, self.d_plot].T, marker = "X", s = 100, zorder = 10, facecolor = "orange", edgecolors= color, label = label, alpha = 0.7)
             ax.colors.append(color)
 
-    def plot_kriged_truth(self, mf_model : MultiFidelityKriging):
+    def plot_kriged_truth(self, mf_model : MultiFidelityKrigingBase):
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
         """
@@ -472,7 +472,7 @@ class Plotting:
             ax.colors.append(color_opt)
 
 
-    def draw_current_levels(self, mf_model : MultiFidelityKriging, K_mf_extra = None):
+    def draw_current_levels(self, mf_model : MultiFidelityKrigingBase, K_mf_extra = None):
         """
         @param X: !! 3D array, different in format, it is now an array of multiple X in the standard format
                     for the last level, this contains only the sampled locations.

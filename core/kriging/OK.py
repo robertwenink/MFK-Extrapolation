@@ -30,7 +30,14 @@ class OrdinaryKriging:
             self.hps = hps_init
 
     def predict(self, X_new):
-        """Predicts and returns the prediction and associated mean square error"""
+        """
+        Predicts and returns the prediction and associated mean square error
+        
+        Returns
+        -------
+        - y_hat : the Kriging mean prediction
+        - mse_var : the Kriging mean squared error
+        """
         X_new = correct_formatX(X_new, self.d)
 
         # NOTE correlation function for r should not involve regression terms (forrester2006).
@@ -127,8 +134,8 @@ class OrdinaryKriging:
         # run model and time it
         start = time.time()
 
-        if not hasattr(self, "model"):
-            self.model = ga(
+        if not hasattr(self, "tuning_model"):
+            self.tuning_model = ga(
                 function=self.fitness_func,
                 hps_init=self.hps,
                 hps_constraints=self.hps_constraints,
@@ -137,20 +144,20 @@ class OrdinaryKriging:
                 retuning = retuning #! set explicitly to False if creating a new OK!
             )
         else:
-            self.model.set_retuning(retuning)
-            self.model.run()
+            self.tuning_model.set_retuning(retuning)
+            self.tuning_model.run()
 
         t = time.time() - start
 
         # assign results to Kriging object, this sets hps_init for the tuning as well.
-        self.hps = self.model.output_dict["hps"].reshape(self.hps.shape)
+        self.hps = self.tuning_model.output_dict["hps"].reshape(self.hps.shape)
 
         # print results of tuning
         table = BeautifulTable()
         SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-        tuning_time = "{}{}{}".format("Re-t" if hasattr(self, "model") and retuning else "T","uning time"," of {}".format(self.name) if self.name != "" else "")
+        tuning_time = "{}{}{}".format("Re-t" if hasattr(self, "tuning_model") and retuning else "T","uning time"," of {}".format(self.name) if self.name != "" else "")
         table.columns.header = [tuning_time, "Fitness"] + ["\u03F4" + str(i).translate(SUB) for i in range(self.d)] +  ["p" + str(i).translate(SUB) for i in range(self.d)] + ["noise"]
-        row = ["{:.4f} s".format(t), self.model.output_dict["function"]] + list(self.model.best_hps)
+        row = ["{:.4f} s".format(t), self.tuning_model.output_dict["function"]] + list(self.tuning_model.best_hps)
         table.rows.append(row)
         print(end='\r')
         print(table)
@@ -163,7 +170,7 @@ class OrdinaryKriging:
         """
         # OK.__dict__:  dict_keys(['corr', 'hps', 'hps_constraints', 'd', 'X', 'y', 'diff_matrix', 'R_diagonal', 'R_in', 'mu_hat', 'sigma_hat', 'r'])
         # corr is a (compiled) function
-        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat', 'X_infill', 'regularization'})}
+        return {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set({'corr', 'tuning_model', 'r', 'diff_matrix', 'R_in', 'mu_hat', 'sigma_hat', 'X_infill', 'regularization'})}
 
     def set_state(self, data_dict):
         """
