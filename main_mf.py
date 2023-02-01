@@ -21,7 +21,7 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 # TODO list
 # 1) animate the plotting
-# 2) set_state get_state for new classes DONE
+# 2) DONE set_state get_state for new classes
 # 3) RMSE and other analysis tools for base MFK too!! (important for comparison)
 # 4) repeated experiments for testfunctions
 # 5) 
@@ -32,26 +32,37 @@ from postprocessing.plot_convergence import ConvergencePlotting
 #       OPLOSSING: Le Gratiet / Meliani beschrijft hoe je de sigma_red vind voor het model van Le Gratiet.
 # 6) in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
 # 7) for the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
+# 8) corr is altijd 1 voor ObjectWrapper (zie schrijven todo 4 ook) -> eerst op level 1 tunen!
+# 9) mse_pred is negatief voor MFK in Kriging_unknown_z
 
 # optional TODO list
 # 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
 
 # schrijven TODO list:
+# 0) Het is frappant hoe erg mijn extrapolatie methode en de method van la gratiet op elkaar lijken!!
+# 0a) 'three assumptions' in eigen methode moet de laatste weg, voor vergleijking met le gratiet method moet s0+s1 zijn niet -
+#     bovendien, we hebben de variances per level als iid beschouwd, dat is tegenstrijdig
+#     de afstand tussen twee variances is logischerwijs de som daarvan!! -> is weer normal!
 # 1) level selection procedure
 # 2) integratie van MFK met eigen methode
 # 3) branin aanpassing beschrijven
+# 4) beschrijven dat de weighing methode niet werkt met universal kriging omdat er dan niet perse correlaties meer bestaan
+#       de trend beschrijft namelijk al de variabiliteit in de data en de correlatie hoeft niet meer nodig te zijn perse.
 
 # inits based on input settings
 setup = Input(0)
 MFK_kwargs = {'print_global' : True,
                 'print_training' : True,
                 'print_prediction' : False,
-                'eval_noise' : False,
-                # 'eval_noise' : setup.noise_regression
-                'n_start': 20, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
+                # 'eval_noise' : False,
+                'eval_noise' : setup.noise_regression,
+                'propagate_uncertainty' : False, 
+                'optim_var' : False, # true: HF samples is forced to zero; NOTE TODO doe dit alleen indien noise reg false en slechts 2 lvls
+                'hyper_opt' : '‘Cobyla’', # [‘Cobyla’, ‘TNC’] Cobyla standard
+                'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 }
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 2, max_cost = 150000, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 mf_model.set_L([2, 3, None])
@@ -80,7 +91,7 @@ else:
 setup.create_input_file(mf_model, cp, endstate = False)
 
 do_check = False
-if do_check and not check_linearity(mf_model, pp):
+if do_check and not reload_endstate and not check_linearity(mf_model, pp):
     print("Linearity check: NOT LINEAR enough, but continueing for now.")
 else:
     print("Linearity check: LINEAR enough!!")
@@ -89,9 +100,10 @@ else:
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
     mf_model.optimize(pp,cp)
+    # mf_model.optimize()
 
 setup.create_input_file(mf_model, cp, endstate = True)
-cp.plot_convergence(mf_model)
+cp.plot_convergence()
 pp.draw_current_levels(mf_model)
 
 print("Simulation finished")

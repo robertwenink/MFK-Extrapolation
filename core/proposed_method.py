@@ -86,7 +86,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # so:   if high Sf/Ef -> use correlation (sc = correlation)
     #       if low Sf/Ef -> use prediction (sc = 1)
     
-    corr = K1.corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
+    corr = K_mf[-1].corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
     lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
 
     w = 1 * lin + corr * (1 - lin) 
@@ -105,7 +105,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
 
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    S2_p = w * (S1 + abs((S1 - S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
+    S2_p = w * (S1 + abs((S1 + S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
 
     # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
     # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
@@ -164,11 +164,11 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         # NOTE if not in X_unique, we could just add a 0 to all previous,
         # might be faster but more edge-cases
         n = X_s.shape[0]
-        D, D_mse, D_Sf, D_Ef = [], [], [], []
+        D_z, D_mse, D_Sf, D_Ef = [], [], [], []
         for i in range(X_s.shape[0]):
             Z_p, mse_p, Sf, Ef = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
-            D.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf), D_Ef.append(Ef) # type: ignore
-        D, D_mse, D_Sf, D_Ef = np.array(D), np.array(D_mse), np.array(D_Sf), np.array(D_Ef)
+            D_z.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf), D_Ef.append(Ef) # type: ignore
+        D_z, D_mse, D_Sf, D_Ef = np.array(D_z), np.array(D_mse), np.array(D_Sf), np.array(D_Ef)
 
         " Weighing "
         # 1) distance based: take the (tuned) Kriging correlation function
@@ -202,7 +202,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         c_z = np.divide(
             c, np.sum(c, axis=0) + np.finfo(np.float64).eps
         )  # to avoid division by (near) zero for higher d
-        Z_pred = np.sum(np.multiply(D, c_z), axis=0)
+        Z_pred = np.sum(np.multiply(D_z, c_z), axis=0)
 
         # Scale for mse
         # NOTE noise is added to the samples regardless of what this function returns

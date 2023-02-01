@@ -73,7 +73,7 @@ class Plotting:
 
         self.counter = 0
         self.tight = False
-        self.plot_once_every = plot_once_every
+        self.plot_once_every = plot_once_every if self.d > 1 else 1
 
     ###########################################################################
     ## Helper functions                                                     ###
@@ -389,7 +389,7 @@ class Plotting:
                         limit = [0.5, 0.5, 0.3, 0.4]
                     else:
                         # underneath the legend (if it is on the right)
-                        limit = [1.1, 0.1, 0.4, 0.4]
+                        limit = [1.1, 0.05, 0.4, 0.4]
                 
                 # assign the inset axes as a variable to the ax, such that we can access it adhoc
                 ax.axin = ax.inset_axes(limit) 

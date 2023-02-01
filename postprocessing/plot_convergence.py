@@ -128,28 +128,28 @@ class ConvergencePlotting():
         plt.show(block=False)
         self.fig.tight_layout()
 
-
-    def plot_convergence(self, model, x_new = None, ei = None):
+    def update_convergence_data(self, model, x_new, ei = None):
         """
-        Plot the convergence stats (and calculate the stats needed). 
-        @param model: either a multi or single-fidelity model
+        Update the convergence data.
         """
-        t_start = time.time()
-        # gather the new data and update
-
         if np.any(x_new):
             RMSE = RMSE_norm_MF(model, no_samples=True)
             RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage)
             x_best, value_best = get_best_sample(model)
             x_new, value_x_new = get_best_prediction(model, x_new)
 
-            self.update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
-        t_data = time.time()
-        self.update_plot()
-        
-        print("### cp plotting took {:.4f} s, of which getting data: {:.4f} s ###".format(time.time() - t_start, t_data - t_start))
+            self._update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
 
-    def update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
+    def plot_convergence(self):
+        """
+        Plot the convergence stats (and calculate the stats needed). 
+        @param model: either a multi or single-fidelity model
+        """
+
+        self._update_plot()
+        
+
+    def _update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
         """
         Update the data of the plot
         """
@@ -167,7 +167,7 @@ class ConvergencePlotting():
         self.RMSEs.append(RMSE[-1])  # TODO alles weergeven?
         self.RMSE_focussed.append(RMSE_focussed[-1]) # TODO alles weergeven?
 
-    def update_plot(self):
+    def _update_plot(self):
         
         # self.artists = [p1_best, p1_ei, p2_best, p2_ei, p3_full, p3_focussed]
         for artist in self.artists:

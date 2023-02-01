@@ -64,3 +64,28 @@ def correct_format_hps(a):
     if a.ndim == 1:
         return np.array([a], dtype=np.float64)
     return a
+
+
+
+def _dict_rec(state):
+    if type(state) is list:
+        for l in state:
+            print(f"{'    ':<20} = {type(state)}")
+            _dict_rec(l)
+    elif type(state) is np.ndarray: 
+        arr = state[0]
+        print(f"{'    ':<20} = {type(arr)}, {arr.dtype}")
+    elif type(state) is dict:
+        for key in state:
+            print(f"{'    '+str(key):<20} = {type(state[key])}")
+            _dict_rec(state[key])
+    else:
+        print(f"{'    ':<20} = {type(state)}")
+    
+
+def print_dict_datatypes(state):
+    for key in state:
+        print(f"{key:<20}")
+        _dict_rec(state[key])
+        # else print a line to indicate end of sub sequence
+        print("_________________________")

@@ -21,17 +21,6 @@ from utils.selection_utils import isin_indices, isin, get_best_prediction, get_b
 
 from smt.applications import MFK
 
-def dict_types(d):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            print(dict_types(v))
-        elif isinstance(v, list):
-            l = [dict_types(x) if isinstance(x, dict) else type(x) for x in v]
-            print(l)
-        elif isinstance(v, np.ndarray):
-            print(type(v[0]))
-        else:
-            print(type(v))
 
 class MultiFidelityKrigingBase(object):
 
@@ -366,23 +355,6 @@ class MultiFidelityKrigingBase(object):
         """
         raise NotImplementedError("set_state not implemented for this class")
 
-def dict_rec(state):
-    if type(state) is list:
-        for l in state:
-            print(f"{'    ':<20} = {type(state)}")
-            dict_rec(l)
-    elif type(state) is np.ndarray: 
-        arr = state[0]
-        print(f"{'    ':<20} = {type(arr)}, {arr.dtype}")
-    elif type(state) is dict:
-        for key in state:
-            print(f"{'    '+key:<20} = {type(state[key])}")
-            dict_rec(state[key])
-    else:
-        print(f"{'    ':<20} = {type(state)}")
-    
-
-    
 
 class MFK_wrap(MFK):
     def __init__(self, **kwargs):
@@ -392,13 +364,7 @@ class MFK_wrap(MFK):
         # not: ,'F_all','p_all','q_all','y_norma_all'
         state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) 
         - set({'options','printer','D_all','F','p','q','optimal_rlf_value','ij','supports','X','X_norma','best_iteration_fail','nb_ill_matrix','sigma2_rho','training_points','y','nt','theta0','noise0',
-        'X_infill'})}
-
-        for key in state:
-            print(f"{key:<20}")
-            dict_rec(state[key])
-            # else print a line to indicate end of sub sequence
-            print("_________________________")
+        'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
             
 
         # print(dict_types(state))
@@ -407,6 +373,8 @@ class MFK_wrap(MFK):
     def set_state(self, data_dict):
         for key in data_dict:
             if key in ['optimal_noise_all','q_all','p_all','optimal_theta']:
+                setattr(self, key, list(data_dict[key]))
+            elif key in ['optimal_par']: # quite redundant now
                 setattr(self, key, list(data_dict[key]))
             else:    
                 setattr(self, key, data_dict[key])
@@ -498,19 +466,19 @@ class MFK_smt(MFK, MultiFidelityKrigingBase):
             # overloaded function
             if not hasattr(self,'K_truth'):
                 print("Creating Kriging model of truth", end = '\r')
-                kwargs = self.MFK_kwargs
+                kwargs = copy(self.MFK_kwargs)
                 kwargs['n_start'] *= 2 # truth is not tuned often so rather not have any slipups
                 self.K_truth = MFK_wrap(**kwargs)
                 self.K_truth.X_infill = self.X_infill
                 self.K_truth.name = "K_truth"
 
-            if data_dict == None:
+            if data_dict != None:
+                self.K_truth.set_state(data_dict)
+            else:
                 self.set_training_data(self.K_truth, [*self.X_mf[:self.max_nr_levels-1], self.X_truth], [*self.Z_mf[:self.max_nr_levels-1], self.Z_truth])
                 self.K_truth.train()
                 self.K_truth.X_opt, self.K_truth.z_opt = get_best_prediction(self.K_truth)
                 print("Succesfully trained Kriging model of truth", end = '\r')
-            else:
-                self.K_truth.set_state(data_dict)
 
     
     def set_training_data(self, model : MFK, X_mf : list, Z_mf : list):
@@ -724,14 +692,20 @@ class ProposedMultiFidelityKriging(MFK_smt if smt else MFK_org, MultiFidelityKri
         self.K_mf = self.K_mf[:2] # might be needed in case of MFK
         self.number_of_levels = 2
 
-        # do an initial prediction
-        Z_pred, mse_pred, _ = wp.weighted_prediction(self)
-
         # and add the (reinterpolated!) predictive level
         if isinstance(self, MFK_smt): 
-            K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
+            # Universal Kriging does not always provide a representative correlation function for our goal due to the trend!
+            # so, first tune an OK on lvl 1
+            K_mf_new = self.create_OKlevel(self.X_mf[1], self.Z_mf[1], append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
+
+            # do an initial prediction
+            Z_pred, mse_pred, _ = wp.weighted_prediction(self)
+
             K_mf_new.train(self.X_unique, Z_pred, tune = True, retuning = False, R_diagonal = mse_pred / K_mf_new.sigma_hat)
         else:
+            # do an initial prediction
+            Z_pred, mse_pred, _ = wp.weighted_prediction(self)
+
             K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat)
         K_mf_new.reinterpolate()
 
@@ -787,9 +761,11 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
     def optimize(self, pp = None, cp = None):
         self.max_cost = np.inf
         while np.sum(self.costs_total) < self.max_cost:
+            " output "
             if pp != None:
-                # " output "
                 pp.draw_current_levels(self)
+            if cp != None:
+                cp.plot_convergence()
 
             # predict and calculate Expected Improvement
             y_pred, sigma_pred = self.K_mf[-1].predict(self.X_infill) 
@@ -832,8 +808,11 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
             if cp != None:
                 # plot convergence here and not before break, otherwise on data reload will append the same result over and over
-                cp.plot_convergence(self, x_new, ei) # pass these, we do not want to recalculate!!
+                cp.update_convergence_data(self, x_new, ei) # pass these, we do not want to recalculate!!
 
+
+
+        " Print end-results "
         s_width = 71
         print("┏" + "━" * s_width + "┓")
         print("┃ Best found point \t\tx = {}, f(x) = {: .4f} \t┃".format(get_best_sample(self)[0][0],get_best_sample(self)[1]))
@@ -862,8 +841,9 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
 
         s0_red, s1_red, s2_red = self._std_reducable2(x_new) # kan op x_new 0 zijn
+        # s0_red, s1_red, s2_red = self._std_reducable_meliani_smt(x_new)
         # print(s0_red,s1_red,s2_red)
-        
+         
         # NOTE sigma_red should contain the amount of reduction at the top/prediction level we get by sampling it!
         # this will be different between mine and meliani`s
         # s2 = s1 + weighted(Ef) * (s1 - s0) + weighted(Sf) * (z1 - z0)
@@ -872,6 +852,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         std_pred_weighed, std_pred_model = np.sqrt(mse_pred).item(), np.sqrt(std_pred_model).item()
         print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(Z_pred_weighed.item() ,Z_pred_model.item()))
         print("Std_pred_weighed: {:.4f}; std_pred_model: {:4f}".format(std_pred_weighed, std_pred_model))
+
         # last term does not provide an expected reduction, so we only require a weighed Ef
         s1_exp_red = s1_red + abs(Ef_weighed * (s0_red + s1_red))
         sigma_red = [s1_exp_red.item(), s1_exp_red.item(), s2_red]
@@ -882,8 +863,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         l = 0
         # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.
         for i in range(1,3):
-            #TODO is dit de goede formule?
-            value = sigma_red[i]**2/self.costs_expected_nested[i]
+            value = sigma_red[i]**2 / self.costs_expected_nested[i]**2
             maxx = max(maxx,value)
             # NOTE gives preference to highest level, which is good:
             # if no reductions expected anywhere lower, we should sample the highest (our only 'truth')
@@ -914,7 +894,10 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         for l in range(self.number_of_levels - 1, -1, -1):
             predictor = self.K_mf[l]
             if isinstance(predictor,MFK):
-                ret += self._std_reducable2_smt(predictor, l, x_new)
+                # ret += self._std_reducable2_smt(predictor, l, x_new)
+                ret1 = self._std_reducable_meliani_smt(x_new)[:2] # NOTE only take first two
+                ret1.reverse()
+                ret += ret1
                 break
             else:
                 ret.append(self._std_reducable2_org(predictor, x_new))
@@ -961,7 +944,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         print("s = {} of which reducable {}".format(s0,s_reducable))
         return s_reducable
 
-    def _std_reducable2_smt(self, predictor, l_top, x_new):
+    def _std_reducable2_smt(self, predictor : MFK_smt, l_top, x_new):
         """
         Finds the part of the mse that is reducable by i.e. sampling.
         Does this by predicting at location x_new, training as if it was sampled, predicting.
@@ -999,3 +982,36 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # mse_reducable = np.sqrt(max(mse_reducable,0))
         # return float(mse_reducable), s0
         return s_list
+
+    def _std_reducable_meliani_smt(self, x_new):
+        # NOTE TODO melianis level selection / calculation of sigma2 reduction does not include noise at sampled points!! (quite certain)
+        # heel zeker als je kijkt binnen predict_variances_all_levels
+        
+        # NOTE optie propagate_uncertainty doet MSE[:, i] = MSE[:, i] + sigma2_rho * MSE[:, i - 1]
+        # delta is zijn eigen GP met N(0,sigma) -> 'simple Kriging'
+        # hierbij is MSE[:, i] = delta_k,0 op level 0 en delta_k,l = MSE[:, l]
+        # omdat de levels van le gratiet gelinkt zijn is de onzekerheid opbouwend en er is ook de eigen kriging onzekerheid
+        # als gratiet (check dit) de discrepancy onzekerheid neemt aangenomen dat de constante (!) multiplicative factor klopt 
+        # (en dus de mean van onderliggende klopt), dan is de disceprepancy onzekerheid simpelweg de onzekerheid op het bovenliggende nivuea
+        # ofwel in de vergelijking: MSE[:, i] = MSE[:, i] + sigma2_rho * MSE[:, i - 1], 
+        # als we dan kijken naar de *verschillen tussen levels* zoals ik dat doe:
+        # sd1_added = sd1 + Ef * sd0 ~ s2 + s1 + Ef * (s1 + s0) -- (s2 assumed no var) --> s1 + Ef * (s1 + s0)
+
+        
+        self.options["propagate_uncertainty"] = True # standard option, calculates the cumulative 
+        MSE_contribution, sigma2_rhos = self.predict_variances_all_levels(x_new)
+        self.options["propagate_uncertainty"] = False
+
+        # the std2 contribution of level k to the highest fidelity
+        # sigma_con = []
+        # for l in range(MSE.shape[0]):
+        #     sigma_con.append()
+
+        # sigma_red is the sum of all sigma_con`s up to level k (where we sample)
+        # NOTE I think Meliani is incorrect. Yes we do sample lower levels, and yes they do have a uncertainty contribution
+        # However: when you sample a higher level, lower levels cannot provide extra info anymore to that level (see Kennedy & O`Hagan)
+        # TODO Korondi 2021 gebruiken!!!!! die doet het wel goed, i.e. gebruikt alleen de sigma_con!
+
+
+        return MSE_contribution.flatten().tolist()
+        
