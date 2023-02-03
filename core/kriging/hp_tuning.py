@@ -42,7 +42,7 @@ class Tuner:
  
         self.report = []
 
-        self.pop_min = 10 # min 3 ivm lhs
+        self.pop_min = 50 # min 3 ivm lhs
         self.pop_max = 150
         self.pop_s = max(min(int(2 ** (1 + 2 * self.dim)), self.pop_max),self.pop_min)
         # print("Population size = {}".format(self.pop_s))
@@ -63,9 +63,9 @@ class Tuner:
         if hasattr(self,'retuning') and retuning_possible:
             if self.retuning != retuning:
                 if retuning:
-                    self.pop_s = max(int(self.pop_s / 10), self.pop_min)
+                    self.pop_s = max(int(self.pop_s / 5), self.pop_min)
                 else:
-                    self.pop_s = min(int(self.pop_s * 10), self.pop_max)
+                    self.pop_s = min(int(self.pop_s * 5), self.pop_max)
                 
                 self.retuning = retuning
     

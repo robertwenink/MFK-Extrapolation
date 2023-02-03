@@ -801,8 +801,13 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             else: 
                 tune = False
 
+            # if we sample on level 2, we really should first retune for correcting i.e. sigma_hat, without R_diag to get the correct base, just like at init
+            if l == 2:
+                self.K_mf[-1].train(self.X_unique, Z_pred, tune=tune)
+            
+            # train the prediction model, including heteroscedastic noise
             self.K_mf[-1].train(
-                self.X_unique, Z_pred, tune=tune, R_diagonal=mse_pred / self.K_mf[-1].sigma_hat
+                self.X_unique, Z_pred, tune=tune#, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat
             )
             self.K_mf[-1].reinterpolate()
 
@@ -840,37 +845,20 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # 2) meenemen in de weighing
         # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
 
-        s0_red, s1_red, s2_red = self._std_reducable2(x_new) # kan op x_new 0 zijn
-        # s0_red, s1_red, s2_red = self._std_reducable_meliani_smt(x_new)
-        # print(s0_red,s1_red,s2_red)
-         
-        # NOTE sigma_red should contain the amount of reduction at the top/prediction level we get by sampling it!
-        # this will be different between mine and meliani`s
-        # s2 = s1 + weighted(Ef) * (s1 - s0) + weighted(Sf) * (z1 - z0)
-        Z_pred_weighed, mse_pred, Ef_weighed = wp.weighted_prediction(self, X_test=x_new)
-        Z_pred_model, std_pred_model = self.K_mf[-1].predict(x_new)
-        std_pred_weighed, std_pred_model = np.sqrt(mse_pred).item(), np.sqrt(std_pred_model).item()
-        print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(Z_pred_weighed.item() ,Z_pred_model.item()))
-        print("Std_pred_weighed: {:.4f}; std_pred_model: {:4f}".format(std_pred_weighed, std_pred_model))
-
-        # last term does not provide an expected reduction, so we only require a weighed Ef
-        s1_exp_red = s1_red + abs(Ef_weighed * (s0_red + s1_red))
-        sigma_red = [s1_exp_red.item(), s1_exp_red.item(), s2_red]
-        
-        print(sigma_red)
+        sigma_red = self._std_reducable_proposed(x_new) # kan op x_new 0 zijn
+        # s0_red, s1_red, s2_red = self._mse_reducable_meliani_smt(x_new)
         
         maxx = 0
         l = 0
         # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.
         for i in range(1,3):
-            value = sigma_red[i]**2 / self.costs_expected_nested[i]**2
+            value = sigma_red[i] / self.costs_expected_nested[i]**2
             maxx = max(maxx,value)
             # NOTE gives preference to highest level, which is good:
             # if no reductions expected anywhere lower, we should sample the highest (our only 'truth')
             if value == maxx:
                 l = i
-        
-        
+                
         # check per sample if not already sampled at this level
         # NOTE broadcasting way
         if isin(x_new,self.X_mf[l]):
@@ -879,15 +867,75 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         
         return l
 
-    def _std_reducable(self, l, x_new):
+    def _std_reducable_proposed(self, x_new):
         """
-        Tries to find the part of the mse that is reducable by i.e. sampling.
+        Calculate the reducable variance at x_new, tailored for the proposed method (lvl 2) + smt (lvl 0 & 1)
+
+        There are 3 sources of mse prediction information that we want to translate 
+        to a variance reduction at lvl 2 by sampling level l:
+        1) weighed prediction mse
+        2) kriging prediction mse (can be spurious!!)
+        3) smt mfk prediction mse
+
+        Of any end-ansers for projections to lvl2, only take the lowest expected reduction. 
+        This improves stability primarily because the prediction level might not always be perfectly tuned, 
+        which would lead to unnecessarily selecting the highest level. 
+        This discrepency is the result of a mixture of different model types (UK & OK) and different (tuner) codes.
+        """
+        
+
+        " 1) weighed prediction mse "
+        z_pred_weighed, mse_pred_weighed, Ef_weighed = wp.weighted_prediction(self, X_test=x_new)
+
+
+        " 2) kriging prediction mse (can be spurious!!) " 
+        # noise corrected not true at lvl 2 due to reinterpolation!
+        z_pred_model, mse_pred_model = self._mse_reducable_predict(2, x_new, noise_correct=False) 
+
+        " 3) smt mfk prediction mse "
+        # with propagate_uncertainty, mse is as-is; 
+        # this is important to the proposed methods split-up since each level contributes independently!
+        std_pred_smt = np.sqrt(self._mse_reducable_meliani_smt(x_new, propagate_uncertainty = False))
+
+
+        " Results selection "
+        # Now, calculate the weighed result
+        # s2 = s1 + Ef_weighed * (s1 + s0) + weighted(Sf) * (z1 - z0)
+        # last term does not provide an expected reduction, so we only require a weighed Ef
+        # we assume a fully nested DoE
+        s0_exp_red = Ef_weighed * std_pred_smt[0]
+        s1_exp_red = std_pred_smt[1] + Ef_weighed * (std_pred_smt[0] + std_pred_smt[1])
+        
+        # now various options for lvl 2:
+        options = [np.sqrt(mse_pred_model).item(), np.sqrt(mse_pred_weighed).item()]
+        if len(std_pred_smt) == 3:
+            options.append(std_pred_smt[2])
+        print(f"MSE lvl 2 options are: mse_pred_model, mse_pred_weighed, mse_pred_smt\n\t{options}")
+        # s2_exp_red = min(options)
+        s2_exp_red = np.sqrt(mse_pred_weighed).item()
+
+
+        print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(z_pred_weighed.item() ,z_pred_model.item()))
+        print("std_pred_weighed: {:.8f}; std_pred_model: {:8f}".format(np.sqrt(mse_pred_weighed).item(), np.sqrt(mse_pred_model).item()))
+
+        s_exp_red = [s0_exp_red, s1_exp_red, s2_exp_red]
+        print(s_exp_red)
+        return s_exp_red 
+        
+    ##################### OLD
+    def _mse_reducable_predict(self, l, x_new, noise_correct = True):
+        """
+        Tries to find the part of the mse that is reducable by sampling and correcting for noise at the sampled points.
         This time, by taking the variance at sampled points from the predictor and averaging those.
         Seems a more logical and reasonable solution.
         """
-        _, s = self.K_mf[l].predict(self.X_mf[l])
-        _, s_new = self.K_mf[l].predict(x_new)
-        return np.sqrt(s_new.item()) - np.average(np.sqrt(s))
+        _, mse = self.K_mf[l].predict(self.X_mf[l])
+        z_new, mse_new = self.K_mf[l].predict(x_new)
+
+        if noise_correct:
+            return z_new, np.clip(0,mse_new - np.average(mse)).item()
+        else:
+            return z_new, mse_new
 
     def _std_reducable2(self, x_new):
         ret = []
@@ -895,15 +943,17 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             predictor = self.K_mf[l]
             if isinstance(predictor,MFK):
                 # ret += self._std_reducable2_smt(predictor, l, x_new)
-                ret1 = self._std_reducable_meliani_smt(x_new)[:2] # NOTE only take first two
+                ret1 = self._mse_reducable_meliani_smt(x_new)[:2] # NOTE only take first two
                 ret1.reverse()
                 ret += ret1
                 break
             else:
-                ret.append(self._std_reducable2_org(predictor, x_new))
+                ret.append(self._std_reducable_org(predictor, x_new))
         
         ret.reverse()
         return np.array(ret).clip(min=0)
+
+
 
     def _std_reducable2_org(self, predictor, x_new):
         """
@@ -911,6 +961,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         Does this by predicting at location x_new, training as if it was sampled, predicting.
         What is left is the base variance present even at the new sample (without tuning).
         Comparing gives the expected reducable variance.
+
+        NOTE does not work with proximate samples!
         """
         # noise_hp = predictor.hps[-1]
 
@@ -944,46 +996,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         print("s = {} of which reducable {}".format(s0,s_reducable))
         return s_reducable
 
-    def _std_reducable2_smt(self, predictor : MFK_smt, l_top, x_new):
-        """
-        Finds the part of the mse that is reducable by i.e. sampling.
-        Does this by predicting at location x_new, training as if it was sampled, predicting.
-        What is left is the base variance present even at the new sample (without tuning).
-        Comparing gives the expected reducable variance.
-        """
-        # noise_hp = predictor.hps[-1]
 
-        # get the full noise prediction
-        y_add, s0 = predictor.predict(x_new)
-        s0 = np.sqrt(s0) 
-
-        X_mf_old = copy(self.X_mf)
-        Z_mf_old = copy(self.Z_mf)
-
-        # set the new data to all levels -> this means only call this function once!!
-        for l, _ in enumerate(X_mf_old):
-            self.X_mf[l] = np.append(self.X_mf[l], x_new, axis=0)
-            self.Z_mf[l] = np.append(self.Z_mf[l], y_add)
-        predictor.train()
-
-        s_list = []
-        for l in range(l_top, -1, -1):
-            y_updated, s0_updated = predictor._predict_l(x_new, l)
-            s_reducable = (np.sqrt(s0) - np.sqrt(s0_updated)).item()
-            print("l = {}: s = {} of which reducable {}".format(l,s0,s_reducable))
-
-            s_list.append(s_reducable)
-
-        # reset (retrain actually) to the previous state
-        self.X_mf = X_mf_old
-        self.Z_mf = Z_mf_old
-        predictor.train()
-
-        # mse_reducable = np.sqrt(max(mse_reducable,0))
-        # return float(mse_reducable), s0
-        return s_list
-
-    def _std_reducable_meliani_smt(self, x_new):
+    def _mse_reducable_meliani_smt(self, x_new, propagate_uncertainty = True):
         # NOTE TODO melianis level selection / calculation of sigma2 reduction does not include noise at sampled points!! (quite certain)
         # heel zeker als je kijkt binnen predict_variances_all_levels
         
@@ -998,9 +1012,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # sd1_added = sd1 + Ef * sd0 ~ s2 + s1 + Ef * (s1 + s0) -- (s2 assumed no var) --> s1 + Ef * (s1 + s0)
 
         
-        self.options["propagate_uncertainty"] = True # standard option, calculates the cumulative 
+        self.options["propagate_uncertainty"] = propagate_uncertainty # standard option, calculates the cumulative 
         MSE_contribution, sigma2_rhos = self.predict_variances_all_levels(x_new)
-        self.options["propagate_uncertainty"] = False
 
         # the std2 contribution of level k to the highest fidelity
         # sigma_con = []
@@ -1013,5 +1026,5 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # TODO Korondi 2021 gebruiken!!!!! die doet het wel goed, i.e. gebruikt alleen de sigma_con!
 
 
-        return MSE_contribution.flatten().tolist()
+        return MSE_contribution.flatten()
         

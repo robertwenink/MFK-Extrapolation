@@ -64,7 +64,7 @@ class OrdinaryKriging:
 
         # add regularization constant!! 
         # I prefer this over pseudoinverse pinv because pinv is slower
-        self.regularization = np.finfo(np.float32).eps
+        self.regularization = np.finfo(np.float64).eps
 
         # add prediction regression terms
         if R_diagonal is not None:
@@ -75,7 +75,7 @@ class OrdinaryKriging:
         n = self.X.shape[0]
 
         # we only want to calculate the inverse once, so it has to be object oriented or passed around
-        self.R_in = linalg.pinv(R)
+        self.R_in = linalg.inv(R)
         self.mu_hat = _mu_hat(self.R_in, y)
         self.sigma_hat = _sigma_hat(self.R_in, y, self.mu_hat, n)
         

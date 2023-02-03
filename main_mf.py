@@ -25,15 +25,17 @@ from postprocessing.plot_convergence import ConvergencePlotting
 # 3) RMSE and other analysis tools for base MFK too!! (important for comparison)
 # 4) repeated experiments for testfunctions
 # 5) 
-#    a) bij levelbepaling slechts 1 keer de MFK tunen! -> gebruik get/set_state method
+#    a) (DONE) bij levelbepaling slechts 1 keer de MFK tunen! -> gebruik get/set_state method
 #    b) voor de lager gelegen methodes: als punten dicht bij elkaar liggen (en er noise rond punten wordt aangenomen) 
 #       dan is een punt als waarheid aannemen tegenproductief in de zin dat noise moet vermeerderen aldaar. 
 #       Ofwel, je krijgt een negatieve hoeveelheid noise vermindering -> FOUT (maar kan goed zijn als je alleen naar het top-level kijkt!)
 #       OPLOSSING: Le Gratiet / Meliani beschrijft hoe je de sigma_red vind voor het model van Le Gratiet.
+#       niet de oplossing!
 # 6) in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
 # 7) for the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
-# 8) corr is altijd 1 voor ObjectWrapper (zie schrijven todo 4 ook) -> eerst op level 1 tunen!
+# 8) DONE corr is altijd 1 voor ObjectWrapper (zie schrijven todo 4 ook) -> eerst op level 1 tunen!
 # 9) mse_pred is negatief voor MFK in Kriging_unknown_z
+# 10) methode weighing alleen gebruiken als voorbij threshold (not done) én wanneer hoogste level MFK_smt gedefinieerd is (Done). (krijgen nu wispelturige resultaten)
 
 # optional TODO list
 # 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
@@ -51,14 +53,14 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 # inits based on input settings
 setup = Input(0)
-MFK_kwargs = {'print_global' : True,
+MFK_kwargs = {'print_global' : False,
                 'print_training' : True,
                 'print_prediction' : False,
                 # 'eval_noise' : False,
                 'eval_noise' : setup.noise_regression,
                 'propagate_uncertainty' : False, 
-                'optim_var' : False, # true: HF samples is forced to zero; NOTE TODO doe dit alleen indien noise reg false en slechts 2 lvls
-                'hyper_opt' : '‘Cobyla’', # [‘Cobyla’, ‘TNC’] Cobyla standard
+                'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
+                'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 }
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
@@ -70,13 +72,13 @@ if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L_costs([1,9,10000])   
 
 # init plotting etc
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=4, fast_plot=True)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True)
 pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2])
 cp = ConvergencePlotting(setup)
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = False
+reuse_values = True
 reload_endstate = False
 
 used_endstate = hasattr(setup,'model_end') and reload_endstate
@@ -88,7 +90,7 @@ elif hasattr(setup,'model') and reuse_values:
 else:
     mf_model.prepare_proposed(setup)
 
-setup.create_input_file(mf_model, cp, endstate = False)
+setup.create_input_file(mf_model, cp, endstate = used_endstate)
 
 do_check = False
 if do_check and not reload_endstate and not check_linearity(mf_model, pp):
@@ -100,7 +102,7 @@ else:
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
     mf_model.optimize(pp,cp)
-    # mf_model.optimize()
+    # mf_model.optimize()   
 
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence()

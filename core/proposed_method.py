@@ -26,7 +26,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # get values corresponding to x_b of previous 2 levels
     z0_b, s0_b = K0.predict(x_b)
     z1_b, s1_b = K1.predict(x_b)
-    s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)
+    s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)  # NOTE apparent noise due to smt nugget
 
     # get all other values of previous 2 levels
     Z0, S0 = K0.predict(X_unique)
@@ -46,9 +46,11 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
         integration of standard normal gaussian function lamb"""
         c1 = z_pred - z1_b
         c2 = z1_b - z0_b
-        f = (c1 - lamb1 * s1_b) / (
-            c2 + lamb1 * s1_b + lamb2 * s0_b + np.finfo(np.float64).eps
-        )
+        div = c2 + lamb1 * s1_b + lamb2 * s0_b
+        f = np.divide((c1 - lamb1 * s1_b), div, out=np.zeros_like(lamb1), where=div!=0)
+        # f = (c1 - lamb1 * s1_b) / (
+        #     c2 + lamb1 * s1_b + lamb2 * s0_b + np.finfo(np.float64).eps
+        # )
 
         # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
         # bivariate : https://mathworld.wolfram.com/BivariateNormalDistribution.html
@@ -91,6 +93,10 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
 
     w = 1 * lin + corr * (1 - lin) 
     w = lin
+
+    # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
+    w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1
+    print(f"W = {w}")
     # * np.exp(-abs(Sf/Ef))
 
     # NOTE
@@ -152,13 +158,13 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
     if X_test.size != 0:
         X_unique = X_test
 
-    #
+    # 
     if not (np.any(X_s) and np.any(Z_s)):
         X_s, Z_s = mf_model.X_mf[-1],  mf_model.Z_mf[-1]
     
     # In case there is only one sample, nothing to weigh
     if len(Z_s) == 1:
-        Z_pred, mse_pred, _, Ef_weighed = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf)
+        Z_pred, mse_pred, D_Sf, Ef_weighed = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_sf
     else:
         " Collect new results "
         # NOTE if not in X_unique, we could just add a 0 to all previous,
@@ -186,8 +192,8 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
         #    This decreases distance based influence if sigma > 0.
         #    We take the variance of the fraction, S_f
-    
-        mult = np.exp(-D_Sf/np.mean(D_Sf))
+        D_sf_norm = D_Sf/(D_Ef) # NOTE slighly normalize D_sf to D_Ef
+        mult = np.exp(-(D_sf_norm)/np.mean(D_sf_norm))
         c = (c.T * mult).T
 
         " Scale to sum to 1; correct for sampled locations "
@@ -199,9 +205,8 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         c = c + mask  # retrieve samples exactly
 
         # Scale for Z
-        c_z = np.divide(
-            c, np.sum(c, axis=0) + np.finfo(np.float64).eps
-        )  # to avoid division by (near) zero for higher d
+        b = np.sum(c, axis=0)
+        c_z = np.divide(c, b, out=np.zeros_like(c), where=b!=0)
         Z_pred = np.sum(np.multiply(D_z, c_z), axis=0)
 
         # Scale for mse
@@ -211,6 +216,8 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
 
         Ef_weighed = np.dot(D_Ef, c_z)
 
+    print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[-1].sigma_hat) # type:ignore
+    print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
     # assign the found values to the mf_model, in order to be easily retrieved.
     if assign:
@@ -218,3 +225,7 @@ def weighted_prediction(mf_model : ProposedMultiFidelityKriging, X_s = [], Z_s =
         mf_model.mse_pred = mse_pred
 
     return Z_pred, mse_pred, Ef_weighed
+
+def print_metrics(Z_pred, mse_pred, Ef_weighed,Sf_weighed,sigma_hat):
+    print("┃ MEAN VALUES IN WEIGHED PREDICTION")
+    print(f"┃ Z: {np.mean(Z_pred)}; mse: {np.mean(mse_pred)} \n┃ Ef weighed: {np.mean(Ef_weighed)}; Sf non-weighed: {np.mean(Sf_weighed)}\n┃ Sigma_hat: {sigma_hat}")
