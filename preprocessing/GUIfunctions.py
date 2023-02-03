@@ -14,7 +14,7 @@ from preprocessing.GUIbase import Ui_Form
 
 from core.sampling.solvers.solver import get_solver_name_list, get_solver
 from core.sampling.DoE import get_doe_name_list
-from core.kriging.kernel import get_available_kernel_names
+from core.ordinary_kriging.kernel import get_available_kernel_names
 
 
 class GUI(qtw.QWidget, Ui_Form):

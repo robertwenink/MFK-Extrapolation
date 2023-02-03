@@ -14,13 +14,11 @@ from preprocessing.input import Input
 from core.sampling.solvers.solver import get_solver
 from core.sampling.solvers.internal import TestFunction
 from core.proposed_method import *
-from core.kriging.mf_kriging import MultiFidelityKrigingBase, ProposedMultiFidelityKriging
+from core.mfk.mfk_base import MultiFidelityKrigingBase
+from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 
 from utils.error_utils import RMSE_norm_MF
 from utils.selection_utils import get_best_sample, get_best_prediction
-# print(plt.style.available)
-# ['Solarize_Light2', '_classic_test_patch', 'bmh', 'classic', 'dark_background', 'fast', 'fivethirtyeight', 'ggplot', 'grayscale', 'seaborn', 'seaborn-bright', 'seaborn-colorblind', 'seaborn-dark', 'seaborn-dark-palette', 'seaborn-darkgrid', 'seaborn-deep', 'seaborn-muted', 'seaborn-notebook', 'seaborn-paper', 'seaborn-pastel', 'seaborn-poster', 'seaborn-talk', 'seaborn-ticks', 'seaborn-white', 'seaborn-whitegrid', 'tableau-colorblind10']
-# plt.style.use("seaborn")
 
 def fix_colors(surf):
     surf._facecolors2d = surf._facecolor3d
@@ -362,7 +360,7 @@ class Plotting:
 
     def plot_kriged_truth(self, mf_model : MultiFidelityKrigingBase):
         """
-        Use to plot the fully sampled hifi truth Kriging with the prediction core.kriging.
+        Use to plot the fully sampled hifi truth Kriging with the prediction core.ordinary_kriging.
         """
 
         self.plot(mf_model.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',

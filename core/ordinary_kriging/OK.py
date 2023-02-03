@@ -5,13 +5,13 @@ Ordinary Kriging
 
 import numpy as np
 from scipy import linalg
-from core.kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
+from core.ordinary_kriging.kernel import get_kernel, diff_matrix, corr_matrix_kriging_tune
 from numba import njit
 import time
 from beautifultable import BeautifulTable
 
-# from core.kriging.hp_tuning import GeneticAlgorithm as ga
-from core.kriging.hp_tuning import MultistartHillclimb as ga
+# from core.ordinary_kriging.hp_tuning import GeneticAlgorithm as ga
+from core.ordinary_kriging.hp_tuning import MultistartHillclimb as ga
 from utils.formatting_utils import correct_formatX
 
 

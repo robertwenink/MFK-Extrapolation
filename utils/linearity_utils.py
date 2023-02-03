@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from core.proposed_method import *
-from core.kriging.mf_kriging import ProposedMultiFidelityKriging
+from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from postprocessing.plotting import Plotting
 
 def overlap_check(s1, e1, s2, e2):

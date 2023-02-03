@@ -14,7 +14,11 @@ from utils.linearity_utils import check_linearity
 
 from preprocessing.input import Input
 
-from core.kriging.mf_kriging import ProposedMultiFidelityKriging, MultiFidelityEGO, MFK_smt, MFK_org
+from core.mfk.mfk_base import MultiFidelityKrigingBase
+from core.mfk.mfk_smt import MFK_smt
+from core.mfk.mfk_ok import MFK_org
+from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
+from core.routines.mfk_EGO import MultiFidelityEGO
 
 from postprocessing.plotting import Plotting
 from postprocessing.plot_convergence import ConvergencePlotting

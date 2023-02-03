@@ -4,9 +4,8 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import time
 
-import core.kriging.mf_kriging as mf # like this because circular import!
 from core.sampling.solvers.internal import TestFunction
-from core.kriging.kernel import dist_matrix
+from core.ordinary_kriging.kernel import dist_matrix
 from core.sampling.solvers.solver import get_solver
 from utils.error_utils import RMSE_norm_MF
 from utils.error_utils import RMSE_focussed as RMSE_focussed_func

@@ -1,6 +1,6 @@
 import numpy as np
-import core.kriging.OK as ok
-import core.kriging.mf_kriging as mf # like this because circular import!
+from core.ordinary_kriging.OK import OrdinaryKriging
+import core.mfk.mfk_base as mf # like this because circular import!
 from utils.formatting_utils import correct_formatX
 
 def create_X_infill(d, lb, ub, n_infill_per_d):
@@ -45,7 +45,7 @@ def get_best_sample(model, arg = False):
         if not arg:
             return correct_formatX(model.X_mf[-1][best_ind], model.d), model.Z_mf[-1][best_ind] 
 
-    elif isinstance(model,ok.OrdinaryKriging):
+    elif isinstance(model,OrdinaryKriging):
         best_ind = np.argmin(model.y)
         if not arg:
             return correct_formatX(model.X[best_ind], model.d), model.y[best_ind] 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from core.sampling.DoE import get_doe
 from core.sampling.solvers.solver import get_solver
-from core.kriging.OK import *
+from core.ordinary_kriging.OK import *
 from postprocessing.plotting import plot_kriging
 
 class Setup():
