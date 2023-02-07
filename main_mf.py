@@ -7,7 +7,8 @@ import sys
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 11})
 
-np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
+# np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
+from copy import deepcopy, copy
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
 
 from utils.linearity_utils import check_linearity
@@ -71,7 +72,7 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 # inits based on input settings
 setup = Input(0)
-reuse_values = False	
+reuse_values = True	
 reload_endstate = False
 MFK_kwargs = {'print_global' : True,
                 'print_training' : True,
@@ -100,10 +101,12 @@ cp = ConvergencePlotting(setup)
 " level 0 and 1 : setting 'DoE' and 'solve' "
 used_endstate = hasattr(setup,'model_end') and reload_endstate
 if used_endstate:
-    mf_model.set_state(setup.model_end)
+    mf_model.set_state(deepcopy(setup.model_end))
     cp.set_state(setup)
 elif hasattr(setup,'model') and reuse_values:
-    mf_model.set_state(setup.model)
+    # deepcopy required!! copy gebruikt nog steeds references if possible, 
+    # ofwel via set_attr linken we de dict setup.model direct aan de values van mf_model (en die worden geupdate!)
+    mf_model.set_state(deepcopy(setup.model)) 
 else:
     mf_model.prepare_proposed(setup)
 
@@ -122,7 +125,7 @@ if isinstance(mf_model, MultiFidelityEGO):
     # mf_model.optimize()   
 
 setup.create_input_file(mf_model, cp, endstate = True)
-cp.plot_convergence()
+cp.plot_convergence() 
 pp.draw_current_levels(mf_model)
 
 print("Simulation finished")

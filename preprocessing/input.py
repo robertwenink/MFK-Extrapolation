@@ -10,6 +10,7 @@ from tkinter import filedialog
 import json
 import time
 import numpy as np
+from copy import copy
 
 from preprocessing.GUIfunctions import GUI
 
@@ -123,8 +124,9 @@ class Input:
    
     def create_input_file(self, model = None, cp = None, endstate = False):
         """Can be used to create or update the input file according to the contents of __dict__ and model.get_state()"""
- 
-        d = self.__dict__
+
+        # hier is copy wel voldoende, omdat als we nu iets toevoegen aan d, we niks toevoegen aan __dict__
+        d = copy(self.__dict__) 
         if model != None:
             if endstate:
                 d['model_end'] = model.get_state()

@@ -85,7 +85,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 # we are going to use heteroscedastic noise evaluation at the top level!
                 kwargs['eval_noise'] = False # not compatible with use_het_noise
                 kwargs['use_het_noise'] = True
-                kwargs['theta_bounds'] = [0.01,20] # for 1e-2 we can get nan`s in the hps optimization
+                kwargs['theta_bounds'] = [0.01,20]
                 kwargs['theta0'] = [kwargs['theta_bounds'][0]]
 
                 self.K_pred = MFK_wrap(**kwargs)
