@@ -76,7 +76,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 print("Succesfully trained Kriging model of truth", end = '\r')
 
     def create_update_K_pred(self, data_dict = None):
-        USE_SF_PRED_MODEL = True # use as single fidelity?
+        USE_SF_PRED_MODEL = False # use as single fidelity?
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
             if not hasattr(self,'K_pred'):
                 print("Creating Kriging model of pred")
@@ -85,7 +85,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 # we are going to use heteroscedastic noise evaluation at the top level!
                 kwargs['eval_noise'] = False # not compatible with use_het_noise
                 kwargs['use_het_noise'] = True
-                kwargs['theta_bounds'] = [0.05,20] # for 1e-2 we can get nan`s in the hps optimization
+                kwargs['theta_bounds'] = [0.01,20] # for 1e-2 we can get nan`s in the hps optimization
                 kwargs['theta0'] = [kwargs['theta_bounds'][0]]
 
                 self.K_pred = MFK_wrap(**kwargs)
@@ -158,9 +158,12 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         """
         K_mf = []
 
-        pred_object = self.K_pred if hasattr(self, 'K_pred') else self
-        for l in range(pred_object.nlvl):
-            base_object = pred_object if l == 2 else self
+        nlvl = 3 if hasattr(self, 'K_pred') else self.nlvl
+        for l in range(nlvl):
+            base_object = self
+            if l == 2 and hasattr(self, 'K_pred'):
+                base_object = self.K_pred
+                l = base_object.nlvl - 1 # needed to get correct predict_l in case of SF K_pred
             obj = ObjectWrapper(base_object, l)
 
             # K.predict = lambda x: self._predict_l(x,l) 
