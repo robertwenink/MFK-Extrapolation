@@ -71,7 +71,7 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 # inits based on input settings
 setup = Input(0)
-reuse_values = True	
+reuse_values = False	
 reload_endstate = False
 MFK_kwargs = {'print_global' : True,
                 'print_training' : True,

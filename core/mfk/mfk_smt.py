@@ -76,6 +76,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 print("Succesfully trained Kriging model of truth", end = '\r')
 
     def create_update_K_pred(self, data_dict = None):
+        USE_SF_PRED_MODEL = True # use as single fidelity?
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
             if not hasattr(self,'K_pred'):
                 print("Creating Kriging model of pred")
@@ -84,7 +85,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 # we are going to use heteroscedastic noise evaluation at the top level!
                 kwargs['eval_noise'] = False # not compatible with use_het_noise
                 kwargs['use_het_noise'] = True
-                kwargs['theta_bounds'] = [0.015,20] # for 1e-2 we can get nan`s in the hps optimization
+                kwargs['theta_bounds'] = [0.05,20] # for 1e-2 we can get nan`s in the hps optimization
                 kwargs['theta0'] = [kwargs['theta_bounds'][0]]
 
                 self.K_pred = MFK_wrap(**kwargs)
@@ -96,8 +97,12 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
             if data_dict != None:
                 self.K_pred.set_state(data_dict)
             else:
-                self.set_training_data(self.K_pred, [*self.X_mf[:self.max_nr_levels-1], self.X_unique], [*self.Z_mf[:self.max_nr_levels-1], self.Z_pred])
-                self.K_pred.options['noise0'] = [[0], [0], self.mse_pred]
+                if USE_SF_PRED_MODEL:
+                    self.set_training_data(self.K_pred, [self.X_unique], [self.Z_pred])
+                    self.K_pred.options['noise0'] = [self.mse_pred]
+                else:
+                    self.set_training_data(self.K_pred, [*self.X_mf[:self.max_nr_levels-1], self.X_unique], [*self.Z_mf[:self.max_nr_levels-1], self.Z_pred])
+                    self.K_pred.options['noise0'] = [[0], [0], self.mse_pred]
                 self.K_pred.train()
                 self.K_pred.X_opt, self.K_pred.z_opt = get_best_prediction(self.K_pred)
                 print("Succesfully trained Kriging model of prediction", end = '\r')

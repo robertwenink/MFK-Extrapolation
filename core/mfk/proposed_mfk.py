@@ -9,7 +9,7 @@ from core.mfk.mfk_smt import MFK_smt
 from core.mfk.mfk_ok import MFK_org
 
 from utils.formatting_utils import correct_formatX
-
+from utils.selection_utils import isin_indices
 
 " Say what class to inherit from!! "
 # or use MFK_org
@@ -140,8 +140,12 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
             c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
 
-            mask = np.isclose(c,1.0)  # then sampled point
-            idx = mask.any(axis=0)  # get columns with sampled points
+            # mask = np.isclose(c,1.0)  # then sampled point # TODO Cant do this for Universal Kriging, since corr = 1 if GLS is perfect fit
+            # idx = mask.any(axis=0)  
+             
+            # get columns with sampled points
+            idx = isin_indices(X_unique, X_s)
+            mask = [isin_indices(X_unique, correct_formatX(xs, self.d)) for xs in X_s]
 
             # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
             #    we want to keep the correlation/weighing the same if there is no variance,
@@ -156,20 +160,20 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
 
             " Scale to sum to 1; correct for sampled locations "
             # Contributions coefficients should sum up to 1.
-            # Furthermore, sampled locations should be the only contribution for themselves.
+            # Furthermore, sampled locations should always be the only contribution for themselves (so set to 1).
             #  if we dont do this, EI does not work!
             #  however, we might get very spurious results -> we require regression!
-            c[:, idx] = 0  # set to zero
-            c = c + mask  # retrieve samples exactly
+            c[:, idx] = 0  # set all correlations at the location of the samples to zero
+            c = c + mask  # and then in corresponding index/correlation row set to 1 to retrieve sample exactly
 
             # Scale for Z
             b = np.sum(c, axis=0)
-            c_z = np.divide(c, b, out=np.zeros_like(c), where=b!=0)
+            c_z = np.divide(c, b, out=np.zeros_like(c), where= b!=0)
             Z_pred = np.sum(np.multiply(D_z, c_z), axis=0)
 
             # Scale for mse
             # NOTE noise is added to the samples regardless of what this function returns
-            c_mse = c_z - mask  # always 0 variance for samples
+            c_mse = c_z - mask  # always 0 variance for samples, the Kriging model can add variance independently if it wants
             mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
             Ef_weighed = np.dot(D_Ef, c_z)

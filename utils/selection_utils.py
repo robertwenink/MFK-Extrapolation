@@ -26,8 +26,10 @@ def isin(x,X):
 
 def isin_indices(X_test, X, inversed = False):
     """
-    return an array of True for indices of X_test where X_test is not in X.
-    X_test can be 1 or multiple locations.
+    return an array of True for indices of X_test where X_test is in X.
+    if inversed = True, return True for indices where X_test is not in X
+    returned array length is length of X_test
+    If you want to test for the indices where X is in X_test, change input order!
     """
     assert X_test.shape[1:] == X.shape[1:], "x and X not of same format"
     mask = (X_test == X[:, None]).all(axis=-1).any(axis=0)
