@@ -133,6 +133,8 @@ class Input:
 
         if cp != None:
             d['convergence_plotting_dict'] = cp.get_state()
+        elif hasattr(self, 'convergence_plotting_dict'):
+            d['convergence_plotting_dict'] = self.convergence_plotting_dict # type: ignore
 
         # dumping
         json.dump(

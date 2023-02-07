@@ -30,16 +30,23 @@ from postprocessing.plot_convergence import ConvergencePlotting
 # 4) repeated experiments for testfunctions
 # 5) 
 #    a) (DONE) bij levelbepaling slechts 1 keer de MFK tunen! -> gebruik get/set_state method
-#    b) voor de lager gelegen methodes: als punten dicht bij elkaar liggen (en er noise rond punten wordt aangenomen) 
+#    b) (DONE) voor de lager gelegen methodes: als punten dicht bij elkaar liggen (en er noise rond punten wordt aangenomen) 
 #       dan is een punt als waarheid aannemen tegenproductief in de zin dat noise moet vermeerderen aldaar. 
 #       Ofwel, je krijgt een negatieve hoeveelheid noise vermindering -> FOUT (maar kan goed zijn als je alleen naar het top-level kijkt!)
 #       OPLOSSING: Le Gratiet / Meliani beschrijft hoe je de sigma_red vind voor het model van Le Gratiet.
 #       niet de oplossing!
+#
 # 6) in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
-# 7) for the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
+# 7) (DONE) results are quite similar. For the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
 # 8) DONE corr is altijd 1 voor ObjectWrapper (zie schrijven todo 4 ook) -> eerst op level 1 tunen!
 # 9) mse_pred is negatief voor MFK in Kriging_unknown_z
-# 10) methode weighing alleen gebruiken als voorbij threshold (not done) én wanneer hoogste level MFK_smt gedefinieerd is (Done). (krijgen nu wispelturige resultaten)
+# 10) methode weighing alleen gebruiken als voorbij threshold (not done) én wanneer hoogste level MFK_smt gedefinieerd is (meer dan 3 samples) (Done). (krijgen nu wispelturige resultaten -> DONE smt geimplementeerd)
+# 11) In de proposed method procedure het model met de laagste 2 levels gescheiden houden in K_mf van de prediction!
+#       Dit moet omdat de levels gelinkt zijn (er is bijv maar 1 sigma_hat) 
+#       en het toplevel als de waarheid wordt genomen terwijl dat bij mij niet perse zo is omdat ik predicted points doorgeef.
+#       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
+#       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
+
 
 # optional TODO list
 # 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
@@ -54,10 +61,17 @@ from postprocessing.plot_convergence import ConvergencePlotting
 # 3) branin aanpassing beschrijven
 # 4) beschrijven dat de weighing methode niet werkt met universal kriging omdat er dan niet perse correlaties meer bestaan
 #       de trend beschrijft namelijk al de variabiliteit in de data en de correlatie hoeft niet meer nodig te zijn perse.
+        # NOTE dit is dus niet perse waar. Als het GLS model al alle variabiliteit kan omschrijven, hoeft de Kriging correlation niks meer te doen! \
+        # In termen van het Kriging model betekent dit dat twee punten met correlation 1 tov een ander punt een gelijke bijdrage behoren te hebben!
+# 5) Beschrijven dat: In de proposed method procedure het model met de laagste 2 levels gescheiden houden in K_mf van de prediction!
+#       Dit moet omdat de levels gelinkt zijn (er is bijv maar 1 sigma_hat) 
+#       en het toplevel als de waarheid wordt genomen terwijl dat bij mij niet perse zo is omdat ik predicted points doorgeef.
+#       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
+#       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
 
 # inits based on input settings
 setup = Input(0)
-MFK_kwargs = {'print_global' : False,
+MFK_kwargs = {'print_global' : True,
                 'print_training' : True,
                 'print_prediction' : False,
                 # 'eval_noise' : False,
@@ -68,7 +82,7 @@ MFK_kwargs = {'print_global' : False,
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 }
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 2, max_cost = 150000, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 mf_model.set_L([2, 3, None])
@@ -82,8 +96,8 @@ cp = ConvergencePlotting(setup)
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = True
-reload_endstate = False
+reuse_values = False	
+reload_endstate = True
 
 used_endstate = hasattr(setup,'model_end') and reload_endstate
 if used_endstate:
@@ -105,8 +119,8 @@ else:
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
-    mf_model.optimize(pp,cp)
-    # mf_model.optimize()   
+    # mf_model.optimize(pp,cp)
+    mf_model.optimize()   
 
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence()

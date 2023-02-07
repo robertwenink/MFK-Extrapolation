@@ -2,7 +2,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from core.proposed_method import *
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from postprocessing.plotting import Plotting
 
@@ -70,7 +69,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         i_include = np.delete(inds, i_exclude)
         X_s = np.delete(mf_model.X_mf[-1], i_exclude, 0)
         Z_s = np.delete(mf_model.Z_mf[-1], i_exclude, 0)
-        Z_pred_partial, mse_pred_partial, _ = weighted_prediction(
+        Z_pred_partial, mse_pred_partial, _ = mf_model.weighted_prediction(
             mf_model,
             X_s = X_s,
             Z_s = Z_s,

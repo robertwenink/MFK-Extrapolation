@@ -35,7 +35,7 @@ class MFK_org(MultiFidelityKrigingBase):
     def create_update_K_truth(self):
         if hasattr(self,'X_truth') and hasattr(self,'Z_truth'):
             if not hasattr(self,'K_truth'):
-                print("Creating Kriging model of truth", end = '\r')
+                print("Creating Kriging model of truth")
                 self.K_truth = self.create_OKlevel(self.X_truth, self.Z_truth, tune = True, append = False, name = "Truth")
             else:
                 print("Updating Kriging model of truth", end = '\r')

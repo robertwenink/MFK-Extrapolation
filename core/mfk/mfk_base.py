@@ -337,6 +337,9 @@ class MultiFidelityKrigingBase(object):
         if hasattr(self,'K_truth'):
             state['K_truth'] = self.K_truth.get_state()
 
+        if hasattr(self,'K_pred'):
+            state['K_pred'] = self.K_pred.get_state()
+
         return state
      
     def set_state(self, data_dict):

@@ -8,8 +8,6 @@ from utils.formatting_utils import correct_formatX
 from utils.selection_utils import get_best_prediction
 
 from core.mfk.mfk_base import MultiFidelityKrigingBase
-import core.mfk.proposed_mfk as pmfk
-
 
 class MFK_wrap(MFK):
     def __init__(self, **kwargs):
@@ -18,9 +16,14 @@ class MFK_wrap(MFK):
     def get_state(self):
         # not: ,'F_all','p_all','q_all','y_norma_all'
         state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) 
-        - set({'options','printer','D_all','F','p','q','optimal_rlf_value','ij','supports','X','X_norma','best_iteration_fail','nb_ill_matrix','sigma2_rho','training_points','y','nt','theta0','noise0',
-        'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
-            
+        - set({'options','printer','D_all','F','p','q','optimal_rlf_value','ij','supports','X','X_norma','best_iteration_fail','nb_ill_matrix','sigma2_rho','training_points','y','nt',
+        'kernel','K_mf','solver','K_truth','K_pred','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
+        
+        if hasattr(self, 'K_truth'):
+            state['K_truth'] = self.K_truth.get_state()
+
+        if hasattr(self, 'K_pred'):
+            state['K_pred'] = self.K_pred.get_state()
 
         # print(dict_types(state))
         return state
@@ -37,7 +40,7 @@ class MFK_wrap(MFK):
     def predict(self, X):
         return (self.predict_values(X).reshape(-1,), self.predict_variances(X).reshape(-1,))
 
-class MFK_smt(MFK, MultiFidelityKrigingBase):
+class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
     """Provide a wrapper to smt`s MFK, to interface with the own code."""
 
     def __init__(self, *args, **kwargs):
@@ -57,7 +60,7 @@ class MFK_smt(MFK, MultiFidelityKrigingBase):
         if hasattr(self,'X_truth') and hasattr(self,'Z_truth'):
             # overloaded function
             if not hasattr(self,'K_truth'):
-                print("Creating Kriging model of truth", end = '\r')
+                print("Creating Kriging model of truth")
                 kwargs = copy(self.MFK_kwargs)
                 kwargs['n_start'] *= 2 # truth is not tuned often so rather not have any slipups
                 self.K_truth = MFK_wrap(**kwargs)
@@ -71,6 +74,35 @@ class MFK_smt(MFK, MultiFidelityKrigingBase):
                 self.K_truth.train()
                 self.K_truth.X_opt, self.K_truth.z_opt = get_best_prediction(self.K_truth)
                 print("Succesfully trained Kriging model of truth", end = '\r')
+
+    def create_update_K_pred(self, data_dict = None):
+        if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
+            if not hasattr(self,'K_pred'):
+                print("Creating Kriging model of pred")
+                kwargs = copy(self.MFK_kwargs)
+                
+                # we are going to use heteroscedastic noise evaluation at the top level!
+                kwargs['eval_noise'] = False # not compatible with use_het_noise
+                kwargs['use_het_noise'] = True
+                kwargs['theta_bounds'] = [0.015,20] # for 1e-2 we can get nan`s in the hps optimization
+                kwargs['theta0'] = [kwargs['theta_bounds'][0]]
+
+                self.K_pred = MFK_wrap(**kwargs)
+                self.K_pred.d = self.d
+                self.K_pred.X_infill = self.X_infill
+                self.K_pred.name = "K_pred"
+                self.K_pred.MFK_kwargs = self.MFK_kwargs
+
+            if data_dict != None:
+                self.K_pred.set_state(data_dict)
+            else:
+                self.set_training_data(self.K_pred, [*self.X_mf[:self.max_nr_levels-1], self.X_unique], [*self.Z_mf[:self.max_nr_levels-1], self.Z_pred])
+                self.K_pred.options['noise0'] = [[0], [0], self.mse_pred]
+                self.K_pred.train()
+                self.K_pred.X_opt, self.K_pred.z_opt = get_best_prediction(self.K_pred)
+                print("Succesfully trained Kriging model of prediction", end = '\r')
+            
+            self.setK_mf()
 
     
     def set_training_data(self, model : MFK, X_mf : list, Z_mf : list):
@@ -104,27 +136,30 @@ class MFK_smt(MFK, MultiFidelityKrigingBase):
             self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
             self.not_maximum_level = True
         super().train()
-        self.setK_mf()
+        
+        if not hasattr(self,'mse_pred') and not hasattr(self,'Z_pred'): # bcs setK_mf called in create_update_K_pred
+            self.setK_mf()
 
     def setK_mf(self):
         """
         After each model update this function needs to be called to set the K_mf list, 
         such that the code does not change with respect to stacked Kriging models (original 'MFK')
-        """
-        newK_mf = True if self.K_mf == [] else False
-        if newK_mf:
-            K_mf = []
-        else:
-            K_mf = self.K_mf
 
-        for l in range(self.number_of_levels - isinstance(self, pmfk.ProposedMultiFidelityKriging)):
-            obj = ObjectWrapper(self, l)
+        In case this is the proposed method, we are tracking two things:
+        1) The 'regular' mfk model
+        2) The proposed mfk model; 
+            our model then has, similar to K_truth, a Z_pred and X_pred (next to mse_pred)
+            if proposed exists, we init K_mf using it
+        """
+        K_mf = []
+
+        pred_object = self.K_pred if hasattr(self, 'K_pred') else self
+        for l in range(pred_object.nlvl):
+            base_object = pred_object if l == 2 else self
+            obj = ObjectWrapper(base_object, l)
 
             # K.predict = lambda x: self._predict_l(x,l) 
-            if newK_mf:
-                K_mf.append(obj)
-            else:
-                K_mf[l] = obj
+            K_mf.append(obj)
 
         # # to test
         # for i, K in enumerate(K_mf):
@@ -174,29 +209,35 @@ class MFK_smt(MFK, MultiFidelityKrigingBase):
     def set_state(self, data_dict):
         # and then set all attributes
         for key in data_dict:
-            if key not in ['K_mf_list','K_truth']:
+            if key not in ['K_mf_list','K_truth','K_pred']:
                 setattr(self, key, data_dict[key])
 
         # only does something when there is a X_truth and Z_truth
         if 'K_truth' in data_dict:
             self.create_update_K_truth(data_dict['K_truth'])
 
-        # K_mf for the first two MFK levels in case of ProposedMFK_EGO! otherwise full
-        self.setK_mf()
+        if 'K_pred' in data_dict:
+            self.create_update_K_pred(data_dict['K_pred'])
+        else:
+            # K_mf for the first two MFK levels in case of ProposedMFK_EGO! otherwise full
+            self.setK_mf()
 
 
 
 # pass the sm object to the K_mf list and map the 'predict(x,l)' function to 'predict(x)'
 # https://stackoverflow.com/questions/1443129/completely-wrap-an-object-in-python
 class ObjectWrapper(MFK_smt):
-    def __init__(self, baseObject, l_fake):
+    def __init__(self, baseObject : MFK_smt, l_fake):
         # TODO dit neemt ook de oude K_mf mee dus je krijgt een zieke nesting van objecten! ofwel gebruik de MFK_smt set_state
-        self.__dict__ = deepcopy({k: baseObject.__dict__[k] for k in set(list(baseObject.__dict__.keys())) - set({'K_truth','X_truth','Z_truth'})})
+        # self.__dict__ = deepcopy({k: baseObject.__dict__[k] for k in set(list(baseObject.__dict__.keys())) - set({'K_truth','X_truth','Z_truth'})})
+        MFK_wrap.__init__(self, **baseObject.MFK_kwargs)
+        for key, item in baseObject.get_state().items():
+            self.__setattr__(key,copy(item))
+
         self.K_mf = []
         # fake hps for proposed method
         self.hps = None # TODO zou nice zijn hier de echte hps, geconverteerd naar mijn format, te hebben
         self.l_fake = l_fake
-        # TODO sigma_hat!
 
     def predict(self, X):
         """

@@ -2,6 +2,7 @@ import numpy as np
 import scipy.stats as scistats
 
 from core.mfk.mfk_smt import MFK_smt
+from core.mfk.mfk_ok import MFK_org
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from core.sampling.solvers.internal import TestFunction
 
@@ -77,25 +78,27 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             self.sample_nested(l, x_new)
 
             # weigh each prediction contribution according to distance to point.
-            Z_pred, mse_pred, _ = self.weighted_prediction()
+            self.Z_pred, self.mse_pred, _ = self.weighted_prediction()
+            self.create_update_K_pred()
 
-            # build new kriging based on prediction
-            # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
-            # NOTE for top-level we require re-interpolation if we apply noise
-            if self.tune_counter % self.tune_prediction_every == 0:
-                tune = True
-            else: 
-                tune = False
+            if isinstance(self, MFK_org):
+                # build new kriging based on prediction
+                # NOTE, we normalise mse_pred here with the previous known process variance, since otherwise we would arrive at a iterative formulation.
+                # NOTE for top-level we require re-interpolation if we apply noise
+                if self.tune_counter % self.tune_prediction_every == 0:
+                    tune = True
+                else: 
+                    tune = False
 
-            # if we sample on level 2, we really should first retune for correcting i.e. sigma_hat, without R_diag to get the correct base, just like at init
-            if l == 2:
-                self.K_mf[-1].train(self.X_unique, Z_pred, tune=tune)
-            
-            # train the prediction model, including heteroscedastic noise
-            self.K_mf[-1].train(
-                self.X_unique, Z_pred, tune=tune#, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat
-            )
-            self.K_mf[-1].reinterpolate()
+                # if we sample on level 2, we really should first retune for correcting i.e. sigma_hat, without R_diag to get the correct base, just like at init
+                if l == 2:
+                    self.K_mf[-1].train(self.X_unique, self.Z_pred, tune=tune)
+                
+                # train the prediction model, including heteroscedastic noise
+                self.K_mf[-1].train(
+                    self.X_unique, self.Z_pred, tune=tune#, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat
+                )
+                self.K_mf[-1].reinterpolate()
 
             if cp != None:
                 # plot convergence here and not before break, otherwise on data reload will append the same result over and over
@@ -104,7 +107,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
 
         " Print end-results "
-        s_width = 71
+        s_width = 71 - 8 * (self.d == 1)
         print("┏" + "━" * s_width + "┓")
         print("┃ Best found point \t\tx = {}, f(x) = {: .4f} \t┃".format(get_best_sample(self)[0][0],get_best_sample(self)[1]))
         if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):

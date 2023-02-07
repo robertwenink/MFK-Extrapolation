@@ -13,7 +13,6 @@ from preprocessing.input import Input
 
 from core.sampling.solvers.solver import get_solver
 from core.sampling.solvers.internal import TestFunction
-from core.proposed_method import *
 from core.mfk.mfk_base import MultiFidelityKrigingBase
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 

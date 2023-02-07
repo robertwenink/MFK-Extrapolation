@@ -11,16 +11,11 @@ from core.mfk.mfk_ok import MFK_org
 from utils.formatting_utils import correct_formatX
 
 
-
 " Say what class to inherit from!! "
 # or use MFK_org
 class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
     """
-    eigenlijk zou 'MultiFidelityKrigingBase' de implementatie van LaGratiet moeten zijn!
-
-     ik moet dus in 'MultiFidelityKrigingBase' de implemenatie van SMT importeren en zorgen dat dezelfde data interface bestaat.
-     dan is dus de integratie van LaGratiet in mijn proposed method ook straightforward omdat K1 dan al LaGratiet MF-Kriging is!!
-     wel interesant te bedenken: werkt voor de proposed method onafhankelijke noise estimates beter?
+    TODO interesant te bedenken: werkt voor de proposed method onafhankelijke noise estimates beter? -> houdt OK als optie
     """
 
     def __init__(self, *args, **kwargs):
@@ -29,10 +24,6 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             Otherwise, use separate Original Kriging models for the truth and other models / levels.
         """
         super().__init__(*args, **kwargs)
-
-        # list of predicted z values at the highest/ new level
-        self.Z_pred = np.array([])
-        self.mse_pred = np.array([])
 
     def prepare_proposed(self, setup):
         # doe = get_doe(setup)
@@ -59,45 +50,42 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
         
             self.create_OKlevel(X_l, tune=tune, hps_init = hps)
             self.create_OKlevel(X_l, tune=tune)
-        
         else:
             print("Not initialised as a form of MFK.\nNo levels created: exiting!")
             import sys
             sys.exit()
 
         " level 2 / hifi initialisation "
-        # do we want to sample the complete truth (yes!)
+        # do we want to sample the complete truth? (yes!)
         self.sample_truth()
 
         # sampling the initial hifi
         self.sample_initial_hifi(setup) 
         # self.setK_mf() # already called indirectly!
 
-        self.K_mf = self.K_mf[:2] # might be needed in case of MFK
-        self.number_of_levels = 2
-
         # and add the (reinterpolated!) predictive level
         if isinstance(self, MFK_smt): 
             # Universal Kriging does not always provide a representative correlation function for our goal due to the trend!
             # so, first tune an OK on lvl 1
-            K_mf_new = self.create_OKlevel(self.X_mf[1], self.Z_mf[1], append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
+            # K_mf_new = self.create_OKlevel(self.X_mf[1], self.Z_mf[1], append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
 
-            # do an initial prediction
-            Z_pred, mse_pred, _ = self.weighted_prediction()
+            # do an initial prediction (based on lvl index -1 = lvl 1)
+            self.Z_pred, self.mse_pred, _ = self.weighted_prediction()
+            self.create_update_K_pred()
 
-            K_mf_new.train(self.X_unique, Z_pred, tune = True, retuning = False, R_diagonal = mse_pred / K_mf_new.sigma_hat)
+            # K_mf_new.train(self.X_unique, Z_pred, tune = True, retuning = False, R_diagonal = mse_pred / K_mf_new.sigma_hat)
         else:
             # do an initial prediction
             Z_pred, mse_pred, _ = self.weighted_prediction()
 
             K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat)
-        K_mf_new.reinterpolate()
+            K_mf_new.reinterpolate()
 
 
     def set_state(self, data_dict):
         super().set_state(data_dict)
         
-        if isinstance(self, MFK_smt):
+        if isinstance(self, MFK_smt) and 'K_mf_list' in data_dict:
             # then add the highest level (which is an OK object for now)
             self.number_of_levels = 2
             k = self.create_OKlevel([],add_empty=True)
@@ -186,7 +174,6 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
 
             Ef_weighed = np.dot(D_Ef, c_z)
 
-        print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[-1].sigma_hat) # type:ignore
         print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
         # assign the found values to the mf_model, in order to be easily retrieved.

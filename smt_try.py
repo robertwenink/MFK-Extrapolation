@@ -1,4 +1,5 @@
-# https://colab.research.google.com/github/SMTorg/smt/blob/master/tutorial/SMT_MFK_Noise.ipynb
+#%%
+# # https://colab.research.google.com/github/SMTorg/smt/blob/master/tutorial/SMT_MFK_Noise.ipynb
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -48,12 +49,12 @@ yt_joint = np.concatenate((yt_c, yt_e))
 #noise 0 en theta0 zijn slechts initiele waardes, maar worden wel getuned!! dit proces is echt insane veel sneller dus ik moet dat nabootsen
 noise0 = [np.array([2e-01, 7e-02, 2e-03, 6e-08,
                     5e-02, 5e-02, 4e-02, 3e-02,
-                    2e-01, 1e-02, 5e-06, 1e-01])/2,
+                    2e-01, 1e-02, 5e-06, 1e-01])*100,
           np.array([1.5, 0.4, 0.01, 0.1])/5]
 theta0 = np.array([[0.5],[0.1]])
 np.random.seed(7)
 sm = MFK(theta0=theta0, theta_bounds = [1e-1, 20],
-         noise0=noise0, use_het_noise = False,
+         noise0=noise0, use_het_noise = True,
          propagate_uncertainty=True, n_start=1)
 sm = MFK(n_start=1)
 
