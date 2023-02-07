@@ -232,7 +232,8 @@ class ObjectWrapper(MFK_smt):
         # self.__dict__ = deepcopy({k: baseObject.__dict__[k] for k in set(list(baseObject.__dict__.keys())) - set({'K_truth','X_truth','Z_truth'})})
         MFK_wrap.__init__(self, **baseObject.MFK_kwargs)
         for key, item in baseObject.get_state().items():
-            self.__setattr__(key,copy(item))
+            if key not in ['K_truth', 'K_pred']: # dont add the full dicts of these sub-models
+                self.__setattr__(key,copy(item))
 
         self.K_mf = []
         # fake hps for proposed method

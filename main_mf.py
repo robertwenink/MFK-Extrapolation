@@ -71,6 +71,8 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 # inits based on input settings
 setup = Input(0)
+reuse_values = True	
+reload_endstate = False
 MFK_kwargs = {'print_global' : True,
                 'print_training' : True,
                 'print_prediction' : False,
@@ -96,9 +98,6 @@ cp = ConvergencePlotting(setup)
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-reuse_values = False	
-reload_endstate = True
-
 used_endstate = hasattr(setup,'model_end') and reload_endstate
 if used_endstate:
     mf_model.set_state(setup.model_end)
@@ -108,7 +107,7 @@ elif hasattr(setup,'model') and reuse_values:
 else:
     mf_model.prepare_proposed(setup)
 
-setup.create_input_file(mf_model, cp, endstate = used_endstate)
+setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)
 
 do_check = False
 if do_check and not reload_endstate and not check_linearity(mf_model, pp):
@@ -119,8 +118,8 @@ else:
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
-    # mf_model.optimize(pp,cp)
-    mf_model.optimize()   
+    mf_model.optimize(pp,cp)
+    # mf_model.optimize()   
 
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence()
