@@ -1,6 +1,6 @@
 import numpy as np
-from core.sampling.solvers.internal import TestFunction
 
+from core.sampling.solvers.internal import TestFunction
 from core.sampling.solvers.solver import get_solver
 np.set_printoptions(precision=3,linewidth = 150,sign=' ')
 import sys
@@ -23,6 +23,13 @@ from core.routines.mfk_EGO import MultiFidelityEGO
 
 from postprocessing.plotting import Plotting
 from postprocessing.plot_convergence import ConvergencePlotting
+
+import tkinter as tk
+import ctypes
+# tk has to be used and thus loaded before *something else* in order for the scaling detection to work....
+root = tk.Tk()
+root.destroy()
+
 
 # TODO list
 # 1) animate the plotting
@@ -93,7 +100,7 @@ if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L_costs([1,9,10000])   
 
 # init plotting etc
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=True)
 pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2])
 cp = ConvergencePlotting(setup)
 
@@ -127,8 +134,9 @@ if isinstance(mf_model, MultiFidelityEGO):
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence() 
 pp.draw_current_levels(mf_model)
+pp.render_video()
 
-print("Simulation finished")
+print(" Simulation finished ")
 
 plt.show()
 

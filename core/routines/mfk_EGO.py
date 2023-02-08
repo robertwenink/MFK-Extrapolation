@@ -47,6 +47,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
     def optimize(self, pp = None, cp = None):
         self.max_cost = np.inf
+
         while np.sum(self.costs_total) < self.max_cost:
             " output "
             if pp != None:

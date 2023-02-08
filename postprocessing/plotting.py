@@ -2,9 +2,17 @@
 
 import numpy as np
 import time 
+import os 
+import glob
+from cairosvg import svg2png
+import imageio
+
+import tkinter as tk
+import ctypes
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import axes3d
@@ -19,13 +27,53 @@ from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from utils.error_utils import RMSE_norm_MF
 from utils.selection_utils import get_best_sample, get_best_prediction
 
+
 def fix_colors(surf):
     surf._facecolors2d = surf._facecolor3d
     surf._edgecolors2d = surf._edgecolor3d
     return surf
 
+def get_screen_dpi():
+    """
+    With custom tkinter apparently you cannot detect the active dpi and thus the windows scaling.
+    Therefore, first do it with tk only!!
+    Retrieves a scaling to scale to 96 dpi = consistent behaviour.
+    """
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware(2)
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    root = tk.Tk()
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware(2)
+    width_px = root.winfo_screenwidth()
+    height_px = root.winfo_screenheight()
+    width_mm = root.winfo_screenmmwidth()
+    height_mm = root.winfo_screenmmheight()
+    # 2.54 cm = in
+    width_in = width_mm / 25.4
+    height_in = height_mm / 25.4
+    width_dpi = width_px/width_in
+    height_dpi = height_px/height_in
+
+    # print('Width: %i px, Height: %i px' % (width_px, height_px))
+    # print('Width: %i mm, Height: %i mm' % (width_mm, height_mm))
+    # print('Width: %f in, Height: %f in' % (width_in, height_in))
+    # print('Width: %f dpi, Height: %f dpi' % (width_dpi, height_dpi))
+
+    [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+    print('Size is %f %f' % (w, h))
+
+    curr_dpi = w*96/width_px
+    print('Current DPI is %f' % (curr_dpi))
+
+    dpi_scale = curr_dpi / 96
+    print('Dpi scale = %f' % (dpi_scale))
+    root.destroy()
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    return dpi_scale
+
 class Plotting:
-    def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1, fast_plot = True):
+    def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1, fast_plot = True, make_video = False):
         if fast_plot:
             self.n_per_d = 75
             self.sub_skip = 4
@@ -71,6 +119,21 @@ class Plotting:
         self.counter = 0
         self.tight = False
         self.plot_once_every = plot_once_every if self.d > 1 else 1
+
+        self.make_video = make_video
+        self.save_svg = True
+        if make_video:
+            self.dpi_scale = get_screen_dpi()
+            self.frames = []     
+            self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.path.split(setup.filename)[1].split('.')[0])
+            if not os.path.exists(self.video_path):
+                os.makedirs(self.video_path)
+            else:
+                img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "*.png"), key=os.path.getmtime)
+                for img in img_paths_list:
+                    if os.path.isfile(img):
+                        os.remove(img)
+                print("Deleted previous png`s!!")
 
     ###########################################################################
     ## Helper functions                                                     ###
@@ -577,6 +640,18 @@ class Plotting:
             self.fig.canvas.flush_events() 
             plt.show(block=False)
 
+            if self.make_video:
+                # image_from_plot = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8)
+                # image_from_plot = image_from_plot.reshape(tuple(int(i*self.dpi_scale) for i in self.fig.canvas.get_width_height()[::-1]) + (3,))
+                # self.frames.append(image_from_plot)
+                if self.save_svg:
+                    path = os.path.join(self.video_path, 'image_{}.svg'.format(self.counter))
+                    self.fig.savefig(path)
+                
+                path = os.path.join(self.video_path, 'image_{}.png'.format(self.counter))
+                self.fig.savefig(path)
+                # .savefig('my_plot.png')
+                # self.frames.append(self.fig.canvas.tostring_rgb())
             
             print("##############################")
             print("### Plotting took {:.4f} s ###".format(time.time() - t_start))
@@ -760,3 +835,27 @@ class Plotting:
         if not self.tight:
             self.fig.tight_layout() 
             self.tight = True
+
+
+    def render_video(self):
+        if self.make_video:
+            print("Creating gif of plots", end = '\r')
+            
+            img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "*.png"), key=os.path.getmtime)
+            start = time.time()
+            with imageio.get_writer(os.path.join(self.video_path,"movie.gif"), mode="I", duration=0.5) as writer:
+                for img_path in img_paths_list:
+                    # img = Image.open(io.BytesIO(byte_img))
+                    # img.save(os.path.join(self.video_path,"test.png"))
+
+                    # byte_img = svg2png(url = svg_path)
+                    # img = imageio.imread(io.BytesIO(byte_img))
+                    
+                    img = imageio.imread(img_path)
+                    writer.append_data(img)
+
+                # repeat the last one to better indicate ending
+                for i in range(5):
+                    writer.append_data(img)
+            print(f"Gif creation time: {time.time() - start:.4f}")
+            
