@@ -1,49 +1,23 @@
+# pyright: reportGeneralTypeIssues=false, reportUnboundVariable = false
 import numpy as np
-import scipy.stats as scistats
+import time 
 
 from core.mfk.mfk_smt import MFK_smt
 from core.mfk.mfk_ok import MFK_org
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
+from core.routines.EGO import EfficientGlobalOptimization
 from core.sampling.solvers.internal import TestFunction
 
-from utils.selection_utils import isin, get_best_sample, create_X_infill
-from utils.formatting_utils import correct_formatX
+from utils.selection_utils import isin
 
 
-class EfficientGlobalOptimization():
-    """This class performs the EGO algorithm on a given layer"""
-
-    def __init__(self, setup, *args, **kwargs):
-        # initial EI
-        self.ei = 1
-        self.ei_criterion = 2 * np.finfo(np.float32).eps
-        lb = setup.search_space[1]
-        ub = setup.search_space[2]
-        n_infill_per_d = 601
-        self.X_infill = create_X_infill(setup.d, lb, ub, n_infill_per_d)
-
-
-    @staticmethod
-    def EI(y_min, y_pred, sigma_pred):
-        """
-        Expected Improvement criterion, see e.g. (Jones 2001, Jones 1998)
-        param y_min: the sampled value belonging to the best X at level l
-        param y_pred: (predicted) points at level l, locations X_pred
-        param sigma_pred: (predicted) variance of points at level l, locations X_pred
-        """
-
-        u = np.where(sigma_pred == 0, 0, (y_min - y_pred) / sigma_pred)  # normalization
-        EI = sigma_pred * (u * scistats.norm.cdf(u) + scistats.norm.pdf(u))
-        return EI
-
-
-class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOptimization):
+class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization):
     
-    def __init__(self, setup, *args, **kwarg):
-        super().__init__(setup, *args, **kwarg)
+    def __init__(self, setup, *args, **kwargs):
+        super().__init__(setup, *args, **kwargs)
         # Ik snap die inheritance structuur niet, onderstaand lijkt goed uit te leggen
         # https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
-        EfficientGlobalOptimization.__init__(self, setup, *args, **kwarg) 
+        EfficientGlobalOptimization.__init__(self, setup, *args, **kwargs) 
 
     def optimize(self, pp = None, cp = None):
         self.max_cost = np.inf
@@ -55,15 +29,12 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             if cp != None:
                 cp.plot_convergence()
 
-            # predict and calculate Expected Improvement
-            y_pred, sigma_pred = self.K_mf[-1].predict(self.X_infill) 
-            _, y_min = get_best_sample(self) 
+            start = time.time()
+            " predict and calculate Expected Improvement "
+            x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, self.K_mf[-1].predict, criterion = 'EI')
+            print(f"FINDING EI TOOK: {time.time() - start:4f}")
+            print("MAXIMUM EI: {:4f}".format(np.max(ei)))
 
-            ei = self.EI(y_min, y_pred, np.sqrt(sigma_pred))
-
-            # select best point to sample
-            print("Maximum EI: {:4f}".format(np.max(ei)))
-            x_new = correct_formatX(self.X_infill[np.argmax(ei)], self.d)
 
             # terminate if criterion met, or when we revisit a point
             # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
@@ -110,15 +81,16 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         " Print end-results "
         s_width = 71 - 8 * (self.d == 1)
         print("┏" + "━" * s_width + "┓")
-        print("┃ Best found point \t\tx = {}, f(x) = {: .4f} \t┃".format(get_best_sample(self)[0][0],get_best_sample(self)[1]))
+        print("┃ Best found point \t\tx = {}, \tf(x) = {: .4f} \t┃".format(self.get_best_sample()[0][0],self.get_best_sample()[1]))
         if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
-            print("┃ Best (truth) predicted point \tx = {}, f(x) = {: .4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt)) # type: ignore
+            print("┃ Best (truth) predicted point \tx = {}, \tf(x) = {: .4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt)) # type: ignore
         if isinstance(self.solver, TestFunction):
             X_opt, Z_opt = self.solver.get_optima()
-            X_opt, Z_opt = np.atleast_2d(X_opt), np.atleast_2d(Z_opt)
-            ind = np.argmin(Z_opt)
-            print("┃ Exact optimum at point \tx = {}, f(x) = {: .4f} \t┃".format(X_opt[ind], Z_opt[ind].item()))
-            print("┃ Search resolutions of \tx = {}\t\t\t┃".format((self.ub - self.lb)/(self.n_infill_per_d-1)))
+            X_opt_ex, Z_opt_ex = self.find_best_point(self.solver.solve)
+            
+            ind = np.argmin(Z_opt) # pakt gwn de eerste, dus = 0
+            print("┃ Exact optimum at point \tx = {}, \tf(x) = {: .4f} \t┃".format(X_opt[ind], Z_opt[ind]))
+            print("┃ Exact best prediction \tx = {}, \tf(x) = {: .4f} \t┃".format(X_opt_ex, Z_opt_ex))
         print("┗" + "━" * s_width + "┛")
              
     def level_selection(self, x_new):

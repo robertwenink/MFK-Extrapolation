@@ -1,19 +1,19 @@
-
+# pyright: reportGeneralTypeIssues=false
 import numpy as np
+from copy import copy
 
 from smt.applications import MFK
 
-from core.sampling.DoE import LHS_subset, LHS
-from core.mfk.mfk_base import MultiFidelityKrigingBase
-from core.mfk.mfk_smt import MFK_smt
+from core.sampling.DoE import LHS
+from core.mfk.mfk_smt import MFK_smt, MFK_wrap
 from core.mfk.mfk_ok import MFK_org
 
 from utils.formatting_utils import correct_formatX
 from utils.selection_utils import isin_indices
 
 " Say what class to inherit from!! "
-# or use MFK_org
-class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
+# use MFK_org or MFK_smt
+class ProposedMultiFidelityKriging(MFK_smt):
     """
     TODO interesant te bedenken: werkt voor de proposed method onafhankelijke noise estimates beter? -> houdt OK als optie
     """
@@ -29,11 +29,7 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
         # doe = get_doe(setup)
         X_l = LHS(setup, n_per_d = 10)
         
-        if isinstance(self, MFK_smt):
-            self.sample_new(0, X_l)
-            self.sample_new(1, X_l) 
-
-        elif isinstance(self, MFK_org):
+        if isinstance(self, MFK_org):
             tune = True
 
             hps = None
@@ -50,6 +46,10 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
         
             self.create_OKlevel(X_l, tune=tune, hps_init = hps)
             self.create_OKlevel(X_l, tune=tune)
+
+        elif isinstance(self, MFK_smt):
+            self.sample_new(0, X_l)
+            self.sample_new(1, X_l) 
         else:
             print("Not initialised as a form of MFK.\nNo levels created: exiting!")
             import sys
@@ -81,17 +81,75 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat)
             K_mf_new.reinterpolate()
 
+    def create_update_K_pred(self, data_dict = None):
+        # options
+        USE_SF_PRED_MODEL = False # use as single fidelity?
+        USE_HET_NOISE_FOR_EI = False # NOTE True werkt toch het beste
 
-    def set_state(self, data_dict):
-        super().set_state(data_dict)
-        
-        if isinstance(self, MFK_smt) and 'K_mf_list' in data_dict:
-            # then add the highest level (which is an OK object for now)
-            self.number_of_levels = 2
-            k = self.create_OKlevel([],add_empty=True)
-            k.set_state(data_dict['K_mf_list'][0])
-            if len(data_dict['K_mf_list']) > 1:
-                print("WARNING: K_mf_list should be of length 1; only containing the predicted level.")
+        if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
+            if not hasattr(self,'K_pred'):
+                print("Creating Kriging model of pred")
+                kwargs = copy(self.MFK_kwargs)
+                
+                # NOTE voor nu alles met use_het_noise uit! 
+                # Het lijkt alsof smt geen geen noise regression meer doet over punten die al variance bij zich dragen
+                # bovendien wordt de noise van nabijliggende 'neppe' punten niet beperkt door 'echte' punten 
+                # maar wordt de noise van echte punten juist tot het niveau van de neppe punten gebracht omdat die noise 'gemeten, dus waarheid' is.
+                # dit is logisch normaliter maar werkt voor mij counter-productief!
+                # in effect wordt de noise wel geregressed, de level selection gebaseerd op variance is nog informatief, 
+                # maar de EI wordt niet met behulp hiervan berekend. Om dit wel te verkrijgen:
+                # 1) train met: 
+                #    - ['eval_noise'] = True
+                #    - ['optim_var'] = True -> re-interpolation
+                # 2) train met:
+                #    - ['eval_noise'] = False
+                #    - ['optim_var'] = False
+                #    - ['use_het_noise'] = True (voegt eigenlijk alleen maar de noise in de noise-output toe!)
+                # zo hebben we én een noise-regressed mean, en de variance output voor EI (consistent met level selection)
+
+                # we are going to use heteroscedastic noise evaluation at the top level!
+                kwargs['eval_noise'] = True
+                # kwargs['use_het_noise'] = True
+                kwargs['theta_bounds'] = [0.01,20]
+                kwargs['theta0'] = [kwargs['theta_bounds'][0]]
+                # kwargs['optim_var'] = True
+
+                self.K_pred = MFK_wrap(**kwargs)
+                self.K_pred.d = self.d
+                self.K_pred.name = "K_pred"
+                self.K_pred.MFK_kwargs = kwargs
+
+            if data_dict != None:
+                self.K_pred.set_state(data_dict)
+            else:
+                if USE_SF_PRED_MODEL:
+                    self.set_training_data(self.K_pred, [self.X_unique], [self.Z_pred])
+                    self.K_pred.options['noise0'] = [[0.0]]
+                else:
+                    self.set_training_data(self.K_pred, [*self.X_mf[:self.max_nr_levels-1], self.X_unique], [*self.Z_mf[:self.max_nr_levels-1], self.Z_pred])
+                    self.K_pred.options['noise0'] = [[0.0]] * 3
+                
+                self.K_pred.options['eval_noise'] = True
+                self.K_pred.options['optim_var'] = True # not using reinterpolation is way worse for EI
+                self.K_pred.options['use_het_noise'] = False
+                self.K_pred.train()
+
+                if USE_HET_NOISE_FOR_EI:
+                    if USE_SF_PRED_MODEL:
+                        self.K_pred.options['noise0'] = [self.mse_pred]
+                    else:
+                        self.K_pred.options['noise0'] = [[0], [0], self.mse_pred]
+
+                    self.K_pred.options['eval_noise'] = False
+                    self.K_pred.options['optim_var'] = False
+                    self.K_pred.options['use_het_noise'] = True
+                    self.K_pred.train()
+
+
+                self.K_pred.X_opt, self.K_pred.z_opt = self.get_best_prediction(self.K_pred)
+                print("Succesfully trained Kriging model of prediction", end = '\r')
+            
+            self.setK_mf()
 
 
     def weighted_prediction(self, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
@@ -138,7 +196,7 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             # 1) distance based: take the (tuned) Kriging correlation function
             # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
             # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-            c = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
+            c_dist = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
 
             # mask = np.isclose(c,1.0)  # then sampled point # TODO Cant do this for Universal Kriging, since corr = 1 if GLS is perfect fit
             # idx = mask.any(axis=0)  
@@ -148,15 +206,22 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             mask = [isin_indices(X_unique, correct_formatX(xs, self.d)) for xs in X_s]
 
             # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
+            
+            # relative weighing of distance scaling wrt variance scaling
+            c_dist_rel_weight = 10
+            
             #    we want to keep the correlation/weighing the same if there is no variance,
             #    and otherwise reduce it.
             #    We could simply do: sigma += 1 and divide.
             #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
             #    This decreases distance based influence if sigma > 0.
             #    We take the variance of the fraction, S_f
-            D_sf_norm = D_Sf/(D_Ef) # NOTE slighly normalize D_sf to D_Ef
-            mult = np.exp(-(D_sf_norm)/np.mean(D_sf_norm))
-            c = (c.T * mult).T
+            
+            D_sf_norm = D_Sf * (D_Ef ** 2) # NOTE normalize D_sf to D_Ef
+            c_var = np.exp(-(D_sf_norm)/(np.mean(D_sf_norm)*c_dist_rel_weight))
+
+            # # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
+            c = (c_dist.T * c_var).T 
 
             " Scale to sum to 1; correct for sampled locations "
             # Contributions coefficients should sum up to 1.
@@ -186,6 +251,19 @@ class ProposedMultiFidelityKriging(MFK_smt, MultiFidelityKrigingBase):
             self.mse_pred = mse_pred
 
         return Z_pred, mse_pred, Ef_weighed
+    
+    
+    def set_state(self, data_dict):
+        super().set_state(data_dict)
+        
+        if isinstance(self, MFK_smt) and 'K_mf_list' in data_dict:
+            # then add the highest level (which is an OK object for now)
+            self.number_of_levels = 2
+            k = self.create_OKlevel([],add_empty=True)
+            k.set_state(data_dict['K_mf_list'][0])
+            if len(data_dict['K_mf_list']) > 1:
+                print("WARNING: K_mf_list should be of length 1; only containing the predicted level.")
+
 
 
 def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
@@ -317,6 +395,10 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
     return Z2_p, S2_p ** 2, Sf ** 2, Ef
 
+
+
 def print_metrics(Z_pred, mse_pred, Ef_weighed,Sf_weighed,sigma_hat):
     print("┃ MEAN VALUES IN WEIGHED PREDICTION")
     print(f"┃ Z: {np.mean(Z_pred)}; mse: {np.mean(mse_pred)} \n┃ Ef weighed: {np.mean(Ef_weighed)}; Sf non-weighed: {np.mean(Sf_weighed)}\n┃ Sigma_hat: {sigma_hat}")
+
+

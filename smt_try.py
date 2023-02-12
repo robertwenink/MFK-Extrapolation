@@ -46,35 +46,22 @@ plt.legend()
 
 # %% Build the MFK object
 yt_joint = np.concatenate((yt_c, yt_e))
-#noise 0 en theta0 zijn slechts initiele waardes, maar worden wel getuned!! dit proces is echt insane veel sneller dus ik moet dat nabootsen
-noise0 = [np.array([2e-01, 7e-02, 2e-03, 6e-08,
+noise0 = [np.array([2e-01, 7e-02, 2e-03, 6e-01,
                     5e-02, 5e-02, 4e-02, 3e-02,
-                    2e-01, 1e-02, 5e-06, 1e-01])*100,
+                    2e-01, 1e-02, 5e-06, 1e-01])/2,
           np.array([1.5, 0.4, 0.01, 0.1])/5]
 theta0 = np.array([[0.5],[0.1]])
 np.random.seed(7)
 sm = MFK(theta0=theta0, theta_bounds = [1e-1, 20],
-         noise0=noise0, use_het_noise = True,
-         propagate_uncertainty=True, n_start=1)
-sm = MFK(n_start=1)
+         noise0=noise0, use_het_noise = True, eval_noise = False,
+         propagate_uncertainty=False, n_start=1)
 
 # low-fidelity dataset names being integers from 0 to level-1
 sm.set_training_values(Xt_c, yt_c, name=0)
-print(f"{Xt_c.shape:} {yt_c.shape:}")
 # high-fidelity dataset without name
 sm.set_training_values(Xt_e, yt_e)
-print(f"{Xt_e.shape:} {yt_e.shape:}")
 # train the model
 sm.train()
-
-sm.theta0
-sm.noise0
-sm = MFK(n_start=1)
-sm.set_training_values(Xt_c, yt_c, name=0)
-sm.set_training_values(Xt_c, yt_c, name=1)
-sm.set_training_values(Xt_c, yt_c)
-sm.train()
-
 
 # test training
 ntest = 101
@@ -87,8 +74,8 @@ var = sm.predict_variances(x)
 y0 = sm._predict_intermediate_values(x, 1)
 var0, _ =  sm.predict_variances_all_levels(x)
 var0 = var0[:,0].reshape(-1,1)
-# %%
 
+# %%
 # creating a single-fidelity GP model to compare with
 theta0 = sm.options["theta0"]
 noise0 = sm.options["noise0"]

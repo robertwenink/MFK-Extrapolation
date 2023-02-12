@@ -3,16 +3,15 @@
 import numpy as np
 import time 
 import os 
+import shutil
 import glob
-from cairosvg import svg2png
 import imageio
-
+from PIL import Image
 import tkinter as tk
 import ctypes
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import axes3d
@@ -25,7 +24,6 @@ from core.mfk.mfk_base import MultiFidelityKrigingBase
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 
 from utils.error_utils import RMSE_norm_MF
-from utils.selection_utils import get_best_sample, get_best_prediction
 
 
 def fix_colors(surf):
@@ -72,17 +70,26 @@ def get_screen_dpi():
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     return dpi_scale
 
+
+
 class Plotting:
     def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1, fast_plot = True, make_video = False):
-        if fast_plot:
+        self.d_plot = setup.d_plot
+        self.d = setup.d
+
+        # plotting resolution
+        if fast_plot and self.d > 1:
             self.n_per_d = 75
             self.sub_skip = 4
             plt.rcParams["figure.dpi"] = 80
         else:
-            self.n_per_d = 100
             self.sub_skip = 1
-        self.d_plot = setup.d_plot
-        self.d = setup.d
+            self.n_per_d = 100
+            
+        if len(self.d_plot) == 1: 
+            # then no need for reducing 
+            self.sub_skip = 1
+            self.n_per_d = 1000
 
         # plotting options and settings
         self.axes = []
@@ -121,19 +128,28 @@ class Plotting:
         self.plot_once_every = plot_once_every if self.d > 1 else 1
 
         self.make_video = make_video
-        self.save_svg = True
+        self.save_svg = False
+        create_folder_per_run = True
         if make_video:
-            self.dpi_scale = get_screen_dpi()
+            self.screen_dpi_scale = get_screen_dpi()
             self.frames = []     
             self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.path.split(setup.filename)[1].split('.')[0])
             if not os.path.exists(self.video_path):
                 os.makedirs(self.video_path)
             else:
-                img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "*.png"), key=os.path.getmtime)
-                for img in img_paths_list:
-                    if os.path.isfile(img):
-                        os.remove(img)
-                print("Deleted previous png`s!!")
+                if create_folder_per_run:
+                    dirs = glob.glob(self.video_path+os.path.sep+"*"+os.path.sep)
+                    i = len(dirs)
+                    self.video_path = os.path.join(self.video_path,f"run_{i}")  
+                    os.makedirs(self.video_path)
+                    shutil.copy(setup.filename, self.video_path)
+                    print(f"Writing results to {self.video_path}")
+                else:
+                    img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "image_*.png"), key=os.path.getmtime)
+                    for img in img_paths_list:
+                        if os.path.isfile(img):
+                            os.remove(img)
+                    print("Deleted previous png`s!!")
 
     ###########################################################################
     ## Helper functions                                                     ###
@@ -249,7 +265,7 @@ class Plotting:
         if show_exact and self.plot_exact_possible:
             # NOTE this only works for test functions.
             # exact result of the level we try to predict
-            y_exact, _ = self.solver.solve(self.X_pred) #l argument possible
+            y_exact, _ = self.solver.solve(self.X_pred, l = None) #l argument possible
             y_exact = y_exact.reshape(self.X_plot[0].shape)
             ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5) 
             ax.colors.append(color_exact)
@@ -446,7 +462,7 @@ class Plotting:
                     limit = inset_rel_limits[j]
                 else:
                     if self.d == 1:
-                        limit = [0.5, 0.5, 0.3, 0.4]
+                        limit = [0.5, 0.58, 0.3, 0.4]
                     else:
                         # underneath the legend (if it is on the right)
                         limit = [1.1, 0.05, 0.4, 0.4]
@@ -605,7 +621,7 @@ class Plotting:
             " plot best point "
             # set up to plot best out of all the *sampled* hifi locations
             # NOTE not per definition the best location of all previous levels too
-            ind_best = get_best_sample(mf_model, arg=True)
+            ind_best = mf_model.get_best_sample(arg=True)
 
             for ax in self.axes:
                 self.plot_best(ax, X[-1], Z[-1], ind_best)
@@ -649,7 +665,9 @@ class Plotting:
                     self.fig.savefig(path)
                 
                 path = os.path.join(self.video_path, 'image_{}.png'.format(self.counter))
-                self.fig.savefig(path)
+                # self.fig.savefig(path)
+                img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(tuple(int(i*self.screen_dpi_scale) for i in self.fig.canvas.get_width_height()[::-1]) + (3,)))
+                img.save(path)
                 # .savefig('my_plot.png')
                 # self.frames.append(self.fig.canvas.tostring_rgb())
             
@@ -856,6 +874,8 @@ class Plotting:
 
                 # repeat the last one to better indicate ending
                 for i in range(5):
-                    writer.append_data(img)
+                    writer.append_data(img) # type:ignore
             print(f"Gif creation time: {time.time() - start:.4f}")
+
+            
             

@@ -9,7 +9,7 @@ from core.ordinary_kriging.kernel import dist_matrix
 from core.sampling.solvers.solver import get_solver
 from utils.error_utils import RMSE_norm_MF
 from utils.error_utils import RMSE_focussed as RMSE_focussed_func
-from utils.selection_utils import get_best_prediction, get_best_sample
+from utils.selection_utils import create_X_infill
 
 class ConvergencePlotting():
     """
@@ -47,9 +47,12 @@ class ConvergencePlotting():
 
         self.RMSEs = []
         self.RMSE_focussed = []
+        self.X_RMSE = create_X_infill(setup.d, setup.search_space[1], setup.search_space[2], 100) # Not scalable for many dimensions
         self.RMSE_focuss_percentage = 20
+        
+        
         self.main_font_size = 12
-
+        
         self.init_figure()
 
         
@@ -133,9 +136,9 @@ class ConvergencePlotting():
         """
         if np.any(x_new):
             RMSE = RMSE_norm_MF(model, no_samples=True)
-            RMSE_focussed = RMSE_focussed_func(model, self.RMSE_focuss_percentage)
-            x_best, value_best = get_best_sample(model)
-            x_new, value_x_new = get_best_prediction(model, x_new)
+            RMSE_focussed = RMSE_focussed_func(model, self.X_RMSE, self.RMSE_focuss_percentage)
+            x_best, value_best = model.get_best_sample()
+            x_new, value_x_new = model.get_best_prediction(model, x_new)
 
             self._update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
 

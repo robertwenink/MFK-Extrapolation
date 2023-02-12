@@ -1,18 +1,19 @@
-# pyright: reportGeneralTypeIssues=false,
+# pyright: reportGeneralTypeIssues=false, reportUnboundVariable = false
 import numpy as np
 from beautifultable import BeautifulTable
+
+from core.mfk.kriging_base import KrigingBase
 
 from core.ordinary_kriging.kernel import get_kernel
 from core.ordinary_kriging.OK import OrdinaryKriging
 from core.sampling.solvers.solver import get_solver
 from core.sampling.DoE import LHS_subset
 
-from utils.selection_utils import isin_indices, create_X_infill
+from utils.selection_utils import isin_indices
 from utils.formatting_utils import correct_formatX
 from utils.correlation_utils import check_correlations
 
-
-class MultiFidelityKrigingBase(object):
+class MultiFidelityKrigingBase(KrigingBase):
 
     def __init__(self, setup, max_cost = None, initial_nr_samples = 3, max_nr_levels : int = 3, *args, **kwargs):
         """
@@ -22,6 +23,8 @@ class MultiFidelityKrigingBase(object):
         @param L: fidelity input list, is being set using set_L() if other values are desired.
         """
 
+        super().__init__(setup, *args, **kwargs)
+        
         self.kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
         self.d = setup.d
         self.solver = get_solver(setup)
@@ -56,10 +59,6 @@ class MultiFidelityKrigingBase(object):
         self.tune_lower_every = 1
         self.tune_prediction_every = 1
 
-        self.lb = setup.search_space[1]
-        self.ub = setup.search_space[2]
-        self.n_infill_per_d= 601 # TODO is duplicate met in EGO class gedifinieerde var
-        self.X_infill = create_X_infill(setup.d, self.lb, self.ub, self.n_infill_per_d)
 
     def set_L(self, L : list):
         """
@@ -300,6 +299,8 @@ class MultiFidelityKrigingBase(object):
             self.number_of_levels += 1
 
         return ok
+
+
 
     " Functions to be implemented by derived classes "
     # def create_OKlevel(self, X_l, y_l = [], *args, **kwargs):

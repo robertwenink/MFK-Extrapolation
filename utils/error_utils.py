@@ -38,7 +38,7 @@ def RMSE_norm_MF(mf_model, no_samples = False):
     
     return RMSE
 
-def RMSE_focussed(mf_model, focus_perc):
+def RMSE_focussed(mf_model, X_search, focus_perc):
     """
     Version of 'RMSE_norm_MF' where the RMSE is calculated based on 
     specific areas that are within focus_perc % of the optimum value.
@@ -47,24 +47,22 @@ def RMSE_focussed(mf_model, focus_perc):
     
     @param focus_perc (float): percentage of the datarange that we asses, above the (known) optimum value.
     """
-    x_infill = mf_model.X_infill[::100] # check on every 100th 
-    z_infill_truth = mf_model.K_truth.predict(x_infill)[0]
-    data_range = np.max(z_infill_truth) - np.min(z_infill_truth)
 
-    # determining the 'optimum' baseline value
-    if isinstance(mf_model.solver,TestFunction):
-        # if available, use known optimum
+    if isinstance(mf_model.solver, TestFunction):
+        z_search_truth, _  = mf_model.solver.solve(X_search)
         X_opt, Z_opt = mf_model.solver.get_optima()
-        z_opt = np.min(Z_opt)
+        z_opt = np.min(Z_opt) # possibly more optimum spots, depends on how its formulated
     else:
-        # use the current values of the truth
-        z_opt = np.min(z_infill_truth)
+        z_search_truth, _ = mf_model.K_truth.predict(X_search)[0]
+        z_opt = np.min(z_search_truth)
 
-    mask = np.where(z_infill_truth >= z_opt + data_range * focus_perc / 100)
+    data_range = np.max(z_search_truth) - z_opt
+
+    mask = np.where(z_search_truth >= z_opt + data_range * focus_perc / 100)
     
     RMSE = []
     for K_l in mf_model.K_mf:
-        RMSE.append(RMSE_norm(z_infill_truth[mask], K_l.predict(x_infill[mask])[0]))
+        RMSE.append(RMSE_norm(z_search_truth[mask], K_l.predict(X_search[mask])[0]))
 
     return RMSE
 

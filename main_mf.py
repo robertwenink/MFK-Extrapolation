@@ -26,14 +26,12 @@ from postprocessing.plot_convergence import ConvergencePlotting
 
 import tkinter as tk
 import ctypes
-# tk has to be used and thus loaded before *something else* in order for the scaling detection to work....
 root = tk.Tk()
 root.destroy()
 
-
 # TODO list
-# 1) animate the plotting
-# 2) DONE set_state get_state for new classes
+# 1) (DONE) animate the plotting
+# 2) (DONE) set_state get_state for new classes
 # 3) RMSE and other analysis tools for base MFK too!! (important for comparison)
 # 4) repeated experiments for testfunctions
 # 5) 
@@ -81,7 +79,7 @@ root.destroy()
 setup = Input(0)
 reuse_values = True	
 reload_endstate = False
-MFK_kwargs = {'print_global' : True,
+MFK_kwargs = {'print_global' : False,
                 'print_training' : True,
                 'print_prediction' : False,
                 # 'eval_noise' : False,
@@ -90,9 +88,10 @@ MFK_kwargs = {'print_global' : True,
                 'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
+                'corr' : 'squar_exp',
                 }
-# mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 2, max_cost = 150000, MFK_kwargs = MFK_kwargs)
+# mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 mf_model.set_L([2, 3, None])
@@ -101,7 +100,7 @@ if isinstance(get_solver(setup),TestFunction):
 
 # init plotting etc
 pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=True)
-pp.set_zoom_inset([0,3], x_rel_range = [0.1,0.2])
+pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
 cp = ConvergencePlotting(setup)
 
 
@@ -139,4 +138,5 @@ pp.render_video()
 print(" Simulation finished ")
 
 plt.show()
+# plt.draw()
 

@@ -21,7 +21,7 @@ class Solver(ABC):
         pass
 
     @abstractmethod
-    def solve(self):
+    def solve(self, X):
         raise NotImplementedError("Implement the solve method")
 
     def check_format_X(self, X, d_req=None):
@@ -63,7 +63,7 @@ class TestFunction(Solver):
 
     @abstractmethod
     def get_optima(self):
-        return [0], 0
+        return [0], [0]
 
     def __init__(self, setup=None):
         """
@@ -237,7 +237,7 @@ class Branin(TestFunction):
 
     def get_optima(self):
         # return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],self.d), 0.397887
-        return correct_formatX([[-np.pi,12.275]],self.d), 0.397887
+        return correct_formatX([[-np.pi,12.275]],self.d), [0.397887]
 
 
 class Runge(TestFunction):
@@ -273,7 +273,7 @@ class Stybtang(TestFunction):
         return [["x{}".format(i) for i in range(d)], [-5] * d, [5] * d]
 
     def get_optima(self):
-        return correct_formatX([[-2.903534]*self.d],self.d), -39.16599*self.d
+        return correct_formatX([[-2.903534]*self.d],self.d), [-39.16599*self.d]
 
 
 class Curretal88exp(TestFunction):
@@ -331,7 +331,7 @@ class Rastrigin(TestFunction):
         return [["x{}".format(i) for i in range(d)], [-5.12] * d, [5.12] * d]
 
     def get_optima(self):
-        return correct_formatX([[0]*self.d],self.d), 0
+        return correct_formatX([[0]*self.d],self.d), [0]
 
 
 class Rosenbrock(TestFunction):
@@ -355,7 +355,7 @@ class Rosenbrock(TestFunction):
         return [["x{}".format(i) for i in range(d)], [-2.048] * d, [2.048] * d]
 
     def get_optima(self):
-        return correct_formatX([[1]*self.d],self.d), 0
+        return correct_formatX([[1]*self.d],self.d), [0]
 
 class Hartmann6(TestFunction):
     """
