@@ -84,7 +84,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
     def create_update_K_pred(self, data_dict = None):
         # options
         USE_SF_PRED_MODEL = False # use as single fidelity?
-        USE_HET_NOISE_FOR_EI = False # NOTE True werkt toch het beste
+        USE_HET_NOISE_FOR_EI = True # NOTE True werkt toch het beste
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
             if not hasattr(self,'K_pred'):
@@ -112,6 +112,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
                 # kwargs['use_het_noise'] = True
                 kwargs['theta_bounds'] = [0.01,20]
                 kwargs['theta0'] = [kwargs['theta_bounds'][0]]
+                kwargs['print_training'] = False
                 # kwargs['optim_var'] = True
 
                 self.K_pred = MFK_wrap(**kwargs)
@@ -143,8 +144,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     self.K_pred.options['eval_noise'] = False
                     self.K_pred.options['optim_var'] = False
                     self.K_pred.options['use_het_noise'] = True
-                    self.K_pred.train()
 
+                    self.K_pred.train()
 
                 self.K_pred.X_opt, self.K_pred.z_opt = self.get_best_prediction(self.K_pred)
                 print("Succesfully trained Kriging model of prediction", end = '\r')
@@ -243,7 +244,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
             Ef_weighed = np.dot(D_Ef, c_z)
 
-        print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
+        # print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
         # assign the found values to the mf_model, in order to be easily retrieved.
         if assign:
@@ -355,7 +356,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
 
     # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
     w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1
-    print(f"W = {w}")
+    # print(f"W = {w}")
     # * np.exp(-abs(Sf/Ef))
 
     # NOTE
@@ -399,6 +400,8 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
 
 def print_metrics(Z_pred, mse_pred, Ef_weighed,Sf_weighed,sigma_hat):
     print("┃ MEAN VALUES IN WEIGHED PREDICTION")
-    print(f"┃ Z: {np.mean(Z_pred)}; mse: {np.mean(mse_pred)} \n┃ Ef weighed: {np.mean(Ef_weighed)}; Sf non-weighed: {np.mean(Sf_weighed)}\n┃ Sigma_hat: {sigma_hat}")
+    print(f"┃ Z: {np.mean(Z_pred)}; mse: {np.mean(mse_pred)}\
+    \n┃ Ef weighed: {np.mean(Ef_weighed)}; Sf non-weighed: {np.mean(Sf_weighed)}\n\
+    ┃ Sigma_hat: {sigma_hat}")
 
 

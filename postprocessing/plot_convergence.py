@@ -122,8 +122,8 @@ class ConvergencePlotting():
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
         # screen_width = get_monitors()[0].width
-        self.fig.canvas.manager.window.move(1201,0) # type: ignore ; to the right
-        self.fig.canvas.manager.window.move(0,800) # type: ignore ; underneath
+        self.fig.canvas.manager.window.move(1251,0) # type: ignore ; to the right
+        # self.fig.canvas.manager.window.move(0,800) # type: ignore ; underneath
         self.fig.tight_layout()
 
         self.fig.canvas.draw()

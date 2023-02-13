@@ -202,7 +202,7 @@ class ObjectWrapper(MFK_smt):
     def __init__(self, baseObject : MFK_smt, l_fake):
         # TODO dit neemt ook de oude K_mf mee dus je krijgt een zieke nesting van objecten! ofwel gebruik de MFK_smt set_state
         # self.__dict__ = deepcopy({k: baseObject.__dict__[k] for k in set(list(baseObject.__dict__.keys())) - set({'K_truth','X_truth','Z_truth'})})
-        MFK_wrap.__init__(self, **baseObject.MFK_kwargs)
+        MFK_wrap.__init__(self, **deepcopy(baseObject.MFK_kwargs))
         for key, item in baseObject.get_state().items():
             if key not in ['K_truth', 'K_pred']: # dont add the full dicts of these sub-models
                 self.__setattr__(key,deepcopy(item))

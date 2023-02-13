@@ -17,43 +17,29 @@ class KrigingBase():
         self.ub = setup.search_space[2]
         self.bounds = np.array(setup.search_space[1:])
 
-    def get_best_sample(self, arg = False):
-        """
-        returns the best sample as X, y
-        if arg = True, return only the sample index 
-        """
-        if isinstance(self, mf.MultiFidelityKrigingBase):
-            best_ind = np.argmin(self.Z_mf[-1])
-            if not arg:
-                return correct_formatX(self.X_mf[-1][best_ind], self.d), self.Z_mf[-1][best_ind] 
-
-        elif isinstance(self, OrdinaryKriging):
-            best_ind = np.argmin(self.y)
-            if not arg:
-                return correct_formatX(self.X[best_ind], self.d), self.y[best_ind] 
-
-        return best_ind # type: ignore
-    
     def find_best_point(self, prediction_function, criterion = 'SBO'):
         """
         Optimizer for getting the best EI (criterion = 'EI') or prediction in the current self
         @param prediction_function
         """
-        n_start = 20
-        n_max_optim = 20
-        _, y_min = self.get_best_sample() 
 
         if criterion == "EI" and isinstance(self, ego.EfficientGlobalOptimization):
+            _, y_min = self.get_best_sample() 
+            # y_min = np.min(self.Z_pred)
+            
             def obj_k(x): 
                 y_pred, mse_pred = prediction_function(x)
-                return -float(self.EI(y_min, y_pred, np.sqrt(mse_pred)))
+                return -self.EI(y_min, y_pred, np.sqrt(mse_pred))
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
                 y_pred, mse_pred_or_cost = prediction_function(np.atleast_2d(x))
-                return y_pred
+                return float(y_pred)
 
         success = False
+        n_start = 20
         n_optim = 1  # in order to have some success optimizations with SLSQP
+        n_max_optim = 20
+
         while not success and n_optim <= n_max_optim:
             opt_all = []
             
@@ -96,9 +82,9 @@ class KrigingBase():
 
         if n_optim >= n_max_optim:
             # self.log("Internal optimization failed at EGO iter = {}".format(k))
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("!!! WARNING: INTENAL EI OPTIMIZATION FAILED !!!")
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("!!! WARNING: INTERNAL EI OPTIMIZATION FAILED !!!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             return np.atleast_2d(0), 0
         ind_min = np.argmin(obj_success)
         opt = opt_success[ind_min]
@@ -124,3 +110,26 @@ class KrigingBase():
             y_best, _ = prediction_function(x_best)
         
         return x_best, y_best
+
+    def get_best_sample(self, arg = False):
+        """
+        returns the best sample as X, y
+        if arg = True, return only the sample index 
+        """
+        if isinstance(self, mf.MultiFidelityKrigingBase):
+            best_ind = np.argmin(self.Z_mf[-1])
+            if not arg:
+                return correct_formatX(self.X_mf[-1][best_ind], self.d), self.Z_mf[-1][best_ind] 
+
+        elif isinstance(self, OrdinaryKriging):
+            best_ind = np.argmin(self.y)
+            if not arg:
+                return correct_formatX(self.X[best_ind], self.d), self.y[best_ind] 
+
+        return best_ind # type: ignore
+
+    def get_best_extrapolation(self, arg = False):
+        best_ind = np.argmin(self.Z_pred)
+        if not arg:
+            return correct_formatX(self.X_unique[best_ind], self.d), self.Z_pred[best_ind] 
+        return best_ind

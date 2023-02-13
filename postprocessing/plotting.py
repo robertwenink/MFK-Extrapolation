@@ -857,11 +857,12 @@ class Plotting:
 
     def render_video(self):
         if self.make_video:
-            print("Creating gif of plots", end = '\r')
+            print("Creating video of plots", end = '\r')
             
             img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "*.png"), key=os.path.getmtime)
             start = time.time()
-            with imageio.get_writer(os.path.join(self.video_path,"movie.gif"), mode="I", duration=0.5) as writer:
+            # with imageio.get_writer(os.path.join(self.video_path,"movie.gif"), mode="I", duration=0.5) as writer:
+            with imageio.get_writer(os.path.join(self.video_path,"movie.mp4"), mode="I", fps = 2) as writer:
                 for img_path in img_paths_list:
                     # img = Image.open(io.BytesIO(byte_img))
                     # img.save(os.path.join(self.video_path,"test.png"))

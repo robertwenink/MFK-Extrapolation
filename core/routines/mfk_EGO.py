@@ -22,6 +22,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
     def optimize(self, pp = None, cp = None):
         self.max_cost = np.inf
 
+        virtual_x_new, virtual_ei = None, None
         while np.sum(self.costs_total) < self.max_cost:
             " output "
             if pp != None:
@@ -31,16 +32,60 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
 
             start = time.time()
             " predict and calculate Expected Improvement "
-            x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, self.K_mf[-1].predict, criterion = 'EI')
+            prediction_function = self.K_mf[-1].predict
+            x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, prediction_function, criterion = 'EI')
             print(f"FINDING EI TOOK: {time.time() - start:4f}")
             print("MAXIMUM EI: {:4f}".format(np.max(ei)))
+
+            if np.all(virtual_x_new == None):
+                virtual_x_new, virtual_ei = x_new, ei - self.ei_criterion * 2
+            else:
+                # misschien juist de oude EI (virtual_ei) op dat punt gebruiken?
+                # het sterke aan herberekenen vind ik dat het hyperparameter onafhankelijk/gelijk is tussen iteraties
+                # calculate new EI at previous point
+                pass
+                virtual_x_min, virtual_y_min = self.get_best_extrapolation()
+                print(f'Best extrapolation / point at {virtual_x_min} with obj {virtual_y_min}')
+                y_pred, mse_pred = prediction_function(virtual_x_min)
+                _, y_min = self.get_best_sample() # this is a stable value!
+                virtual_ei = self.EI(y_min, y_pred, np.sqrt(mse_pred))
+
+            cost_ratio = self.costs_expected_nested[2]/(self.costs_expected_nested[1])
+
+            ei_corrected = ei - virtual_ei
+
+            # idea: dynamic ei-criterion based on cost difference ratio!
+            # if the ratio is low, then its okay to sample quickly at a higher level
+            if ei_corrected <= self.ei_criterion or ei_corrected <= ei / cost_ratio ** (1/1):
+                # then sample the best extrapolated point, set ei to the corrected (could terminate!)
+                x_new = virtual_x_new 
+
+                # dit corrigeert de EI indien er noise aanwezig is,
+                # adhv de EI op het huidige beste punt! 
+                # zo niet dan is het gelijk aan normale EI!
+                ei = ei_corrected 
+            else:
+                # otherwise continue exploring
+                virtual_x_new = x_new
+                # virtual_ei = ei
+            
+            # NOTE als we geen het_noise gebruiken maar re-interpolationg is de corrected EI gelijk aan de ei
+            print("MAXIMUM VIRTUAL CORRECTED EI: {:4f}".format(ei_corrected))
 
 
             # terminate if criterion met, or when we revisit a point
             # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
             # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
             # this means the effective maximum EI can be higher than the criterion!
-            if np.all(ei < self.ei_criterion) or isin(x_new,self.X_mf[-1]):
+            if np.all(ei < self.ei_criterion):
+                print("Finishing due to reaching EI criterium!")
+                # check if the basis for virtual_x_new has already been sampled
+                if not isin(virtual_x_new,self.X_mf[-1]) and virtual_y_min < y_min: # second condition actually implies the first
+                    print("Sampled at the best extrapolation to end!")
+                    self.sample_nested(2, x_new)
+                break
+            if isin(x_new,self.X_mf[-1]):
+                print("Finishing due to resampling previous point!")
                 break
 
 
@@ -81,16 +126,16 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         " Print end-results "
         s_width = 71 - 8 * (self.d == 1)
         print("┏" + "━" * s_width + "┓")
-        print("┃ Best found point \t\tx = {}, \tf(x) = {: .4f} \t┃".format(self.get_best_sample()[0][0],self.get_best_sample()[1]))
+        print("┃ Best found point \t\tx = {}, \tf(x) = {:.4f} \t┃".format(self.get_best_sample()[0][0],self.get_best_sample()[1]))
         if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
-            print("┃ Best (truth) predicted point \tx = {}, \tf(x) = {: .4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt)) # type: ignore
+            print("┃ Best (truth) predicted point \tx = {}, \tf(x) = {:.4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt)) # type: ignore
         if isinstance(self.solver, TestFunction):
             X_opt, Z_opt = self.solver.get_optima()
             X_opt_ex, Z_opt_ex = self.find_best_point(self.solver.solve)
             
             ind = np.argmin(Z_opt) # pakt gwn de eerste, dus = 0
-            print("┃ Exact optimum at point \tx = {}, \tf(x) = {: .4f} \t┃".format(X_opt[ind], Z_opt[ind]))
-            print("┃ Exact best prediction \tx = {}, \tf(x) = {: .4f} \t┃".format(X_opt_ex, Z_opt_ex))
+            print("┃ Exact optimum at point \tx = {}, \tf(x) = {:.4f} \t┃".format(X_opt[ind], Z_opt[ind]))
+            print("┃ Exact best prediction \tx = {}, \tf(x) = {:.4f} \t┃".format(X_opt_ex, float(Z_opt_ex)))
         print("┗" + "━" * s_width + "┛")
              
     def level_selection(self, x_new):
@@ -177,11 +222,11 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         s2_exp_red = np.sqrt(mse_pred_weighed).item()
 
 
-        print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(z_pred_weighed.item() ,z_pred_model.item()))
-        print("std_pred_weighed: {:.8f}; std_pred_model: {:8f}".format(np.sqrt(mse_pred_weighed).item(), np.sqrt(mse_pred_model).item()))
+        # print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(z_pred_weighed.item() ,z_pred_model.item()))
+        # print("std_pred_weighed: {:.8f}; std_pred_model: {:8f}".format(np.sqrt(mse_pred_weighed).item(), np.sqrt(mse_pred_model).item()))
 
         s_exp_red = [s0_exp_red, s1_exp_red, s2_exp_red]
-        print(s_exp_red)
+        # print(s_exp_red)
         return s_exp_red 
         
     ##################### OLD

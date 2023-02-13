@@ -22,4 +22,4 @@ class EfficientGlobalOptimization():
 
         u = np.where(sigma_pred == 0, 0, (y_min - y_pred) / sigma_pred)  # normalization
         EI = sigma_pred * (u * scistats.norm.cdf(u) + scistats.norm.pdf(u))
-        return EI
+        return float(EI)
