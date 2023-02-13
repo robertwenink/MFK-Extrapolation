@@ -9,6 +9,9 @@ from abc import ABC, abstractmethod
 from utils.formatting_utils import correct_formatX
 from core.sampling.solvers.convergence_base_models import *
 
+# create seeded random number generator
+rng = np.random.default_rng(12345)
+
 
 class Solver(ABC):
     max_d = 10
@@ -157,7 +160,7 @@ class TestFunction(Solver):
                 if self.solver_noise:
                     # add multiplicative noise that is converging together with the convergence
                     conv *= 1 + (1 - conv) * 0.05 * (
-                        np.random.standard_normal(size=conv.shape) - 0.5
+                        rng.standard_normal(size = conv.shape) - 0.5
                     )
 
                 " transformation "
@@ -174,7 +177,7 @@ class TestFunction(Solver):
             if self.solver_noise:
                 # provide noise,present at every level
                 # NOTE hard coded std /amplitude of e-3
-                val *= 1 + 0.001 * (np.random.standard_normal(size=val.shape) - 0.5)
+                val *= 1 + 0.001 * (rng.standard_normal(size=val.shape) - 0.5)
 
             return val, cost
 
