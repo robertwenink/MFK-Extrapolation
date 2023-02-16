@@ -63,6 +63,7 @@ class Input:
                 print("Trying to read previously defined file")
                 f = open(os.path.join(INPUTS_DIR, "previous_inputfile.txt"), "r+")
                 self.filename = f.readline()
+                self.file_path = os.path.join(INPUTS_DIR, self.filename)
                 f.close()
                 self.read_input()
             except:
@@ -85,6 +86,7 @@ class Input:
         root.destroy()
 
         self.filename = filepath.split(os.path.sep)[-1]
+        self.file_path = filepath
 
         try:
             self.read_input()
@@ -100,10 +102,9 @@ class Input:
 
     def read_input(self):
         """Read the json file inputs and converting it to class attributes"""
-        file_path = os.path.join(INPUTS_DIR, self.filename)
-        print("Now reading {}".format(file_path))
+        print("Now reading {}".format(self.file_path))
 
-        with open(file_path) as json_file:
+        with open(self.file_path) as json_file:
             data_dict = json.load(json_file)
 
         data_dict = convert_dict_to_array(data_dict)
@@ -121,6 +122,7 @@ class Input:
         if optional != "":
             optional = "_" + optional
         self.filename = time.strftime(self.solver_str + " {}d ".format(self.d) + "(%Y-%m-%d)-(%H-%M-%S)") + optional + ".json"  # type: ignore 
+        self.file_path = os.path.join(INPUTS_DIR, self.filename)
    
     def create_input_file(self, model = None, cp = None, endstate = False):
         """Can be used to create or update the input file according to the contents of __dict__ and model.get_state()"""
@@ -140,7 +142,7 @@ class Input:
 
         # dumping
         json.dump(
-           d, open(os.path.join(INPUTS_DIR, self.filename), "w"), cls = Encoder, indent=4
+           d, open(self.file_path, "w"), cls = Encoder, indent=4
         )
         self.write_previous_filename()
 

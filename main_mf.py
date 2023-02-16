@@ -73,7 +73,7 @@ root.destroy()
 # 0a) 'three assumptions' in eigen methode moet de laatste weg, voor vergleijking met le gratiet method moet s0+s1 zijn niet -
 #     bovendien, we hebben de variances per level als iid beschouwd, dat is tegenstrijdig
 #     de afstand tussen twee variances is logischerwijs de som daarvan!! -> is weer normal!
-# 1) level selection procedure
+# 1) DONE level selection procedure
 # 2) integratie van MFK met eigen methode
 # 3) branin aanpassing beschrijven
 # 4) beschrijven dat de weighing methode niet werkt met universal kriging omdat er dan niet perse correlaties meer bestaan
@@ -106,9 +106,12 @@ MFK_kwargs = {'print_global' : False,
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
 mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
-mf_model.set_L([2, 3, None])
+
+# NOTE for EVA: refinement levels
+mf_model.set_L([1, 1.5, 2])
 
 if isinstance(get_solver(setup),TestFunction):
+    mf_model.set_L([2, 3, None])
     mf_model.set_L_costs([1,9,10000])   
 
 # init plotting etc
@@ -118,15 +121,15 @@ cp = ConvergencePlotting(setup)
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
-used_endstate = hasattr(setup,'model_end') and reload_endstate
+used_endstate = hasattr(setup,'model_end') and hasattr(setup,'prepare_succes') and reload_endstate
 if used_endstate:
     mf_model.set_state(deepcopy(setup.model_end))
     cp.set_state(setup)
-elif hasattr(setup,'model') and reuse_values:
+elif hasattr(setup,'model') and hasattr(setup,'prepare_succes') and reuse_values:
     # deepcopy required!! copy gebruikt nog steeds references if possible, 
     # ofwel via set_attr linken we de dict setup.model direct aan de values van mf_model (en die worden geupdate!)
     mf_model.set_state(deepcopy(setup.model)) 
-else:
+else: 
     mf_model.prepare_proposed(setup)
 
 setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)

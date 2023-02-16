@@ -59,13 +59,13 @@ def get_screen_dpi():
     # print('Width: %f dpi, Height: %f dpi' % (width_dpi, height_dpi))
 
     [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
-    print('Size is %f %f' % (w, h))
+    print(f'| Resolution is {w:d} x {h:d} pixels')
 
-    curr_dpi = w*96/width_px
-    print('Current DPI is %f' % (curr_dpi))
+    curr_dpi = int(w*96/width_px)
+    print(f'| Current DPI is {curr_dpi:d}')
 
     dpi_scale = curr_dpi / 96
-    print('Dpi scale = %f' % (dpi_scale))
+    print(f'| Dpi scale = {dpi_scale:.2f}')
     root.destroy()
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     return dpi_scale
@@ -133,23 +133,23 @@ class Plotting:
         if make_video:
             self.screen_dpi_scale = get_screen_dpi()
             self.frames = []     
-            self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.path.split(setup.filename)[1].split('.')[0])
+            self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.path.split(setup.filename)[-1].split('.')[0])
             if not os.path.exists(self.video_path):
                 os.makedirs(self.video_path)
+            
+            if create_folder_per_run:
+                dirs = glob.glob(self.video_path+os.path.sep+"*"+os.path.sep)
+                i = len(dirs)
+                self.video_path = os.path.join(self.video_path,f"run_{i}")  
+                os.makedirs(self.video_path)
+                shutil.copy(setup.file_path, self.video_path)
+                print(f"Writing results to {os.path.join(*self.video_path.split(os.sep)[-3:])}")
             else:
-                if create_folder_per_run:
-                    dirs = glob.glob(self.video_path+os.path.sep+"*"+os.path.sep)
-                    i = len(dirs)
-                    self.video_path = os.path.join(self.video_path,f"run_{i}")  
-                    os.makedirs(self.video_path)
-                    shutil.copy(setup.filename, self.video_path)
-                    print(f"Writing results to {self.video_path}")
-                else:
-                    img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "image_*.png"), key=os.path.getmtime)
-                    for img in img_paths_list:
-                        if os.path.isfile(img):
-                            os.remove(img)
-                    print("Deleted previous png`s!!")
+                img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "image_*.png"), key=os.path.getmtime)
+                for img in img_paths_list:
+                    if os.path.isfile(img):
+                        os.remove(img)
+                print("Deleted previous png`s!!")
 
     ###########################################################################
     ## Helper functions                                                     ###
@@ -284,11 +284,11 @@ class Plotting:
 
         axes = []
         # first expand horizontally, then vertically; depending on plotting options
-        ncols = 1 + (self.plot_exact_possible or self.plot_contour) 
+        ncols = 2
         nrows = 2
         ind = 1
 
-        # predictions surface
+        # prediction surfaces
         ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
         ax.set_title("prediction surface")
         axes.append(ax)
@@ -298,13 +298,12 @@ class Plotting:
         ax.lims = [] 
         ind += 1
 
-        # exact surface
-        if self.plot_exact_possible:
-            ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
-            ax.set_title("exact surface")
-            axes.append(ax)
-            ax.lims = []
-            ind += 1
+        # 'exact' / truth surfaces
+        ax = fig.add_subplot(nrows, ncols, ind, projection="3d")
+        ax.set_title("exact surface")
+        axes.append(ax)
+        ax.lims = []
+        ind += 1
 
         # contours
         ax = fig.add_subplot(nrows, ncols, ind)
@@ -313,11 +312,11 @@ class Plotting:
         axes.append(ax)
         ind += 1
 
-        if self.plot_exact_possible:
-            ax = fig.add_subplot(nrows, ncols, ind)
-            ax.set_title("exact contour")
-            ax.set_aspect("equal")
-            axes.append(ax)
+        # 'exact' / truth contours
+        ax = fig.add_subplot(nrows, ncols, ind)
+        ax.set_title("exact contour")
+        ax.set_aspect("equal")
+        axes.append(ax)
 
         # keep track of a list of plotted colors.
         for ax in axes:
@@ -327,6 +326,7 @@ class Plotting:
         fig.canvas.manager.window.move(0,0)
         fig.canvas.draw()
         plt.show(block=False)
+        
         self.fig = fig
         self.axes = axes
 

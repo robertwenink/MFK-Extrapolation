@@ -88,7 +88,9 @@ class EVA(ExternalSolver):
     min_d = 2
     max_d = 2
 
+    # NOTE path needs the '' in order to be used in the cmd command!
     solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py"'
+    # solver_path = os.path.normpath(r"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py")
 
     def __init__(self, setup=None):
         super().__init__()
@@ -171,7 +173,7 @@ class EVA(ExternalSolver):
         max_acc = np.max(acc_tt)
 
         # time found in file with name like simulation_time_8.18.txt
-        p_string = output_path + "\simulation_time*.txt"
+        p_string = output_path + "\simulation_time*.txt" 
 
         # NOTE should always exist if finished succesfully, else this returns an error!
         p = glob.glob(p_string)[0]

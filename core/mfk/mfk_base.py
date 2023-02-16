@@ -163,6 +163,12 @@ class MultiFidelityKrigingBase(KrigingBase):
         Does not take
         """
         if self.number_of_levels < self.max_nr_levels:
+            string = f"Sampling new level {l:d}!"
+            
+            print(f"{'':=>{len(string)}}")
+            print(string)
+            print(f"{'':=>{len(string)}}")
+
             Z_new, cost = self.solver.solve(X_new, self.L[l])
             self.X_mf.append(X_new)
             self.Z_mf.append(Z_new)

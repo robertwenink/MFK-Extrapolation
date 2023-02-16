@@ -47,7 +47,7 @@ class ConvergencePlotting():
 
         self.RMSEs = []
         self.RMSE_focussed = []
-        self.X_RMSE = create_X_infill(setup.d, setup.search_space[1], setup.search_space[2], 100) # Not scalable for many dimensions
+        self.X_RMSE = create_X_infill(setup.d, setup.search_space[1], setup.search_space[2], int(1000**(1/self.d))) # Not scalable for many dimensions
         self.RMSE_focuss_percentage = 20
         
         
