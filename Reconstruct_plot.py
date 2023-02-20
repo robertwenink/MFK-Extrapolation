@@ -6,10 +6,6 @@ import glob
 
 timeFile = 0
 timeIndex = 0
-xspeed = 1
-yspeed = 1
-x_orig = [0.1 + timeFile * xspeed, 0.9 + timeFile * xspeed]
-y_orig = [0.1 + timeFile * yspeed, 0.9 + timeFile * yspeed]
 
 base_path = os.path.dirname(os.path.abspath(__file__))
 files = glob.glob(base_path + "/Excel/Reconstruction/ReconstBLIC_*.csv")
@@ -56,6 +52,7 @@ if np.sum(DataBLIC[0, :2]) != 0:
             plt.plot(DataBLIC[1:, int(xx)], np.sum(dy) - DataBLIC[1:, int(xx)+1], 'r', label="BLIC")
         else:
             plt.plot(DataBLIC[1:, int(xx)], np.sum(dy) - DataBLIC[1:, int(xx) + 1], 'r')
+
 # " Initial "
 # if len(DataPLIC0) != 0:
 #     pntsPLIC0 = np.linspace(0, int(DataPLIC0.shape[1] - 2), int(DataPLIC0.shape[1] / 2))
@@ -79,8 +76,12 @@ if np.sum(DataBLIC[0, :2]) != 0:
 #         else:
 #             plt.plot(DataBLIC0[1:, int(xx)], np.sum(dy) - DataBLIC0[1:, int(xx) + 1], 'k')
 
-" Original "
-plt.plot([x_orig[0], x_orig[1], x_orig[1], x_orig[0], x_orig[0]], [y_orig[0], y_orig[0], y_orig[1], y_orig[1], y_orig[0]], 'y', label="Original")
+# " Original "
+# xspeed = 1
+# yspeed = 1
+# x_orig = [0.1 + timeFile * xspeed, 0.9 + timeFile * xspeed]
+# y_orig = [0.1 + timeFile * yspeed, 0.9 + timeFile * yspeed]
+# plt.plot([x_orig[0], x_orig[1], x_orig[1], x_orig[0], x_orig[0]], [y_orig[0], y_orig[0], y_orig[1], y_orig[1], y_orig[0]], 'y', label="Original")
 
 "Grid"
 for xx in range(0, len(dx)):
@@ -89,5 +90,4 @@ for xx in range(0, len(dy)):
     plt.plot([0, np.sum(dx)], [np.sum(dy[:xx]), np.sum(dy[:xx])], 'k', linewidth=0.2)
 
 plt.legend()
-
 plt.show()

@@ -53,7 +53,7 @@ def RMSE_focussed(mf_model, X_search, focus_perc):
         X_opt, Z_opt = mf_model.solver.get_optima()
         z_opt = np.min(Z_opt) # possibly more optimum spots, depends on how its formulated
     else:
-        z_search_truth, _ = mf_model.K_truth.predict(X_search)[0]
+        z_search_truth, _ = mf_model.K_truth.predict(X_search)
         z_opt = np.min(z_search_truth)
 
     data_range = np.max(z_search_truth) - z_opt

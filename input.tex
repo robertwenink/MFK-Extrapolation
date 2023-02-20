@@ -1,12 +1,12 @@
 ## Input for the code
 
 # Name file (between ' with spaces on both sides and no spaces in name)
-' Wedge_optimization_PLIC_many '
+' Wedge_optimization_PLIC_new_dimensions '
 
 ## PARAMETERS
 
 # Density air [kg/m^3] | Density water [kg/m^3] | Dynamic viscosity air [kg/ms] | Dynamic viscosity water [kg/ms]
-1.334 1e-10 1e-10
+1.334 1027 1e-10 1e-10
 
 # Gravitational constant [x, y]
 0 -9.81
@@ -18,18 +18,18 @@
 # Atmospheric opens the wall automatic
 # pos: Top (1)	| Bottom (3)	| Right (2)		| Left (4) | (0) if none
 # Distance x_0 and x_1
-1 0 1.0
+1 0 17.0
 
 #-------------------
 ## DOMAIN
 
 # Domain dimension [x, z] [m]
-1.0 0.8
+17.0 13.5
 
 # Grid size and geometrical progression ratio [Nx, Nz, Rx, Rz]
 # SIMPLE [Nx, Nz, Rx, Rz] (amount of cells and ratio between smallest and largest cell)
 # DETAIL [xL, xR, N, sL, sR] (2x) (a band of N cells between xL and xR, stretch outward with sL and sR )
-DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
+DETAIL 6.5 10.5 44 1.05 1.05 5.0 10.0 32 1.05 1.05
 # SIMPLE 102 82 1 1
 
 #-------------------
@@ -70,7 +70,7 @@ DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
 
 # PART 3 (Using Geometry.py module):
 # Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
-0 HEIGHT_Z 0.495
+0 HEIGHT_Z 7.55
 
 #-------------------
 ## BODY DEFINITION (single body for now)
@@ -83,20 +83,24 @@ DETAIL 0.3 0.7 40 1.05 1.05 0.3 0.6 30 1.05 1.05
 # BODY 1:
 # Dimensions of body [way, param1, param2, param3, ...] [m]
 # picture is 800px wide, scale 0.25 aligns with B = 0.2m, H = 0.1m, ch = 0.05m
-picture NURBS.png 0.50 0.59 1
+# picture option, filepath, x centre, y centre, scale
+picture NURBS.png 8.5 9.0 1
 
 # BODY 2:
 # Dimensions of body [way, param1, param2, param3, ...] [m]
 NONE
 
 # Initial velocity of body [u0, v0, ax, ay]
-0 -4.0 0 0
+0 -26.58 0 0
 
 # Mass of body [m/rho, value, xg, yg]
-1 500 0 0
+0 1255 0 0
 
 # Motion of body [uncoupled: 0 0 0, coupled: 0 1 1, pendulum: 1 px py cyl_radius length I C K start_rad]
 0 0 1
+# 0 0 1 alleen in y gekoppeld
+# 0 1 1 ook x (gebruik ik niet)
+# 1 0 0 van marnix, niet gebruiken
 
 #-------------------
 ## INFLOW OF WATER
@@ -130,7 +134,7 @@ NONE
 #-------------------
 ## TIME
 # Time duration [s]	| Time step initial [s]		| Time step min [s]	| Time step max [s] | Iter initial condition
-0.05 0.00001 0.0000001 0.001 0
+0.11 0.0001 0.000001 0.1 0
 
 # CFL_max | Eps_max error | Omega_0 relaxation Aitken
 0.25		1e-10	        1
@@ -195,7 +199,7 @@ NONE
 0
 
 # Cell merging: yes(1) no(0) | Value
-0 0.05
+1 0.01
  
 # Angle body [deg] (0 works)
 90.0

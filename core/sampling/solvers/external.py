@@ -72,8 +72,8 @@ def run_cmd(cmd, output_path):
 
     cmd_argslist = shlex.split(cmd)
     p = subprocess.Popen(cmd_argslist, stdout=f, stderr=subprocess.PIPE)
-
-    return p, f
+    f.close()
+    return p
 
 
 class EVA(ExternalSolver):
@@ -88,7 +88,9 @@ class EVA(ExternalSolver):
     min_d = 2
     max_d = 2
 
+    # NOTE path needs the '' in order to be used in the cmd command!
     solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py"'
+    # solver_path = os.path.normpath(r"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py")
 
     def __init__(self, setup=None):
         super().__init__()
@@ -123,7 +125,7 @@ class EVA(ExternalSolver):
             self.optimization_id = optimization_id[0, 1]
 
             self.results_path = os.path.normpath(
-                ".\{}_Results".format(setup.solver_str)
+                ".{}{}_Results".format(os.sep, setup.solver_str)
             )
 
             # Check whether the specified path exists or not
@@ -171,7 +173,7 @@ class EVA(ExternalSolver):
         max_acc = np.max(acc_tt)
 
         # time found in file with name like simulation_time_8.18.txt
-        p_string = output_path + "\simulation_time*.txt"
+        p_string = output_path + os.sep + "simulation_time*.txt" 
 
         # NOTE should always exist if finished succesfully, else this returns an error!
         p = glob.glob(p_string)[0]
@@ -249,38 +251,49 @@ class EVA(ExternalSolver):
             shutil.copyfile("input.tex", os.path.join(self.base_path, "input_copy.tex"))
 
         # setup multithreading bcs we dont want to overload system, and have more uniform running times between batches and single runs.
-        num = min(
+        batch_size = min(
             int(cpu_count() / 2), X.shape[0]
         )  # defaults to the cpu count of machine otherwise
         # num = 1
-        tp = ThreadPool(num)
-
-        counter = 0
-        batch_size = X.shape[0]
+        tp = ThreadPool(batch_size)
 
         def worker(cmd, output_path, run_id):
-            p, f = run_cmd(cmd, output_path)
-            print("Started run {} with pid {}".format(run_id, p.pid))
+            p = run_cmd(cmd, output_path)
+            print(f"Started run {run_id} with pid {p.pid} at {time.localtime().strftime('%H:%M:%S')}")
 
             # p.communicate() implies waiting for the process to finish!
             _, error = p.communicate()
 
-            if error:
+            if error: 
                 print("ret> ", p.returncode)
                 print("Error> error ", error.strip())
                 print("Unsuccesfully finished run {} with pid {}".format(run_id, p.pid))
             else:
-                print("Succesfully finished run {} with pid {}".format(run_id, p.pid))
-                counter += 1 #type: ignore
+                print(f'{f"Succesfully finished run {run_id} with pid {p.pid}":<120}')
 
-            print(
-                "Succesfully completed {} out of {} runs.".format(counter, batch_size) #type: ignore
-            )
+            return run_id
+        
+        run_ids = []
+        for x in X:
+            output_path, run_id = self.get_output_path(x, refinement)
+            run_ids.append(run_id)
+
+        def progress(run_id):
+            # result = None in mijn geval!
+            # print(run_ids)
+            run_ids.remove(run_id)
+            if len(run_ids) > batch_size:
+                print(f"\n{len(run_ids)} runs of {X.shape[0]} left in queue", end='\r\033[A')
+            elif len(run_ids) > 0:
+                print(f"\nStill running: {str(run_ids):<110}", end='\r\033[A')
+            else:
+                print(f"{'':<110}")
 
         # retrieve EVA solution, this should be done in parallel in the case of an initial DoE.
         for x in X:
             output_path, run_id = self.get_output_path(x, refinement)
-            p_string = output_path + "\simulation_time*.txt"
+        
+            p_string = output_path + os.sep + "simulation_time*.txt"
             p = glob.glob(p_string)
             if len(p) == 0:
                 # NOTE do not run if already been run before and completed
@@ -290,7 +303,7 @@ class EVA(ExternalSolver):
                 files = glob.glob(output_path + "/*")
 
                 if len(files) > 0:
-                    print("WARNING: removing files of a previous unsuccesful run.")
+                    print("WARNING: removing files of a previous unsuccesful or unfinished run.")
                     shutil.rmtree(output_path)
                     if os.path.exists(output_path + ".png"):
                         os.remove(output_path + ".png")
@@ -304,7 +317,7 @@ class EVA(ExternalSolver):
                     output_path + ".png", os.path.join(output_path, "NURBS.png")
                 )
                 shutil.copyfile(
-                    os.path.normpath(".\Reconstruct_plot.py"),
+                    os.path.normpath("." + os.sep + "Reconstruct_plot.py"),
                     os.path.join(output_path, "Reconstruct_plot.py"),
                 )
 
@@ -312,7 +325,8 @@ class EVA(ExternalSolver):
                 cmd = self.python_string + '{} "{}" {}'.format(
                     EVA.solver_path, output_path, refinement
                 )
-                tp.apply_async(worker, (cmd, output_path, run_id))
+                tp.apply_async(worker, (cmd, output_path, run_id), callback = progress)
+
 
         # https://stackoverflow.com/questions/26774781/python-multiple-subprocess-with-a-pool-queue-recover-output-as-soon-as-one-finis
         tp.close()
@@ -322,7 +336,6 @@ class EVA(ExternalSolver):
         Z = []
         costs = []
         acc_tt_list = []
-
         for x in X:
             output_path, run_id = self.get_output_path(x, refinement)
             z, cost, acc_tt = self.read_results(output_path)

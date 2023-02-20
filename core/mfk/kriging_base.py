@@ -29,7 +29,7 @@ class KrigingBase():
             
             def obj_k(x): 
                 y_pred, mse_pred = prediction_function(x)
-                return -self.EI(y_min, y_pred, np.sqrt(mse_pred))
+                return -self.EI(y_min, y_pred, np.sqrt(mse_pred/2)) # TODO hier /2 gedaan!
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
                 y_pred, mse_pred_or_cost = prediction_function(np.atleast_2d(x))
@@ -44,13 +44,13 @@ class KrigingBase():
             opt_all = []
             
             # x_start = self._sampling(n_start) # TODO should be a LHS
-            x_start = self.bounds[:, 0] + lhs(
+            x_start = self.bounds[0, :] + lhs(
                 self.d,
                 samples=n_start,
                 criterion="maximin",
                 iterations=20,
                 random_state=0,
-            ) * (self.bounds[:, 1] - self.bounds[:, 0])
+            ) * (self.bounds[1, :] - self.bounds[0, :])
 
             # iterate and minimize over each of the points in the lhs
             for ii in range(n_start):
@@ -62,7 +62,7 @@ class KrigingBase():
                             obj_k,
                             x_start[ii, :],
                             method="SLSQP",
-                            bounds=self.bounds,
+                            bounds=self.bounds.T,
                             options={"maxiter": 200},
                         )
                     )

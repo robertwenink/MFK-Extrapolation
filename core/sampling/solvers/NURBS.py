@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageOps
 
 # ship parameters
-B = 3.4/2  # half width; in deci-meters
-D = 4.3
+make_meters = np.array(True)
+B = 3.4/2 * (10 - ~make_meters * 9) # half width; in deci-meters
+D = 4.3 * (10 - ~make_meters * 9)
 h = D/2
-vrijboord = 0.5
+vrijboord = 0.5 * (10 - ~make_meters * 9)
 angle_ded = 10
 
 def create_curve_figure(crv, x=None, path=None):

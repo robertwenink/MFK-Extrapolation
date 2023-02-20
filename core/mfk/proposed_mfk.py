@@ -57,6 +57,11 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
         " level 2 / hifi initialisation "
         # do we want to sample the complete truth? (yes!)
+
+        print(f"{'':=>25}")
+        print("Sampling the full truth!")
+        print(f"{'':=>25}")
+
         self.sample_truth()
 
         # sampling the initial hifi
@@ -80,6 +85,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
             K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat)
             K_mf_new.reinterpolate()
+
+        self.prepare_succes = True
 
     def create_update_K_pred(self, data_dict = None):
         # options

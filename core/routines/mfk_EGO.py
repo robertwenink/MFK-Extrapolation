@@ -22,7 +22,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
     def optimize(self, pp = None, cp = None):
         self.max_cost = np.inf
 
-        virtual_x_new, virtual_ei = None, None
+        virtual_x_new, virtual_ei, virtual_y_min = None, None, None
         while np.sum(self.costs_total) < self.max_cost:
             " output "
             if pp != None:
@@ -39,6 +39,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
 
             if np.all(virtual_x_new == None):
                 virtual_x_new, virtual_ei = x_new, ei - self.ei_criterion * 2
+                _, y_min = self.get_best_sample() # this is a stable value!
+                virtual_y_min = y_min
             else:
                 # misschien juist de oude EI (virtual_ei) op dat punt gebruiken?
                 # het sterke aan herberekenen vind ik dat het hyperparameter onafhankelijk/gelijk is tussen iteraties
@@ -124,18 +126,18 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
 
 
         " Print end-results "
-        s_width = 71 - 8 * (self.d == 1)
+        s_width = 34 + (4 + self.d * 6) + (9 + 8) + 2
         print("┏" + "━" * s_width + "┓")
-        print("┃ Best found point \t\tx = {}, \tf(x) = {:.4f} \t┃".format(self.get_best_sample()[0][0],self.get_best_sample()[1]))
+        print(f"┃ Best found point \t\tx = {str(self.get_best_sample()[0][0]):<{4+self.d*6}}, f(x) = {f'{self.get_best_sample()[1]:.4f}':<8} ┃")
         if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
-            print("┃ Best (truth) predicted point \tx = {}, \tf(x) = {:.4f} \t┃".format(self.K_truth.X_opt[0], self.K_truth.z_opt)) # type: ignore
+            print(f"┃ Best (truth) predicted point \tx = {str(self.K_truth.X_opt[0]):<{4+self.d*6}}, f(x) = {f'{self.K_truth.z_opt:.4f}':<8} ┃") # type: ignore
         if isinstance(self.solver, TestFunction):
             X_opt, Z_opt = self.solver.get_optima()
             X_opt_ex, Z_opt_ex = self.find_best_point(self.solver.solve)
             
             ind = np.argmin(Z_opt) # pakt gwn de eerste, dus = 0
-            print("┃ Exact optimum at point \tx = {}, \tf(x) = {:.4f} \t┃".format(X_opt[ind], Z_opt[ind]))
-            print("┃ Exact best prediction \tx = {}, \tf(x) = {:.4f} \t┃".format(X_opt_ex, float(Z_opt_ex)))
+            print(f"┃ Exact optimum at point \tx = {str(X_opt[ind]):<{4+self.d*6}}, f(x) = {f'{Z_opt[ind]:.4f}':<8} ┃")
+            print(f"┃ Exact best prediction \tx = {str(X_opt_ex.flatten()):<{4+self.d*6}}, f(x) = {f'{float(Z_opt_ex):.4f}':<8} ┃")
         print("┗" + "━" * s_width + "┛")
              
     def level_selection(self, x_new):
@@ -159,7 +161,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         l = 0
         # dit is het normaal, als de lagen gelinkt zijn! is hier niet, dit werkt alleen voor meliani.
         for i in range(1,3):
-            value = sigma_red[i] / self.costs_expected_nested[i]**2
+            value = sigma_red[i]**2 / self.costs_expected_nested[i]**2
             maxx = max(maxx,value)
             # NOTE gives preference to highest level, which is good:
             # if no reductions expected anywhere lower, we should sample the highest (our only 'truth')
