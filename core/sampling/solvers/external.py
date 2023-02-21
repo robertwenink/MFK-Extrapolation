@@ -12,7 +12,9 @@ The external solvers are required to:
 # pyright: reportGeneralTypeIssues=false
 
 from core.sampling.solvers.internal import Solver
-from core.sampling.solvers.NURBS import *
+# from core.sampling.solvers.NURBS import *
+from core.sampling.solvers.NURBS import interpolating_curve, create_nurbs
+
 from utils.filter_utils import filter_spiked_signal
 
 import subprocess
@@ -28,6 +30,7 @@ import time
 import pandas as pd
 import glob
 
+import numpy as np
 
 class ExternalSolver(Solver):
     def __init__(self):
@@ -72,8 +75,7 @@ def run_cmd(cmd, output_path):
 
     cmd_argslist = shlex.split(cmd)
     p = subprocess.Popen(cmd_argslist, stdout=f, stderr=subprocess.PIPE)
-    f.close()
-    return p
+    return p, f
 
 
 class EVA(ExternalSolver):
@@ -89,13 +91,12 @@ class EVA(ExternalSolver):
     max_d = 2
 
     # NOTE path needs the '' in order to be used in the cmd command!
-    solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py"'
+    solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\EVA\main.py"'
+    # solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py"'
     # solver_path = os.path.normpath(r"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\IRA\EVA\EVA\main.py")
 
     def __init__(self, setup=None):
         super().__init__()
-
-        from core.sampling.solvers.NURBS import interpolating_curve, create_nurbs
 
         if setup != None:
             # then we are not setting up a virtual class for the GUI anymore.ABC()
@@ -258,7 +259,7 @@ class EVA(ExternalSolver):
         tp = ThreadPool(batch_size)
 
         def worker(cmd, output_path, run_id):
-            p = run_cmd(cmd, output_path)
+            p, f = run_cmd(cmd, output_path)
             print(f"Started run {run_id} with pid {p.pid} at {time.localtime().strftime('%H:%M:%S')}")
 
             # p.communicate() implies waiting for the process to finish!
@@ -270,6 +271,8 @@ class EVA(ExternalSolver):
                 print("Unsuccesfully finished run {} with pid {}".format(run_id, p.pid))
             else:
                 print(f'{f"Succesfully finished run {run_id} with pid {p.pid}":<120}')
+            
+            f.close()
 
             return run_id
         
