@@ -24,7 +24,7 @@
             "request": "launch",
             "program": "main_mf.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": true
         },
 		{
             "name": "Python: run_and_check_correlations.py",

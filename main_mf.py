@@ -108,7 +108,7 @@ mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MF
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 # NOTE for EVA: refinement levels
-mf_model.set_L([1, 2, 4])
+mf_model.set_L([0.5, 1, 1.5])
 
 if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L([2, 3, None])
@@ -130,7 +130,7 @@ elif hasattr(setup,'model') and hasattr(setup,'prepare_succes') and reuse_values
     # ofwel via set_attr linken we de dict setup.model direct aan de values van mf_model (en die worden geupdate!)
     mf_model.set_state(deepcopy(setup.model)) 
 else: 
-    mf_model.prepare_proposed(setup) 
+    mf_model.prepare_proposed(setup)  
 
 setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)
 

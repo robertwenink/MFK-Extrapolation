@@ -77,6 +77,28 @@ def run_cmd(cmd, output_path):
     p = subprocess.Popen(cmd_argslist, stdout=f, stderr=subprocess.PIPE)
     return p, f
 
+def worker(cmd, output_path, run_id):
+    p, f = run_cmd(cmd, output_path)
+
+    start = time.time()
+    t = time.strftime('%H:%M:%S', time.localtime())
+    print(f"Started run {run_id} at {t}")
+
+    # p.communicate() implies waiting for the process to finish!
+    _, error = p.communicate()
+    f.close()
+
+    # works untill 1 day, afterwards gives +1 day answer
+    t_end = time.strftime('%H:%M:%S', time.gmtime(time.time() - start)) 
+    if error: 
+        print("ret> ", p.returncode)
+        print("Error> error ", error.strip())
+        print("Unsuccesfully finished run {} after {}".format(run_id, t_end))
+    else:
+        print(f'{f"Succesfully finished run {run_id} after {t_end}":<120}')
+
+    return run_id
+
 
 class EVA(ExternalSolver):
     """
@@ -258,24 +280,6 @@ class EVA(ExternalSolver):
         # num = 1
         tp = ThreadPool(batch_size)
 
-        def worker(cmd, output_path, run_id):
-            p, f = run_cmd(cmd, output_path)
-            print(f"Started run {run_id} with pid {p.pid} at {time.localtime().strftime('%H:%M:%S')}")
-
-            # p.communicate() implies waiting for the process to finish!
-            _, error = p.communicate()
-
-            if error: 
-                print("ret> ", p.returncode)
-                print("Error> error ", error.strip())
-                print("Unsuccesfully finished run {} with pid {}".format(run_id, p.pid))
-            else:
-                print(f'{f"Succesfully finished run {run_id} with pid {p.pid}":<120}')
-            
-            f.close()
-
-            return run_id
-        
         run_ids = []
         for x in X:
             output_path, run_id = self.get_output_path(x, refinement)
@@ -288,7 +292,7 @@ class EVA(ExternalSolver):
             if len(run_ids) > batch_size:
                 print(f"\n{len(run_ids)} runs of {X.shape[0]} left in queue", end='\r\033[A')
             elif len(run_ids) > 0:
-                print(f"\nStill running: {str(run_ids):<110}", end='\r\033[A')
+                print(f"Still running: {str(run_ids):<110}", end='\r')
             else:
                 print(f"{'':<110}")
 
@@ -306,7 +310,7 @@ class EVA(ExternalSolver):
                 files = glob.glob(output_path + "/*")
 
                 if len(files) > 0:
-                    print("WARNING: removing files of a previous unsuccesful or unfinished run.")
+                    print(f"WARNING: removing files of previously unsuccesful or unfinished run {run_id}.")
                     shutil.rmtree(output_path)
                     if os.path.exists(output_path + ".png"):
                         os.remove(output_path + ".png")
@@ -328,6 +332,7 @@ class EVA(ExternalSolver):
                 cmd = self.python_string + '{} "{}" {}'.format(
                     EVA.solver_path, output_path, refinement
                 )
+
                 tp.apply_async(worker, (cmd, output_path, run_id), callback = progress)
 
 
