@@ -22,7 +22,7 @@ from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from core.routines.mfk_EGO import MultiFidelityEGO
 
 from postprocessing.plotting import Plotting
-from postprocessing.plot_convergence import ConvergencePlotting
+from postprocessing.plot_live_metrics import ConvergencePlotting
 
 import tkinter as tk
 import ctypes

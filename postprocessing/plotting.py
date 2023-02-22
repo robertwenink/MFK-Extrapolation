@@ -133,7 +133,7 @@ class Plotting:
         if make_video:
             self.screen_dpi_scale = get_screen_dpi()
             self.frames = []     
-            self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.path.split(setup.filename)[-1].split('.')[0])
+            self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output_files', os.path.split(setup.filename)[-1].split('.')[0])
             if not os.path.exists(self.video_path):
                 os.makedirs(self.video_path)
             

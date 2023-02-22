@@ -260,6 +260,9 @@ class EVA(ExternalSolver):
         fig.suptitle(os.path.split(output_path)[-1])
 
     def solve(self, X, refinement=None, get_time_trace=False):
+        """
+        @param get_time_trace (bool): only used when plotting all the refinement levels and simulations over time.
+        """
 
         start_time = time.time()
 

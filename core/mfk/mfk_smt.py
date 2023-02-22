@@ -70,7 +70,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 self.K_truth.set_state(data_dict)
             else:
                 self.set_training_data(self.K_truth, [*self.X_mf[:self.max_nr_levels-1], self.X_truth], [*self.Z_mf[:self.max_nr_levels-1], self.Z_truth])
-                self.K_truth.train()
+                self.K_truth.train() # maak nog pullrequest aan voor optim_var bug
                 self.K_truth.X_opt, self.K_truth.z_opt = self.get_best_prediction(self.K_truth)
                 print("Succesfully trained Kriging model of truth", end = '\r')
 
