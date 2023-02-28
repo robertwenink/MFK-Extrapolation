@@ -27,6 +27,13 @@ def clip_data(unclipped):
     unclipped.iloc[:, 1] = np.where(cond_high_clip, np.nan, np_unclipped).flatten()
     return unclipped
 
+def tryconvert(value, default, *types):
+    for t in types:
+        try:
+            return t(value)
+        except (ValueError, TypeError):
+            continue
+    return default
 
 @jit(nopython=True)  # Optional, see below.
 def ewma_generator(vals, decay_vals):

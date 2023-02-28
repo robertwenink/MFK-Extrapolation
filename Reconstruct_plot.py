@@ -25,15 +25,18 @@ if len(DataPLIC) != 0:
         x, y = np.sum(dx[:int(DataPLIC[0, int(xx + 1.0)]) - 2]), np.sum(dy[:int(DataPLIC[0, int(xx)]) - 2])
         DataPLIC[1:, int(xx)], DataPLIC[1:, int(xx + 1.0)] = DataPLIC[1:, int(xx)] + x, DataPLIC[1:, int(xx + 1.0)] + y
         if xx == pntsPLIC[-1]:
-            plt.plot(DataPLIC[1:, int(xx)], np.sum(dy) - DataPLIC[1:, int(xx) + 1], 'k', label="PLIC")
+            plt.plot(DataPLIC[1:, int(xx)], np.sum(dy) - DataPLIC[1:, int(xx) + 1], 'k', label="PLIC reconstruction")
         else:
             plt.plot(DataPLIC[1:, int(xx)], np.sum(dy) - DataPLIC[1:, int(xx) + 1], 'k')
     
 "Grid"
-for xx in range(0, len(dx)):
+for xx in range(0, len(dx)+1):
     plt.plot([np.sum(dx[:xx]), np.sum(dx[:xx])], [0, np.sum(dy)], 'k', linewidth=0.2)
-for xx in range(0, len(dy)):
-    plt.plot([0, np.sum(dx)], [np.sum(dy[:xx]), np.sum(dy[:xx])], 'k', linewidth=0.2)
+for xx in range(0, len(dy)+1):
+    plt.plot([0, np.sum(dx)], [np.sum(dy[xx:]), np.sum(dy[xx:])], 'k', linewidth=0.2)
 
-plt.legend()
+plt.xlabel("X")
+plt.ylabel('Y')
+plt.legend(loc = 'upper left')
+plt.axis('equal')
 plt.show()

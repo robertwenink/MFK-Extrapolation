@@ -1,7 +1,7 @@
 ## Input for the code
 
 # Name file (between ' with spaces on both sides and no spaces in name)
-' Wedge_optimization_PLIC_new_dimensions_test_EVA_conversion '
+' Wedge_optimization_PLIC_new_dimensions_full '
 
 ## PARAMETERS
 
@@ -70,7 +70,7 @@ DETAIL 6.5 10.5 44 1.05 1.05 6.0 10.5 48 1.05 1.05
 
 # PART 3 (Using Geometry.py module):
 # Filling dimension of water [air, way, x_begin, x_end, z_begin, z_end] [m]
-0 HEIGHT_Z 7.55
+0 HEIGHT_Z 7.45
 
 #-------------------
 ## BODY DEFINITION (single body for now)
@@ -134,10 +134,10 @@ NONE
 #-------------------
 ## TIME
 # Time duration [s]	| Time step initial [s]		| Time step min [s]	| Time step max [s] | Iter initial condition
-0.11 0.0001 0.000001 0.1 0
+0.11 0.00001 0.0 0.1 0
 
 # CFL_max | Eps_max error | Omega_0 relaxation Aitken
-0.25		1e-10	        1
+0.20		1e-10	        1
 
 # CFL crit
 # - Only inertial (1)
@@ -250,12 +250,12 @@ NONE
 
 # Save data: yes (1)/no (0), amount of steps,
 # [(fake)fraction, velocity, inter_vel, density, pressure, cell, reconstr, fracB]
-0	1	1 1 0 0 1 0 0 0
+0	1	0 0 0 0 0 0 0 1 0
 
 # Save figures: yes (1)/no (0), amount of steps, [fraction, velocity, density, pressure, cell], alpha
 # alpha = 0.0: No visible object in plot
 # alpha = 1.0: Only visible object in plot
-1 	10	1 1 0 1 1	0.3
+1 	10	1 0 0 0 1	0.3
 
 # Save VTK: yes (1)/no (0), amount of steps[dt], [(fake)fraction, velocity, density, pressure, cell, body]
 0	0.0001	1 1 0 1 1 1

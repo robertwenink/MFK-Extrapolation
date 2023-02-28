@@ -15,7 +15,7 @@ from core.sampling.solvers.internal import Solver
 # from core.sampling.solvers.NURBS import *
 from core.sampling.solvers.NURBS import interpolating_curve, create_nurbs
 
-from utils.filter_utils import filter_spiked_signal
+from utils.filter_utils import filter_spiked_signal, tryconvert
 
 import subprocess
 from multiprocessing.pool import ThreadPool
@@ -120,10 +120,10 @@ class EVA(ExternalSolver):
     def __init__(self, setup=None):
         super().__init__()
 
+        self.filter_span_frac, self.fitler_delta = 0.005, 0.04
+
         if setup != None:
             # then we are not setting up a virtual class for the GUI anymore.ABC()
-            
-            self.filter_span_frac, self.fitler_delta = 0.005, 0.04
             
             assert os.path.exists(
                 "input.tex"
@@ -131,8 +131,8 @@ class EVA(ExternalSolver):
 
             # create base identifier of the optimization run depending on name provided in the input.tex of EVA.
             optimization_id = []
-            with open("input.tex") as f_data:
-                for k, g in groupby(f_data, lambda x: not x.startswith(("'"))):
+            with open("input.tex") as f_df:
+                for k, g in groupby(f_df, lambda x: not x.startswith(("'"))):
                     if not k:
                         optimization_id.append(
                             np.array(
@@ -171,28 +171,38 @@ class EVA(ExternalSolver):
 
         output_path = os.path.join(self.base_path, "{:.1f}".format(refinement), run_id)
         return output_path, run_id
+    
+    @staticmethod
+    def read_csv(output_path):
+        df = pd.read_csv(
+            os.path.join(output_path, "Excel", "Body_forces", "Force_body_y.csv"),
+        )
+        df = df.iloc[1: , :]
 
+        # try to force a convert to float
+        df.iloc[:,1] = df.iloc[:,1].map(lambda x: tryconvert(x, np.nan, np.float64, np.int64))
+
+        # times = df.iloc[1:, 0]  # t
+        # forces = df.iloc[1:, 1]  # N/m bcs 2D -> 3D
+        return df
+    
     def read_results(self, output_path):
         """Reads the results of EVA.
         @returns: 
         - objective function: max acceleration
         - cost of sampling
-        - dataframe of the time series data """
-        data = pd.read_csv(
-            os.path.join(output_path, "Excel", "Body_forces", "Force_body_y.csv")
-        )
-        data = data.iloc[1: , :]
-        # times = data.iloc[1:, 0]  # t
-        # forces = data.iloc[1:, 1]  # N/m bcs 2D -> 3D
+        - dfframe of the time series df """
+
+        df = self.read_csv(output_path)
 
         # apply moving average to reduce numerical noise
-        data.iloc[: , 1] = filter_spiked_signal(data, self.filter_span_frac, self.fitler_delta)
+        df.iloc[: , 1] = filter_spiked_signal(df, self.filter_span_frac, self.fitler_delta)
 
         # NOTE HARDCODED but constant conversion so of no influence to optimization
         # NOTE mass = 1 means that we are just assessing the forces.
         mass = 1  # kg/m
 
-        acc_tt = data.iloc[: , 1] / mass  # this is the full timetrace of acceleration
+        acc_tt = df.iloc[: , 1] / mass  # this is the full timetrace of acceleration
         max_acc = np.max(acc_tt)
 
         # time found in file with name like simulation_time_8.18.txt
@@ -206,26 +216,31 @@ class EVA(ExternalSolver):
             f.readlines()[1]
         )  # seconds are on second line, without text
 
-        return max_acc, cost_in_seconds, data.to_numpy()
+        return max_acc, cost_in_seconds, df.to_numpy()
 
-    def inspect_results(self, output_path):
+    def inspect_results(self, output_path, only_ax2 = False, alternative_sup_title = None, legend = True):
+        """
+        Output path is the base path of the EVA solution folder.
+        """
         plt.close("body_forces")
-
-        fig, (ax1, ax2) = plt.subplots(1, 2)
-        ax1.imshow(plt.imread(os.path.join(output_path, "NURBS.png")))
-        ax1.tick_params(
-            axis="both",  # changes apply to the x-axis
-            which="both",  # both major and minor ticks are affected
-            bottom=False,  # ticks along the bottom edge are off
-            top=False,  # ticks along the top edge are off
-            labelbottom=False,
-            right=False,
-            left=False,
-            labelleft=False,
-        )  # labels along the bottom edge are off
-        path = os.path.join(output_path, "Excel", "Body_forces", "Force_body_y.csv")
-        df = pd.read_csv(path)
-        df = df.iloc[1: , :]
+        if only_ax2:
+            fig, (ax2) = plt.subplots(1, 1)
+        else:
+            fig, (ax1, ax2) = plt.subplots(1, 2)\
+            
+            ax1.imshow(plt.imread(os.path.join(output_path, "NURBS.png")))
+            ax1.tick_params(
+                axis="both",  # changes apply to the x-axis
+                which="both",  # both major and minor ticks are affected
+                bottom=False,  # ticks along the bottom edge are off
+                top=False,  # ticks along the top edge are off
+                labelbottom=False,
+                right=False,
+                left=False,
+                labelleft=False,
+            )  # labels along the bottom edge are off
+        
+        df = self.read_csv(output_path)
         x = df.iloc[:, 0]
 
         ax2.plot(x, df.iloc[:, 1], label="original")
@@ -238,13 +253,13 @@ class EVA(ExternalSolver):
         )
         ax2.plot(
             x,
-            df.ewm(alpha=0.15, adjust=False).mean().iloc[:, 1],
-            label="Exponential Moving Average, alpha = 0.3",
+            df.rolling(10, min_periods=1).mean().iloc[:, 1],
+            label="Simple Moving average over 10 timesteps",
         )
         ax2.plot(
             x,
-            df.rolling(10, min_periods=1).mean().iloc[:, 1],
-            label="Simple Moving average over 10 timesteps",
+            df.ewm(alpha=0.15, adjust=False).mean().iloc[:, 1],
+            label="Exponential Moving Average, alpha = 0.3",
         )
         ax2.plot(
             x,
@@ -254,10 +269,18 @@ class EVA(ExternalSolver):
         # set non overlapping ticks and legend
         ax2.set_xticks(x[:: int(len(x) / 10)])
         ax2.set_xticklabels(ax2.get_xticks(), rotation=45, ha="right")
-        ax2.legend()
+        ax2.set_xlabel("Time [s]")
+        ax2.set_ylabel("Body force in y-direction [N/m]")
+        if legend:
+            ax2.legend()
 
+        # naming the figure such that we can remove it later when we plot another one
+        fig.tight_layout()
         fig.set_label("body_forces")
-        fig.suptitle(os.path.split(output_path)[-1])
+        if alternative_sup_title:
+            fig.suptitle(alternative_sup_title)
+        else:
+            fig.suptitle(os.path.split(output_path)[-1])
 
     def solve(self, X, refinement=None, get_time_trace=False):
         """
@@ -354,12 +377,8 @@ class EVA(ExternalSolver):
             Z.append(z)
             costs.append(cost)
             acc_tt_list.append(acc_tt)
-
-        print(
-            "--- Finished sampling batch in {:.2f} minutes ---".format(
-                (time.time() - start_time) / 60
-            )
-        )
+   
+        print(f'{f"--- Finished sampling batch in {(time.time() - start_time) / 60:.2f} minutes ---":<110}')
 
         # inspect best sample from batch.
         self.inspect_results(self.get_output_path(X[np.argmin(Z)], refinement)[0])

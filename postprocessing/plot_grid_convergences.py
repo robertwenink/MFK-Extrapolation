@@ -1,3 +1,27 @@
+if not 'EVA' in setup.solver_str: # type:ignore
+    print("This plotting solution is EVA / containing a timetrace specific.")
+    sys.exit()
+
+for l in range(nlvl):
+    solver = get_solver(setup)
+    z, _, tt = solver.solve(mf_model.X_truth,mf_model.L[l], get_time_trace = True)
+    Z.append(z)
+    TT.append(tt)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 import os

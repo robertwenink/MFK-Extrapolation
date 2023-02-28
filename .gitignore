@@ -137,6 +137,7 @@ input_files/
 *.tar.gz
 *.png
 EVA_results/
+belangrijke EVA runs gebruikt in rapport/
 *.gif
 *.png
 *.svg

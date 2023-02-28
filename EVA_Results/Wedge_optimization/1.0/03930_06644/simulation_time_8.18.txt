@@ -1,2 +1,0 @@
- Simulation finished in 8.18 minutes
-A total of 1098 time steps were done
