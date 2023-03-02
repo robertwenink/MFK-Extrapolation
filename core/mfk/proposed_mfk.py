@@ -175,6 +175,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
         @param Z_s: list hifi level sample locations
         @param K_mf: Kriging models of the levels, should only contain *known* levels.
         @param assign: Assign the results Z_pred and mse_pred as property to the mf_model.
+        @param X_test: only used when assessing one single point in isolation instead of complete X_unique.
+
+        X_s, Z_s and assign are only used when using a reduced dataset in linearity check
         """
 
         # data pre-setting

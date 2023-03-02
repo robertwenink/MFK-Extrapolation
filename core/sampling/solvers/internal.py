@@ -20,6 +20,8 @@ class Solver(ABC):
     input_parameter_list = ["xi"]
     output_parameter_list = ["z"]
 
+    name = "Solver"
+
     def __init__(self, setup=None):
         pass
 
@@ -58,6 +60,7 @@ class TestFunction(Solver):
     X.shape[1] is the number of dimensions of the sample.
     """
 
+    name = "TestFunction"
     objective_function = lambda z: np.min(z)
 
     @abstractmethod
@@ -187,6 +190,7 @@ class TestFunction(Solver):
 class Forrester2008(TestFunction):
     max_d = 1
     min_d = 1
+    name = "Forrester2008"
 
     @TestFunction._modify
     def solve(self, X):
@@ -210,6 +214,7 @@ class Forrester2008(TestFunction):
 class Branin(TestFunction):
     max_d = 2
     min_d = 2
+    name = "Branin"
 
     @TestFunction._modify
     def solve(self, X):
@@ -247,6 +252,7 @@ class Runge(TestFunction):
     """
     https://en.wikipedia.org/wiki/Runge%27s_phenomenon
     """
+    name = "Runge"
 
     @TestFunction._modify
     def solve(self, X, offset=0.0):
@@ -257,6 +263,8 @@ class Runge(TestFunction):
 
 
 class Stybtang(TestFunction):
+    name = "Stybtang"
+
     @TestFunction._modify
     def solve(self, X):
         """
@@ -287,6 +295,7 @@ class Curretal88exp(TestFunction):
 
     max_d = 2
     min_d = 2
+    name = "Curretal"
 
     @TestFunction._modify
     def solve(self, X):
@@ -316,6 +325,8 @@ class Curretal88exp(TestFunction):
 
 
 class Rastrigin(TestFunction):
+    name = "Ratrigin"
+    
     @TestFunction._modify
     def solve(self, X):
         """
@@ -338,6 +349,8 @@ class Rastrigin(TestFunction):
 
 
 class Rosenbrock(TestFunction):
+    name = "Rosenbrock"
+
     @TestFunction._modify
     def solve(self, X):
         """
@@ -365,7 +378,8 @@ class Hartmann6(TestFunction):
     6-dimensional Hartmann function.
     https://www.sfu.ca/~ssurjano/hart6.html
     Global minimum f(x*) = -3.32237 at x* = (0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573)"""
-
+    
+    name = "Hartmann6"
     max_d = 6
     min_d = 6
 

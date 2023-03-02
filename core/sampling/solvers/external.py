@@ -82,7 +82,7 @@ def worker(cmd, output_path, run_id):
 
     start = time.time()
     t = time.strftime('%H:%M:%S', time.localtime())
-    print(f"Started run {run_id} at {t}")
+    print(f'{f"Started run {run_id} at {t}":<120}')
 
     # p.communicate() implies waiting for the process to finish!
     _, error = p.communicate()
@@ -111,6 +111,7 @@ class EVA(ExternalSolver):
     output_parameter_list = ["p"]
     min_d = 2
     max_d = 2
+    name = "EVA"
 
     # NOTE path needs the '' in order to be used in the cmd command!
     solver_path = r'"C:\Users\RobertWenink\OneDrive - Delft University of Technology\Documents\TUDelft\Master\Afstuderen\EVA\main.py"'
@@ -294,6 +295,9 @@ class EVA(ExternalSolver):
             l = 2
             refinements = [1, 1.5, 2, 3, 4]
             refinement = refinements[l]
+
+        if X.shape[0] > 1:
+            print(f"--- Starting batch of size {X.shape[0]} at L = {refinement} ---")
 
         # copy unadapted input.tex for future reference
         if not os.path.exists(self.base_path):

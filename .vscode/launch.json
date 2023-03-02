@@ -12,10 +12,10 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Python: main_sf.py",
+            "name": "Python: run_postprocessing_modules.py",
             "type": "python",
             "request": "launch",
-            "program": "main_sf.py",
+            "program": "run_postprocessing_modules.py",
             "console": "integratedTerminal"
         },
 		{

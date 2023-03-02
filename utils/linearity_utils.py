@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
+from core.mfk.mfk_ok import MFK_org
 from postprocessing.plotting import Plotting
 
 def overlap_check(s1, e1, s2, e2):
@@ -70,7 +71,6 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         X_s = np.delete(mf_model.X_mf[-1], i_exclude, 0)
         Z_s = np.delete(mf_model.Z_mf[-1], i_exclude, 0)
         Z_pred_partial, mse_pred_partial, _ = mf_model.weighted_prediction(
-            mf_model,
             X_s = X_s,
             Z_s = Z_s,
             assign=False
@@ -80,8 +80,15 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         start_partial = Z_pred_partial - 4 * mse_pred_partial
         end_partial = Z_pred_partial + 4 * mse_pred_partial
 
-        K_mf_partial = mf_model.create_OKlevel(mf_model.X_unique, Z_pred_partial, tune = True, name = "Linearity Check {}".format(i_exclude), append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
-        K_mf_partial.reinterpolate()
+        # create updated model using reduced dataset
+        if isinstance(mf_model, MFK_org):
+            K_mf_partial = mf_model.create_OKlevel(mf_model.X_unique, Z_pred_partial, tune = True, name = "Linearity Check {}".format(i_exclude), append = False, hps_noise_ub = True, R_diagonal=mf_model.mse_pred / mf_model.K_mf[-1].sigma_hat)
+            K_mf_partial.reinterpolate()
+        else:
+            # then MFK_smt or error
+            K_mf_partial = 0 # TODO
+
+        # set variables for plotting
         K_mf_partial.X_s = X_s
         K_mf_partial.Z_s = Z_s
 

@@ -104,11 +104,11 @@ MFK_kwargs = {'print_global' : False,
                 'corr' : 'squar_exp',
                 }
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
-# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
+# mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
+mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 3, MFK_kwargs = MFK_kwargs)
 
 # NOTE for EVA: refinement levels
-mf_model.set_L([0.5, 1, 1.5])
+mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L([2, 3, None])
@@ -135,10 +135,13 @@ else:
 setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)
 
 do_check = False
-if do_check and not reload_endstate and not check_linearity(mf_model, pp):
-    print("Linearity check: NOT LINEAR enough, but continueing for now.")
+if mf_model.X_mf[-1].shape[0] >= 3:
+    if do_check and not reload_endstate and not check_linearity(mf_model, pp):
+        print("WARNING Linearity check: NOT LINEAR enough, but continueing for now.")
+    else:
+        print("Linearity check: LINEAR enough!")
 else:
-    print("Linearity check: LINEAR enough!!")
+    print("Too little hifi samples for reliable linearity check!")
 
 
 " sample from the predicted distribution in EGO fashion"

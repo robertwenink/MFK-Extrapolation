@@ -8,7 +8,7 @@ from core.sampling.solvers.solver import get_solver
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from preprocessing.input import Input
 from utils.correlation_utils import check_correlations
-from postprocessing.convergence_utils import plot_grid_convergence, plot_grid_convergence_tt
+from postprocessing.plot_grid_convergences import plot_grid_convergence
 
 setup = Input(0)
 mf_model = ProposedMultiFidelityKriging(setup, MFK_kwargs = {})
@@ -21,15 +21,15 @@ else:
     print("No model with data saved to this .json file")
     sys.exit()
 
-mf_model.set_L([0.5, 1, 3])
+mf_model.set_L([0.5, 1, 2])
 
-Z, TT = [], []
+# Z, TT = [], []
 nlvl = len(mf_model.L)
-for l in range(nlvl):
-    solver = get_solver(setup)
-    z, _, tt = solver.solve(mf_model.X_truth,mf_model.L[l], get_time_trace = True)
-    Z.append(z)
-    TT.append(tt)
+# for l in range(nlvl):
+#     solver = get_solver(setup)
+#     z, _, tt = solver.solve(mf_model.X_truth,mf_model.L[l], get_time_trace = True)
+#     Z.append(z)
+#     TT.append(tt)
 
 for i in range(2,nlvl):
     for j in range(i):
@@ -37,8 +37,8 @@ for i in range(2,nlvl):
             print("###### Checking the refinements: {}, {}, {} ######".format(mf_model.L[k],mf_model.L[j],mf_model.L[i]))
             # check_correlations(Z[k], Z[j], Z[i])
         
-
-plot_grid_convergence_Z(mf_model, Z)
-plot_grid_convergence_tt(mf_model, TT)
-plot_grid_convergence(mf_model, Z, TT)
+ 
+# plot_grid_convergence_Z(mf_model, Z)
+# plot_grid_convergence_tt(mf_model, TT)
+plot_grid_convergence(mf_model)
 plt.show()

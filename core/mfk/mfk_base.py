@@ -44,7 +44,7 @@ class MultiFidelityKrigingBase(KrigingBase):
 
         # multifidelity X and Z, each entry and np.ndarray
         self.X_mf = [] # NOTE gaat bij input readen ervanuit dat de lijsten van verschillende lengtes zijn (wat eigenlijk altijd zo is)!
-        self.X_unique = np.array([])
+        self.X_unique = np.array([[]])
         self.Z_mf = []
         
         # cost variables: total cost per level; expected cost per sample per level 
