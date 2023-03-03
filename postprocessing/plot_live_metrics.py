@@ -10,6 +10,7 @@ from core.sampling.solvers.solver import get_solver
 from utils.error_utils import RMSE_norm_MF
 from utils.error_utils import RMSE_focussed as RMSE_focussed_func
 from utils.selection_utils import create_X_infill
+from utils.formatting_utils import correct_formatX
 
 class ConvergencePlotting():
     """
@@ -139,8 +140,16 @@ class ConvergencePlotting():
             RMSE_focussed = RMSE_focussed_func(model, self.X_RMSE, self.RMSE_focuss_percentage)
             x_best, value_best = model.get_best_sample()
             x_new, value_x_new = model.get_best_prediction(model, x_new)
+            if isinstance(self.solver,TestFunction):
+                x_opt = correct_formatX(self.X_opt, self.d)
+                value_opt = self.Z_opt
+            elif hasattr(model, 'K_truth'):
+                x_opt = correct_formatX(model.K_truth.X_opt[0], self.d)
+                value_opt = model.K_truth.z_opt
+            else:
+                x_opt, value_opt = None, None
 
-            self._update_data(x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed)
+            self._update_data(x_best, x_new, x_opt, value_best, value_x_new, value_opt, RMSE, RMSE_focussed)
 
     def plot_convergence(self):
         """
@@ -151,7 +160,7 @@ class ConvergencePlotting():
         self._update_plot()
         
 
-    def _update_data(self, x_best, x_new, value_best, value_x_new, RMSE, RMSE_focussed):
+    def _update_data(self, x_best, x_new, x_opt, value_best, value_x_new, value_opt, RMSE, RMSE_focussed):
         """
         Update the data of the plot
         """
@@ -162,8 +171,9 @@ class ConvergencePlotting():
         self.values_x_new.append(value_x_new)
 
         # distances
-        self.distances_best.append(min(dist_matrix(self.X_opt,x_best)))
-        self.distances_x_new.append(min(dist_matrix(self.X_opt,x_new)))
+        if not x_opt is None:
+            self.distances_best.append(min(dist_matrix(x_opt,x_best)))
+            self.distances_x_new.append(min(dist_matrix(x_opt,x_new)))
 
         # RMSE
         self.RMSEs.append(RMSE[-1])  # TODO alles weergeven?
