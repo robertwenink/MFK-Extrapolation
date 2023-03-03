@@ -15,6 +15,7 @@ from utils.linearity_utils import check_linearity
 
 from preprocessing.input import Input
 
+# options to pick starting class from
 from core.mfk.mfk_base import MultiFidelityKrigingBase
 from core.mfk.mfk_smt import MFK_smt
 from core.mfk.mfk_ok import MFK_org
@@ -86,6 +87,7 @@ root.destroy()
 #       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
 #       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
 # 6) nieuwe EI selection procedure beschrijven!!
+# 7) see train() in mfk_smt: OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
 
 # inits based on input settings
 setup = Input(0)
@@ -97,15 +99,16 @@ MFK_kwargs = {'print_global' : False,
                 'print_prediction' : False,
                 # 'eval_noise' : False,
                 'eval_noise' : setup.noise_regression,
-                'propagate_uncertainty' : False, 
+                'propagate_uncertainty' : False,  
                 'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 'corr' : 'squar_exp',
                 }
+
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
-# mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = 150000, MFK_kwargs = MFK_kwargs)
-mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 3, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 3, MFK_kwargs = MFK_kwargs)
 
 # NOTE for EVA: refinement levels
 mf_model.set_L([0.5, 1, 2])
@@ -149,6 +152,7 @@ if isinstance(mf_model, MultiFidelityEGO):
     mf_model.optimize(pp,cp)
     # mf_model.optimize()   
 
+" post processiung "
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence() 
 pp.draw_current_levels(mf_model)

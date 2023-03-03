@@ -36,7 +36,7 @@ class KrigingBase():
                 return float(y_pred)
 
         success = False
-        n_start = 20
+        n_start = 40
         n_optim = 1  # in order to have some success optimizations with SLSQP
         n_max_optim = 20
 

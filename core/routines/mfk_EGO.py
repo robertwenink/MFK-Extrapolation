@@ -8,7 +8,12 @@ from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from core.routines.EGO import EfficientGlobalOptimization
 from core.sampling.solvers.internal import TestFunction
 
+from postprocessing.plot_live_metrics import ConvergencePlotting
+from postprocessing.plotting import Plotting
+
 from utils.selection_utils import isin
+from utils.formatting_utils import correct_formatX
+
 
 
 class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization):
@@ -19,21 +24,19 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         # https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
         EfficientGlobalOptimization.__init__(self, setup, *args, **kwargs) 
 
-    def optimize(self, pp = None, cp = None):
+    def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
         self.max_cost = np.inf
 
         virtual_x_new, virtual_ei, virtual_y_min = None, None, None
         while np.sum(self.costs_total) < self.max_cost:
-            " output "
-            if pp != None:
-                pp.draw_current_levels(self)
-            if cp != None:
-                cp.plot_convergence()
-
+            
             start = time.time()
+            
             " predict and calculate Expected Improvement "
             prediction_function = self.K_mf[-1].predict
             x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, prediction_function, criterion = 'EI')
+            # x_new =  correct_formatX(np.array([[0.9904, 0.4875]]), self.d) # TODO remove again [[-3.017 11.948]]
+            x_new =  correct_formatX(np.array([[-3.017, 11.948]]), self.d) # TODO remove again [[-3.017 11.948]]
             print(f"FINDING EI TOOK: {time.time() - start:4f}")
             print("MAXIMUM EI: {:4f}".format(np.max(ei)))
 
@@ -75,6 +78,15 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
             print("MAXIMUM VIRTUAL CORRECTED EI: {:4f}".format(ei_corrected))
 
 
+            " output "
+            if pp != None:
+                pp.draw_current_levels(self)
+            if cp != None:
+                if cp.iteration_numbers == []: # if not set yet in set_state, we do add the first data
+                    cp.update_convergence_data(self, x_new, ei_corrected) # pass these, we do not want to recalculate!!
+                cp.plot_convergence()
+
+
             # terminate if criterion met, or when we revisit a point
             # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
             # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
@@ -82,7 +94,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
             if np.all(ei < self.ei_criterion):
                 print("Finishing due to reaching EI criterium!")
                 # check if the basis for virtual_x_new has already been sampled
-                if not isin(virtual_x_new,self.X_mf[-1]) and virtual_y_min < y_min: # second condition actually implies the first
+                if not isin(virtual_x_new, self.X_mf[-1]) and virtual_y_min < y_min: # second condition actually implies the first
                     print("Sampled at the best extrapolation to end!")
                     self.sample_nested(2, x_new)
                 break

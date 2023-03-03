@@ -97,10 +97,30 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         Update the training data and train.
         """
         if self.X_mf[-1].shape[0] >= len(self.X_mf):
+            # then just train the full model
             if hasattr(self,'not_maximum_level'):
+                # when changing the amount of used levels, the model should be re-initialised
                 super().__init__(**self.MFK_kwargs)
                 del self.not_maximum_level
             self.set_training_data(self, self.X_mf, self.Z_mf)
+
+        # NOTE OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
+        # elif self.X_mf[-1].shape[0] >= 2:
+        #     # then use the top 2 levels, NOTE based on using 3 levels -> quite proposed method specific
+        #     if not np.all(self.X_mf[0].shape[0] == [x.shape[0] for x in self.X_mf[:-1]]):
+        #         print("Not using extra information on a lower level (no perfect nesting!)")
+
+        #     if hasattr(self,'not_maximum_level') and self.not_maximum_level == True:
+        #         # when changing the amount of used levels, the model should be re-initialised
+        #         super().__init__(**self.MFK_kwargs)
+        #         print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ\n\
+        #               TRAINING WITH TOP 2 LEVELS ONLY FROM NOW\n\
+        #               ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+        #     self.not_maximum_level = False
+            
+        #     print("Traning with the 2 top levels")
+        #     self.set_training_data(self, self.X_mf[-2:], self.Z_mf[-2:])
+
         else:
             print("WARNING: TRAINING WITHOUT TOPLEVEL")
             self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
