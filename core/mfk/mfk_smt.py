@@ -59,7 +59,8 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         if hasattr(self,'X_truth') and hasattr(self,'Z_truth'):
             # overloaded function
             if not hasattr(self,'K_truth'):
-                print("Creating Kriging model of truth")
+                if self.printing:
+                    print("Creating Kriging model of truth")
                 kwargs = deepcopy(self.MFK_kwargs)
                 kwargs['n_start'] *= 2 # truth is not tuned often so rather not have any slipups
                 kwargs['optim_var'] = True
@@ -72,7 +73,8 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 self.set_training_data(self.K_truth, [*self.X_mf[:self.max_nr_levels-1], self.X_truth], [*self.Z_mf[:self.max_nr_levels-1], self.Z_truth])
                 self.K_truth.train() # maak nog pullrequest aan voor optim_var bug
                 self.K_truth.X_opt, self.K_truth.z_opt = self.get_best_prediction(self.K_truth)
-                print("Succesfully trained Kriging model of truth", end = '\r')
+                if self.printing:
+                    print("Succesfully trained Kriging model of truth", end = '\r')
 
     
     def set_training_data(self, model : MFK, X_mf : list, Z_mf : list):
@@ -122,7 +124,8 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         #     self.set_training_data(self, self.X_mf[-2:], self.Z_mf[-2:])
 
         else:
-            print("WARNING: TRAINING WITHOUT TOPLEVEL")
+            if self.printing:
+                print("WARNING: TRAINING WITHOUT TOPLEVEL")
             self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
             self.not_maximum_level = True
         super().train()

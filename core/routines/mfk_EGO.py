@@ -26,9 +26,11 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
 
     def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
         self.max_cost = np.inf
+        self.max_iter = 80
 
         virtual_x_new, virtual_ei, virtual_y_min = None, None, None
-        while np.sum(self.costs_total) < self.max_cost:
+        n = 0
+        while np.sum(self.costs_total) < self.max_cost and n < self.max_iter:
             
             start = time.time()
             
@@ -36,9 +38,9 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
             prediction_function = self.K_mf[-1].predict
             x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, prediction_function, criterion = 'EI')
             # x_new =  correct_formatX(np.array([[0.9904, 0.4875]]), self.d) # TODO remove again [[-3.017 11.948]]
-            x_new =  correct_formatX(np.array([[-3.017, 11.948]]), self.d) # TODO remove again [[-3.017 11.948]]
-            print(f"FINDING EI TOOK: {time.time() - start:4f}")
-            print("MAXIMUM EI: {:4f}".format(np.max(ei)))
+            if self.printing:
+                print(f"FINDING EI TOOK: {time.time() - start:4f}")
+                print("MAXIMUM EI: {:4f}".format(np.max(ei)))
 
             if np.all(virtual_x_new == None):
                 virtual_x_new, virtual_ei = x_new, ei - self.ei_criterion * 2
@@ -50,7 +52,10 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
                 # calculate new EI at previous point
                 pass
                 virtual_x_min, virtual_y_min = self.get_best_extrapolation()
-                print(f'Best extrapolation / point at {virtual_x_min} with obj {virtual_y_min}')
+                
+                if self.printing:
+                    print(f'Best extrapolation / point at {virtual_x_min} with obj {virtual_y_min}')
+                
                 y_pred, mse_pred = prediction_function(virtual_x_min)
                 _, y_min = self.get_best_sample() # this is a stable value!
                 virtual_ei = self.EI(y_min, y_pred, np.sqrt(mse_pred))
@@ -61,7 +66,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
 
             # idea: dynamic ei-criterion based on cost difference ratio!
             # if the ratio is low, then its okay to sample quickly at a higher level
-            if ei_corrected <= self.ei_criterion or ei_corrected <= ei / cost_ratio ** (1/1):
+            if ei_corrected <= self.ei_criterion or ei_corrected <= ei / cost_ratio ** (1/2):
                 # then sample the best extrapolated point, set ei to the corrected (could terminate!)
                 x_new = virtual_x_new 
 
@@ -75,7 +80,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
                 # virtual_ei = ei
             
             # NOTE als we geen het_noise gebruiken maar re-interpolationg is de corrected EI gelijk aan de ei
-            print("MAXIMUM VIRTUAL CORRECTED EI: {:4f}".format(ei_corrected))
+            if self.printing:
+                print("MAXIMUM VIRTUAL CORRECTED EI: {:4f}".format(ei_corrected))
 
 
             " output "
@@ -92,19 +98,23 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
             # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
             # this means the effective maximum EI can be higher than the criterion!
             if np.all(ei < self.ei_criterion):
-                print("Finishing due to reaching EI criterium!")
+                if self.printing:
+                    print("Finishing due to reaching EI criterium!")
                 # check if the basis for virtual_x_new has already been sampled
                 if not isin(virtual_x_new, self.X_mf[-1]) and virtual_y_min < y_min: # second condition actually implies the first
-                    print("Sampled at the best extrapolation to end!")
+                    if self.printing:
+                        print("Sampled at the best extrapolation to end!")
                     self.sample_nested(2, x_new)
                 break
             if isin(x_new,self.X_mf[-1]):
-                print("Finishing due to resampling previous point!")
+                if self.printing:
+                    print("Finishing due to resampling previous point!")
                 break
 
 
             l = self.level_selection(x_new)
-            print("Sampling on level {} at {}".format(l,x_new))
+            if self.printing:
+                print("Sampling on level {} at {}".format(l,x_new))
             
             self.sample_nested(l, x_new)
 
@@ -134,24 +144,29 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
             if cp != None:
                 # plot convergence here and not before break, otherwise on data reload will append the same result over and over
                 cp.update_convergence_data(self, x_new, ei) # pass these, we do not want to recalculate!!
+            
+            n += 1
 
 
 
         " Print end-results "
-        s_width = 34 + (4 + self.d * 6) + (9 + 8) + 2
-        print("┏" + "━" * s_width + "┓")
-        print(f"┃ Best found point \t\tx = {str(self.get_best_sample()[0][0]):<{4+self.d*6}}, f(x) = {f'{self.get_best_sample()[1]:.4f}':<8} ┃")
-        if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
-            print(f"┃ Best (truth) predicted point \tx = {str(self.K_truth.X_opt[0]):<{4+self.d*6}}, f(x) = {f'{self.K_truth.z_opt:.4f}':<8} ┃") # type: ignore
-        if isinstance(self.solver, TestFunction):
-            X_opt, Z_opt = self.solver.get_optima()
-            X_opt_ex, Z_opt_ex = self.find_best_point(self.solver.solve)
-            
-            ind = np.argmin(Z_opt) # pakt gwn de eerste, dus = 0
-            print(f"┃ Exact optimum at point \tx = {str(X_opt[ind]):<{4+self.d*6}}, f(x) = {f'{Z_opt[ind]:.4f}':<8} ┃")
-            print(f"┃ Exact best prediction \tx = {str(X_opt_ex.flatten()):<{4+self.d*6}}, f(x) = {f'{float(Z_opt_ex):.4f}':<8} ┃")
-        print("┗" + "━" * s_width + "┛")
+        if self.printing:
+            s_width = 34 + (4 + self.d * 6) + (9 + 8) + 2
+            print("┏" + "━" * s_width + "┓")
+            print(f"┃ Best found point \t\tx = {str(self.get_best_sample()[0][0]):<{4+self.d*6}}, f(x) = {f'{self.get_best_sample()[1]:.4f}':<8} ┃")
+            if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
+                print(f"┃ Best (truth) predicted point \tx = {str(self.K_truth.X_opt[0]):<{4+self.d*6}}, f(x) = {f'{self.K_truth.z_opt:.4f}':<8} ┃") # type: ignore
+            if isinstance(self.solver, TestFunction):
+                X_opt, Z_opt = self.solver.get_optima()
+                X_opt_ex, Z_opt_ex = self.find_best_point(lambda x: self.solver.solve(x, l = -1))
+                
+                ind = np.argmin(Z_opt) # pakt gwn de eerste, dus = 0
+                print(f"┃ Exact optimum at point \tx = {str(X_opt[ind]):<{4+self.d*6}}, f(x) = {f'{Z_opt[ind]:.4f}':<8} ┃")
+                print(f"┃ Exact best prediction \tx = {str(X_opt_ex.flatten()):<{4+self.d*6}}, f(x) = {f'{float(Z_opt_ex):.4f}':<8} ┃")
+            print("┗" + "━" * s_width + "┛")
              
+
+
     def level_selection(self, x_new):
         # select level l on which we will sample, based on location of ei and largest source of uncertainty there (corrected for expected cost).
         # source of uncertainty is from each component in proposed method which already includes approximated noise levels.
@@ -184,7 +199,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         # NOTE broadcasting way
         if isin(x_new,self.X_mf[l]):
             l += 1 # then already sampled! given we stop when we resample the highest level, try to higher the level we are on!
-            print("Highered level, sampling l = {} now!".format(l))
+            if self.printing:
+                print("Highered level, sampling l = {} now!".format(l))
         
         return l
 
@@ -231,7 +247,9 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         options = [np.sqrt(mse_pred_model).item(), np.sqrt(mse_pred_weighed).item()]
         if len(std_pred_smt) == 3:
             options.append(std_pred_smt[2])
-        print(f"MSE lvl 2 options are: mse_pred_model, mse_pred_weighed, mse_pred_smt\n\t{options}")
+        
+        if self.printing:
+            print(f"MSE lvl 2 options are: mse_pred_model, mse_pred_weighed, mse_pred_smt\n\t{options}")
         # s2_exp_red = min(options)
         s2_exp_red = np.sqrt(mse_pred_weighed).item()
 

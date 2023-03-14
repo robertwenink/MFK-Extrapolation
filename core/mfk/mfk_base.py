@@ -15,7 +15,7 @@ from utils.correlation_utils import check_correlations
 
 class MultiFidelityKrigingBase(KrigingBase):
 
-    def __init__(self, setup, max_cost = None, initial_nr_samples = 3, max_nr_levels : int = 3, *args, **kwargs):
+    def __init__(self, setup, max_cost = None, initial_nr_samples = 3, max_nr_levels : int = 3, printing = True, *args, **kwargs):
         """
         @param kernel (list): list containing kernel function, (initial) hyperparameters, hyper parameter constraints
         @param max_cost: maximum cost available for sampling. 
@@ -25,6 +25,7 @@ class MultiFidelityKrigingBase(KrigingBase):
 
         super().__init__(setup, *args, **kwargs)
         
+        self.printing = printing
         self.kernel = get_kernel(setup.kernel_name, setup.d, setup.noise_regression) 
         self.d = setup.d
         self.solver = get_solver(setup)
@@ -105,24 +106,25 @@ class MultiFidelityKrigingBase(KrigingBase):
 
     def print_stats(self,RMSE_list):
         """Print insightfull stats. Best called after adding a high-fidelity sample."""
-        table = BeautifulTable()
-        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print("Total costs: {}".format(self.costs_total))
-        row0 = [self.X_mf[l].shape[0] for l in range(self.number_of_levels)]
-        row1 = [self.costs_per_level[l] for l in range(self.number_of_levels)]
-        row2 = [self.costs_expected[l] for l in range(self.number_of_levels)]
-        row3 = ["{:.4f} %".format(RMSE) for RMSE in RMSE_list] 
-        if len(RMSE_list) == 2:
-            row3 += [""] 
+        if self.printing:
+            table = BeautifulTable()
+            print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            print("Total costs: {}".format(self.costs_total))
+            row0 = [self.X_mf[l].shape[0] for l in range(self.number_of_levels)]
+            row1 = [self.costs_per_level[l] for l in range(self.number_of_levels)]
+            row2 = [self.costs_expected[l] for l in range(self.number_of_levels)]
+            row3 = ["{:.4f} %".format(RMSE) for RMSE in RMSE_list] 
+            if len(RMSE_list) == 2:
+                row3 += [""] 
 
-        table.rows.append(row0)
-        table.rows.append(row1)
-        table.rows.append(row2)
-        table.rows.append(row3)
-        table.rows.header = ["Number of samples","Costs","Expected costs","RMSE wrt kriged truth"]
-        table.columns.header = ["Level {}".format(l) for l in range(self.number_of_levels)]
-        table.set_style(BeautifulTable.STYLE_MARKDOWN) # type: ignore
-        print(table)
+            table.rows.append(row0)
+            table.rows.append(row1)
+            table.rows.append(row2)
+            table.rows.append(row3)
+            table.rows.header = ["Number of samples","Costs","Expected costs","RMSE wrt kriged truth"]
+            table.columns.header = ["Level {}".format(l) for l in range(self.number_of_levels)]
+            table.set_style(BeautifulTable.STYLE_MARKDOWN) # type: ignore
+            print(table)
                 
     def sample(self, l, X_new):
         """
@@ -163,11 +165,12 @@ class MultiFidelityKrigingBase(KrigingBase):
         Does not take
         """
         if self.number_of_levels < self.max_nr_levels:
-            string = f"Sampling new level {l:d}!"
             
-            print(f"{'':=>{len(string)}}")
-            print(string)
-            print(f"{'':=>{len(string)}}")
+            if self.printing:
+                string = f"Sampling new level {l:d}!"
+                print(f"{'':=>{len(string)}}")
+                print(string)
+                print(f"{'':=>{len(string)}}")
 
             Z_new, cost = self.solver.solve(X_new, self.L[l])
             self.X_mf.append(X_new)
@@ -286,7 +289,8 @@ class MultiFidelityKrigingBase(KrigingBase):
 
         if tune == False and not add_empty:
             if hps_init is None:
-                print("hps_init is not defined! Tune set to True")
+                if self.printing:
+                    print("hps_init is not defined! Tune set to True")
                 tune = True
 
         if not np.any(y_l) and not add_empty:

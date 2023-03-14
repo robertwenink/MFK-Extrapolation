@@ -31,46 +31,6 @@ def fix_colors(surf):
     surf._edgecolors2d = surf._edgecolor3d
     return surf
 
-def get_screen_dpi():
-    """
-    With custom tkinter apparently you cannot detect the active dpi and thus the windows scaling.
-    Therefore, first do it with tk only!!
-    Retrieves a scaling to scale to 96 dpi = consistent behaviour.
-    """
-    user32 = ctypes.windll.user32
-    user32.SetProcessDPIAware(2)
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    root = tk.Tk()
-    user32 = ctypes.windll.user32
-    user32.SetProcessDPIAware(2)
-    width_px = root.winfo_screenwidth()
-    height_px = root.winfo_screenheight()
-    width_mm = root.winfo_screenmmwidth()
-    height_mm = root.winfo_screenmmheight()
-    # 2.54 cm = in
-    width_in = width_mm / 25.4
-    height_in = height_mm / 25.4
-    width_dpi = width_px/width_in
-    height_dpi = height_px/height_in
-
-    # print('Width: %i px, Height: %i px' % (width_px, height_px))
-    # print('Width: %i mm, Height: %i mm' % (width_mm, height_mm))
-    # print('Width: %f in, Height: %f in' % (width_in, height_in))
-    # print('Width: %f dpi, Height: %f dpi' % (width_dpi, height_dpi))
-
-    [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
-    print(f'| Resolution is {w:d} x {h:d} pixels')
-
-    curr_dpi = int(w*96/width_px)
-    print(f'| Current DPI is {curr_dpi:d}')
-
-    dpi_scale = curr_dpi / 96
-    print(f'| Dpi scale = {dpi_scale:.2f}')
-    root.destroy()
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    return dpi_scale
-
-
 
 class Plotting:
     def __init__(self, setup : Input, inset_kwargs = None, plotting_pause : float = 0, plot_once_every = 1, fast_plot = True, make_video = False):
@@ -131,7 +91,6 @@ class Plotting:
         self.save_svg = False
         create_folder_per_run = True
         if make_video:
-            self.screen_dpi_scale = get_screen_dpi()
             self.frames = []     
             self.video_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output_files', os.path.split(setup.filename)[-1].split('.')[0])
             if not os.path.exists(self.video_path):
@@ -265,7 +224,7 @@ class Plotting:
         if show_exact and self.plot_exact_possible:
             # NOTE this only works for test functions.
             # exact result of the level we try to predict
-            y_exact, _ = self.solver.solve(self.X_pred, l = None) #l argument possible
+            y_exact, _ = self.solver.solve(self.X_pred, l = -1) #l argument possible
             y_exact = y_exact.reshape(self.X_plot[0].shape)
             ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5) 
             ax.colors.append(color_exact)
@@ -666,7 +625,12 @@ class Plotting:
                 
                 path = os.path.join(self.video_path, 'image_{}.png'.format(self.counter))
                 # self.fig.savefig(path)
-                img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(tuple(int(i*self.screen_dpi_scale) for i in self.fig.canvas.get_width_height()[::-1]) + (3,)))
+                # img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(tuple(int(i*self.fig.canvas._dpi_ratio) for i in self.fig.canvas.get_width_height()[::-1]) + (3,)))
+                w, h = self.fig.canvas.get_width_height()
+                try:
+                    img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio),3)))
+                except:
+                    img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio) + 1,int(w*self.fig.canvas._dpi_ratio),3)))
                 img.save(path)
                 # .savefig('my_plot.png')
                 # self.frames.append(self.fig.canvas.tostring_rgb())

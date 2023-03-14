@@ -68,10 +68,11 @@ class KrigingBase():
                     )
 
                 except ValueError:  # in case "x0 violates bound constraints" error
-                    print("warning: `x0` violates bound constraints")
-                    print("x0={}".format(x_start[ii, :]))
-                    print("bounds={}".format(self.bounds))
-                    opt_all.append({"success": False})
+                    if self.printing:
+                        print("warning: `x0` violates bound constraints")
+                        print("x0={}".format(x_start[ii, :]))
+                        print("bounds={}".format(self.bounds))
+                        opt_all.append({"success": False})
 
             opt_all = np.asarray(opt_all)
             opt_success = opt_all[[opt_i["success"] for opt_i in opt_all]]

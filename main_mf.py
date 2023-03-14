@@ -7,6 +7,9 @@ import sys
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 11})
 
+import warnings
+warnings.simplefilter("ignore", RuntimeWarning) # Scipy optimize can throw x out of bounds, but this is really consequential
+
 # np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)  # type: ignore
 from copy import deepcopy, copy
 # pyright: reportGeneralTypeIssues=false, reportOptionalCall=false
@@ -24,11 +27,6 @@ from core.routines.mfk_EGO import MultiFidelityEGO
 
 from postprocessing.plotting import Plotting
 from postprocessing.plot_live_metrics import ConvergencePlotting
-
-import tkinter as tk
-import ctypes
-root = tk.Tk()
-root.destroy()
 
 # TODO list
 # 1) (DONE) animate the plotting
@@ -88,10 +86,12 @@ root.destroy()
 #       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
 # 6) nieuwe EI selection procedure beschrijven!!
 # 7) see train() in mfk_smt: OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
+# 8) discussie: beschrijven dat het interssant is te zien hoe bij noise de initiele surrogate niet heel goed is, maar dat zodra de noise estimates beter worden 
+#               door meer samples op de lower fidelities (dicht bij elkaar) de prediction vele malen beter wordt!!
 
 # inits based on input settings
-setup = Input(0)
-reuse_values = True	
+setup = Input(2)
+reuse_values = False	
 reload_endstate = False
 # NOTE deze waardes aanpassen werkt alleen als reuse_values en reload_endstate uitstaat!
 MFK_kwargs = {'print_global' : False,
@@ -108,7 +108,7 @@ MFK_kwargs = {'print_global' : False,
 
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
 mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
-# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 3, MFK_kwargs = MFK_kwargs)
+# mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 # NOTE for EVA: refinement levels
 mf_model.set_L([0.5, 1, 2])
@@ -121,6 +121,7 @@ if isinstance(get_solver(setup),TestFunction):
 pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=True)
 pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
 cp = ConvergencePlotting(setup)
+
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' "
@@ -149,8 +150,8 @@ else:
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
-    mf_model.optimize(pp,cp)
-    # mf_model.optimize()   
+    # mf_model.optimize(pp,cp)
+    mf_model.optimize()   
 
 " post processiung "
 setup.create_input_file(mf_model, cp, endstate = True)

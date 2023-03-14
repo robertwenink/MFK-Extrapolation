@@ -25,9 +25,10 @@ class ProposedMultiFidelityKriging(MFK_smt):
         """
         super().__init__(*args, **kwargs)
 
-    def prepare_proposed(self, setup):
+    def prepare_proposed(self, setup, X_l = None):
         # doe = get_doe(setup)
-        X_l = LHS(setup, n_per_d = 10)
+        if X_l is None:
+            X_l = LHS(setup, n_per_d = 10)
         
         if isinstance(self, MFK_org):
             tune = True
@@ -51,16 +52,18 @@ class ProposedMultiFidelityKriging(MFK_smt):
             self.sample_new(0, X_l)
             self.sample_new(1, X_l) 
         else:
-            print("Not initialised as a form of MFK.\nNo levels created: exiting!")
+            if self.printing:
+                print("Not initialised as a form of MFK.\nNo levels created: exiting!")
             import sys
             sys.exit()
 
         " level 2 / hifi initialisation "
         # do we want to sample the complete truth? (yes!)
 
-        print(f"{'':=>25}")
-        print("Sampling the full truth!")
-        print(f"{'':=>25}")
+        if self.printing:
+            print(f"{'':=>25}")
+            print("Sampling the full truth!")
+            print(f"{'':=>25}")
 
         self.sample_truth()
 
@@ -95,7 +98,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
             if not hasattr(self,'K_pred'):
-                print("Creating Kriging model of pred")
+                if self.printing:
+                    print("Creating Kriging model of pred")
                 kwargs = copy(self.MFK_kwargs)
                 
                 # NOTE voor nu alles met use_het_noise uit! 
@@ -155,7 +159,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     self.K_pred.train()
 
                 self.K_pred.X_opt, self.K_pred.z_opt = self.get_best_prediction(self.K_pred)
-                print("Succesfully trained Kriging model of prediction", end = '\r')
+                if self.printing:
+                    print("Succesfully trained Kriging model of prediction", end = '\r')
             
             self.setK_mf()
 
@@ -273,7 +278,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
             k = self.create_OKlevel([],add_empty=True)
             k.set_state(data_dict['K_mf_list'][0])
             if len(data_dict['K_mf_list']) > 1:
-                print("WARNING: K_mf_list should be of length 1; only containing the predicted level.")
+                if self.printing:
+                    print("WARNING: K_mf_list should be of length 1; only containing the predicted level.")
 
 
 

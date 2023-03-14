@@ -37,14 +37,15 @@ def overlap_amount(s1, e1, s2, e2):
     return overlap_fraction
 
 
-def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
+def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting = None):
     """
     There should already be a high-fidelity / truth Kriging model as part of mf_model.
     # TODO zonder noise is de (geplotte) oplossing toch anders, hoe kan dat? Zou nml perfect moeten zij.
     """
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
-    print("Checking linearity ...",end='\r')
+    if mf_model.printing:
+        print("Checking linearity ...",end='\r')
     assert mf_model.Z_mf[-1].shape[0] >= 2, "\nMinimum of 2 samples at highest level required"
     
 
@@ -100,18 +101,22 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting):
         difference = np.abs(mf_model.Z_pred-Z_pred_partial)
         ov = np.any(overlap < 0.25)
         if ov:
-            print("Too little overlap!")
+            if mf_model.printing:
+                print("Too little overlap!")
         diff = np.any(difference > deviation_allowed)
         if diff:
-            print("Too large absolute difference!")
+            if mf_model.printing:
+                print("Too large absolute difference!")
 
         if ov and diff:
             linear = False
-            print("NOT LINEAR ENOUGH")
+            if mf_model.printing:
+                print("NOT LINEAR ENOUGH")
         
         # draw the result
         # TODO een optie opnemen om een extra level weer te geven zoals de truth.
         # K_mf_alt = [*Z_k, Z_k_partial, Z_k_full] # zonder *Z_k wss
-        pp.draw_current_levels(mf_model, K_mf_extra=K_mf_partial)
+        if not pp is None:
+            pp.draw_current_levels(mf_model, K_mf_extra=K_mf_partial)
 
     return linear

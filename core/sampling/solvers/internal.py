@@ -7,6 +7,7 @@ from typing import Callable, Any
 
 from abc import ABC, abstractmethod
 from utils.formatting_utils import correct_formatX
+from utils.selection_utils import create_X_infill
 from core.sampling.solvers.convergence_base_models import *
 
 # create seeded random number generator
@@ -76,13 +77,22 @@ class TestFunction(Solver):
         setup must be None; we do not always require the use of a setup,
         as this class is used in creation of the setup object/ GUI for retrieving min_d, max_d.
         """
+        self.noise_level = 0.02
+        
         if setup is not None:
-            self.solver_noise = setup.solver_noise
             self.mf = setup.mf
             self.d = setup.d
             self.lb = setup.search_space[1]
             self.ub = setup.search_space[2]
-            self.range = self.ub - self.lb
+            self.bound_range = self.ub - self.lb
+
+            # NOTE X_infill not very scalable but sure, only done once
+            self.solver_noise = False # for fake first solving
+            Z = self.solve(create_X_infill(self.d, self.lb, self.ub, 50))[0]
+            self.value_metrics = [np.min(Z), np.max(Z), np.mean(Z), np.median(Z)]
+
+            self.solver_noise = setup.solver_noise
+
             if self.mf:
                 # keep this for plotting text
                 self.conv_type = setup.conv_type
@@ -125,8 +135,7 @@ class TestFunction(Solver):
             )
         elif conv_mod == 2:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                0.5
-                + np.sin(
+                0.5 * np.sin(
                     np.sqrt(conv_base_func(l) + 1)
                     / np.sqrt(2)
                     * X_acc_func(X)
@@ -136,7 +145,7 @@ class TestFunction(Solver):
             )
         elif conv_mod == 3:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                0.5 + np.sin(conv_base_func(l) * X_acc_func(X) * 2 * np.pi)
+                0.5 * np.sin((conv_base_func(l) + 1) * X_acc_func(X) * 2 * np.pi)
             )
         else:
             return lambda X, l: conv_base_func(l) * np.ones(X.shape[0])
@@ -145,26 +154,49 @@ class TestFunction(Solver):
     def _modify(func : Callable) -> Any:
         """decorator to add noise and multi fidelity functionality"""
 
-        def wrapper(self, X, l=None):
+        def wrapper(self, X, l=None, ratio_abs_rel_noise = 0.5):
+            """
+            set l = None for no convergence noise, additionally l = -1 for no constant noise too
+
+            noise_level is the flat amount of noise we apply.
+            
+            Noise cannot be applied *value because then at y = 0 there will be 0 noise.
+            At the same time, equal amounts of noise (although more relastic), might not realistic either
+            because you would expect large values or very turbulent simulations to display more noise.
+            
+            @param ratio_abs_rel_noise: absolute noise / relative noise
+                value of 1 means only absolute noise, value of 0 only relative noise
+
+            There are 2 types of noise levels
+            1) convergence-dependent noise levels
+                    actual noise level is reduced using the convergence function 
+                    such that higher fidelities experience less noise
+                    l = 0 knows no reduction and the function is normalized as such
+            2) constant noise levels
+                    This noise is present in all fidelity levels. It is defined as 1/10th of the supplied noise_level
+
+            These noises can then be applied in two ways to the solver data:                    
+            1) relative: wrt to own value
+            2) absolute: wrt to mean, median, or max value;
+            median is chosen now because for some functions the response can get extremely steep around the domain borders 
+            while elsewhere the response surface is quite flat
+            
+            """
             cost = 1
+            noise_level = self.noise_level
 
             # use base solver
             val = func(self, X)
             self.check_format_y(val)
 
-            if self.mf and l != None:
+            if self.mf and l != None and l != -1:
                 cost = self.sampling_costs(l) * X.shape[0]
 
                 " convergence profile "
                 X = self.check_format_X(X)
                 conv = self.conv_mod_func(X, l)
+                conv0 = self.conv_mod_func(X, 0)
                 self.check_format_y(conv)
-
-                if self.solver_noise:
-                    # add multiplicative noise that is converging together with the convergence
-                    conv *= 1 + (1 - conv) * 0.05 * (
-                        rng.standard_normal(size = conv.shape) - 0.5
-                    )
 
                 " transformation "
                 # TODO scale contributions according to size of domain 
@@ -177,10 +209,44 @@ class TestFunction(Solver):
 
                 val = A * val + B * (np.sum(X, axis=1) - 0.5) + C
 
-            if self.solver_noise:
-                # provide noise,present at every level
-                # NOTE hard coded std /amplitude of e-3
-                val *= 1 + 0.001 * (rng.standard_normal(size=val.shape) - 0.5)
+                if self.solver_noise:
+                    " convergence noise "
+                    # normalization wrt lowest conv level
+                    # norm = v - min / (max - min)
+                    norm_conv = abs(conv - 1) / abs(conv0 - 1)
+
+                    # get the convergence corrected noise_level
+                    conv_noise = norm_conv * noise_level * (
+                        # if run with very high numbers, absolute mean is ~0.8
+                        # https://en.wikipedia.org/wiki/Half-normal_distribution
+                        # 1 * np.sqrt(2) / np.sqrt(np.pi) = 0.7978845608028655
+                        # ik wil dat normaliseren naar 1 zodat het noise_level 
+                        # precies overeenkomt met de eenzijdige expectation
+                        #  TODO wel of niet /0.8
+                        rng.standard_normal(size = conv.shape) / 0.8
+                    )
+                    
+                    # add the relative part of noise
+                    val *= 1 + (1 - ratio_abs_rel_noise) * conv_noise
+
+                    # absolute part of noise, this part is equal for all values
+                    # value metrics: min, max, mean, median; used here: median
+                    val += ratio_abs_rel_noise * self.value_metrics[3] * conv_noise
+                
+                if self.solver_noise and l != -1:
+                    " noise regardless of fidelity level execpt for the truth / lvl 2 "
+                    # provide noise, present at every fidelity level and relative to the noise value
+                    # defined as 1/10th of the noise_level
+                    #  TODO wel of niet /0.8
+                    const_noise = noise_level / 10 * (rng.standard_normal(size=val.shape)) / 0.8           
+
+                    # relative part of noise, this part is bigger for larger values
+                    val *= 1 + (1 - ratio_abs_rel_noise) * const_noise
+                    
+                    # absolute part of noise, this part is equal for all values
+                    # value metrics: min, max, mean, median; used here: median
+                    val += ratio_abs_rel_noise * self.value_metrics[3] * const_noise
+
 
             return val, cost
 
@@ -191,6 +257,9 @@ class Forrester2008(TestFunction):
     max_d = 1
     min_d = 1
     name = "Forrester2008"
+
+    def __init__(self, setup=None):
+        super().__init__(setup)
 
     @TestFunction._modify
     def solve(self, X):
@@ -216,6 +285,9 @@ class Branin(TestFunction):
     min_d = 2
     name = "Branin"
 
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+
     @TestFunction._modify
     def solve(self, X):
         """
@@ -236,7 +308,7 @@ class Branin(TestFunction):
         r = 6
         s = 10
         t = 1 / (8 * np.pi)
-        return (a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s) + (x1 + np.pi)**2 / 2
+        return (a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s) + (x1 + np.pi)**2 / 10
         # MINIMIZE ((x2 - 5.1 / (4 * pi ^2) * x2 + 5 / pi * x1 - 6) ** 2 + 10 * ((1 - 1 / (8 * pi)) * cos(x1) + 1) + 5*x1)
 
     @staticmethod
@@ -253,7 +325,10 @@ class Runge(TestFunction):
     https://en.wikipedia.org/wiki/Runge%27s_phenomenon
     """
     name = "Runge"
-
+    
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+    
     @TestFunction._modify
     def solve(self, X, offset=0.0):
         X = self.check_format_X(X)
@@ -264,7 +339,10 @@ class Runge(TestFunction):
 
 class Stybtang(TestFunction):
     name = "Stybtang"
-
+    
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+    
     @TestFunction._modify
     def solve(self, X):
         """
@@ -297,6 +375,9 @@ class Curretal88exp(TestFunction):
     min_d = 2
     name = "Curretal"
 
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+
     @TestFunction._modify
     def solve(self, X):
         X = self.check_format_X(X, d_req=2)
@@ -326,7 +407,10 @@ class Curretal88exp(TestFunction):
 
 class Rastrigin(TestFunction):
     name = "Ratrigin"
-    
+
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+
     @TestFunction._modify
     def solve(self, X):
         """
@@ -350,6 +434,9 @@ class Rastrigin(TestFunction):
 
 class Rosenbrock(TestFunction):
     name = "Rosenbrock"
+
+    def __init__(self, setup=None): 
+        super().__init__(setup)
 
     @TestFunction._modify
     def solve(self, X):
@@ -383,6 +470,9 @@ class Hartmann6(TestFunction):
     max_d = 6
     min_d = 6
 
+    def __init__(self, setup=None): 
+        super().__init__(setup)
+    
     alpha = np.array([1, 1.2, 3, 3.2]).T
 
     A = np.array(

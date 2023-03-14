@@ -10,7 +10,7 @@ def RMSE(Z, Z_predict):
 
 
 def RMSE_norm(Z, Z_predict):
-    return RMSE(Z, Z_predict) / np.mean(abs(Z))
+    return RMSE(Z, Z_predict) / np.mean(np.abs(Z))
 
 
 def MAE_norm(Z, Z_predict):
@@ -58,11 +58,14 @@ def RMSE_focussed(mf_model, X_search, focus_perc):
 
     data_range = np.max(z_search_truth) - z_opt
 
-    mask = np.where(z_search_truth >= z_opt + data_range * focus_perc / 100)
+    mask = np.where(z_search_truth <= z_opt + data_range * focus_perc / 100)
     
     RMSE = []
     for K_l in mf_model.K_mf:
-        RMSE.append(RMSE_norm(z_search_truth[mask], K_l.predict(X_search[mask])[0]))
+        # normalize with the full range, not the limited one!
+        RMSE_n = RMSE_norm(z_search_truth[mask], K_l.predict(X_search[mask])[0]) \
+            * np.mean(np.abs(z_search_truth[mask])) / np.mean(np.abs(z_search_truth))
+        RMSE.append(RMSE_n)
 
     return RMSE
 

@@ -49,7 +49,7 @@ class ConvergencePlotting():
         self.RMSEs = []
         self.RMSE_focussed = []
         self.X_RMSE = create_X_infill(setup.d, setup.search_space[1], setup.search_space[2], int(1000**(1/self.d))) # Not scalable for many dimensions
-        self.RMSE_focuss_percentage = 20
+        self.RMSE_focuss_percentage = 10
         
         
         self.main_font_size = 12
@@ -105,8 +105,8 @@ class ConvergencePlotting():
         " RMSE plots "
         ax_rmse.set_title("RMSE convergence")
         p3_full, = ax_rmse.plot([], [], color=self.colors[2], label = "Full predicted surrogate")
-        p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (opt + {}%)\npredicted surrogate".format(self.RMSE_focuss_percentage))
-        ax_rmse.set_ylabel("RMSE with respect to kriged truth [%]", fontsize = self.main_font_size)
+        p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (z <= opt + {}% range)\npredicted surrogate".format(self.RMSE_focuss_percentage))
+        ax_rmse.set_ylabel(f"RMSE with respect to the {'exact solution' if isinstance(self.solver, TestFunction) else 'kriged truth'} [%]", fontsize = self.main_font_size)
         ax_rmse.set_xlabel("Iteration number [-]", fontsize = self.main_font_size)
 
 
