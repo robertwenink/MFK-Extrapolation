@@ -17,10 +17,16 @@ class KrigingBase():
         self.ub = setup.search_space[2]
         self.bounds = np.array(setup.search_space[1:])
 
-    def find_best_point(self, prediction_function, criterion = 'SBO'):
+        # otherwise always same randomstate at each step, then global search is not diversifying!!
+        self.randomstate = 0
+
+    def find_best_point(self, prediction_function, criterion = 'SBO', x_centre_focus = None):
         """
         Optimizer for getting the best EI (criterion = 'EI') or prediction in the current self
         @param prediction_function
+        @param x_centre_focus : location of for instance previous optimum,
+                providing focus in the previous area of the best found point in terms of starting locations.
+                This is usefull when around the current optimum there are local optima / maxima present, especially near boundaries this gives problems
         """
 
         if criterion == "EI" and isinstance(self, ego.EfficientGlobalOptimization):
@@ -29,31 +35,51 @@ class KrigingBase():
             
             def obj_k(x): 
                 y_pred, mse_pred = prediction_function(x)
-                return -self.EI(y_min, y_pred, np.sqrt(mse_pred/2)) # TODO hier /2 gedaan!
+                return -self.EI(y_min, y_pred, np.sqrt(mse_pred)) # TODO hier /2 gedaan! is voor proposed evt beter
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
                 y_pred, mse_pred_or_cost = prediction_function(np.atleast_2d(x))
                 return float(y_pred)
 
         success = False
-        n_start = 40
+        n_start = 40 # vind niet de weg naar optimum bij 20 voor EVA! # TODO evt met 10*d
         n_optim = 1  # in order to have some success optimizations with SLSQP
-        n_max_optim = 20
+        n_max_optim = 20            
 
         while not success and n_optim <= n_max_optim:
             opt_all = []
             
-            # x_start = self._sampling(n_start) # TODO should be a LHS
+            if not x_centre_focus is None:
+                focus_area = 0.2 # 20%
+                r = self.bounds[1, :] - self.bounds[0, :]
+                ub = np.min(np.vstack((self.bounds[1, :], x_centre_focus + r * 0.2)),axis = 0)
+                lb = np.max(np.vstack((self.bounds[0, :], x_centre_focus - r * 0.2)),axis = 0)
+                n_start = int(n_start/4)
+
+                x_start_focus = lb + lhs(
+                    self.d,
+                    samples=n_start,
+                    criterion="maximin",
+                    iterations=20,
+                    random_state=self.randomstate,
+                ) * (ub - lb)
+
+            # x_start = self._sampling(n_start)
             x_start = self.bounds[0, :] + lhs(
                 self.d,
                 samples=n_start,
                 criterion="maximin",
                 iterations=20,
-                random_state=0,
+                random_state=self.randomstate,
             ) * (self.bounds[1, :] - self.bounds[0, :])
 
+            self.randomstate += 1
+
+            if not x_centre_focus is None:
+                x_start = np.vstack((x_start, x_start_focus, x_centre_focus))
+
             # iterate and minimize over each of the points in the lhs
-            for ii in range(n_start):
+            for ii in range(x_start.shape[0]):
 
                 try:
                     opt_all.append(
@@ -94,7 +120,7 @@ class KrigingBase():
         return x_best, -obj_success[ind_min] if criterion == "EI" else obj_success[ind_min]
 
 
-    def get_best_prediction(self, model, x_best = None, try_use_solver = False):
+    def get_best_prediction(self, model, x_best = None, try_use_solver = False, x_centre_focus = None):
         """ 
         @param x_best: location of interest (i.e. best prediction or highest EI)
         returns X_best, y_best 
@@ -106,7 +132,7 @@ class KrigingBase():
             prediction_function = model.predict
 
         if np.all(x_best == None):
-            x_best, y_best = self.find_best_point(prediction_function)
+            x_best, y_best = self.find_best_point(prediction_function, x_centre_focus = x_centre_focus)
         elif np.all(x_best != None):
             y_best, _ = prediction_function(x_best)
         
