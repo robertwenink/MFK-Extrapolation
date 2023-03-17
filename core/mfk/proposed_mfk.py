@@ -25,51 +25,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
         """
         super().__init__(*args, **kwargs)
 
-    def prepare_proposed(self, setup, X_l = None):
-        # doe = get_doe(setup)
-        if X_l is None:
-            X_l = LHS(setup, n_per_d = 10)
-        
-        if isinstance(self, MFK_org):
-            tune = True
 
-            hps = None
-            if not tune:
-                # then try to use some old hps
-                if setup.d == 2:
-                    # hps for Branin
-                    hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
-                elif setup.d == 1:
-                    # hps for Forrester
-                    hps = np.array([1.26756467e+00, 2.00000000e+00, 9.65660595e-04])
-                else:
-                    tune = True
-        
-            self.create_OKlevel(X_l, tune=tune, hps_init = hps)
-            self.create_OKlevel(X_l, tune=tune)
-
-        elif isinstance(self, MFK_smt):
-            self.sample_new(0, X_l)
-            self.sample_new(1, X_l) 
-        else:
-            if self.printing:
-                print("Not initialised as a form of MFK.\nNo levels created: exiting!")
-            import sys
-            sys.exit()
-
-        " level 2 / hifi initialisation "
-        # do we want to sample the complete truth? (yes!)
-
-        if self.printing:
-            print(f"{'':=>25}")
-            print("Sampling the full truth!")
-            print(f"{'':=>25}")
-
-        self.sample_truth()
-
-        # sampling the initial hifi
-        self.sample_initial_hifi(setup) 
-        # self.setK_mf() # already called indirectly!
+    def prepare_initial_surrogate(self, setup, X_l = None):
+        super().prepare_initial_surrogate(setup, X_l)
 
         # and add the (reinterpolated!) predictive level
         if isinstance(self, MFK_smt): 
@@ -94,7 +52,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
     def create_update_K_pred(self, data_dict = None):
         # options
         USE_SF_PRED_MODEL = False # use as single fidelity?
-        USE_HET_NOISE_FOR_EI = True # NOTE True werkt toch het beste
+        USE_HET_NOISE_FOR_EI = True # use heteroscedastic noise addition?
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
             if not hasattr(self,'K_pred'):
@@ -143,7 +101,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
                 
                 self.K_pred.options['eval_noise'] = True
                 self.K_pred.options['optim_var'] = True # not using reinterpolation is way worse for EI
-                self.K_pred.options['use_het_noise'] = False
+                self.K_pred.options['use_het_noise'] = False 
                 self.K_pred.train()
 
                 if USE_HET_NOISE_FOR_EI:

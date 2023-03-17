@@ -1,4 +1,4 @@
-# pyright: reportGeneralTypeIssues=false, reportUnboundVariable = false
+# pyright: reportGeneralTypeIssues=false, reportUnboundVariable = true
 import numpy as np
 import time 
 
@@ -16,72 +16,88 @@ from utils.formatting_utils import correct_formatX
 
 
 
-class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization):
+class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOptimization):
     
-    def __init__(self, setup, *args, **kwargs):
-        super().__init__(setup, *args, **kwargs)
+    def __init__(self, setup, proposed = True, *args, **kwargs):
+        self.proposed = proposed
+        if proposed:
+            super().__init__(setup, *args, **kwargs)
+        else:
+            MFK_smt.__init__(self, setup, *args, **kwargs) 
+
         # Ik snap die inheritance structuur niet, onderstaand lijkt goed uit te leggen
         # https://stackoverflow.com/questions/9575409/calling-parent-class-init-with-multiple-inheritance-whats-the-right-way
         EfficientGlobalOptimization.__init__(self, setup, *args, **kwargs) 
 
     def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
         self.max_cost = np.inf
-        self.max_iter = 80
+        self.max_iter = 50
 
-        virtual_x_new, virtual_ei, virtual_y_min = None, None, None
         n = 0
         while np.sum(self.costs_total) < self.max_cost and n < self.max_iter:
             
             start = time.time()
+            prediction_function = self.K_mf[-1].predict
             
             " predict and calculate Expected Improvement "
-            prediction_function = self.K_mf[-1].predict
-            x_new, ei = ProposedMultiFidelityKriging.find_best_point(self, prediction_function, criterion = 'EI')
-            # x_new =  correct_formatX(np.array([[0.9904, 0.4875]]), self.d) # TODO remove again [[-3.017 11.948]]
-            if self.printing:
-                print(f"FINDING EI TOOK: {time.time() - start:4f}")
-                print("MAXIMUM EI: {:4f}".format(np.max(ei)))
-
-            if np.all(virtual_x_new == None):
-                virtual_x_new, virtual_ei = x_new, ei - self.ei_criterion * 2
-                _, y_min = self.get_best_sample() # this is a stable value!
-                virtual_y_min = y_min
-            else:
-                # misschien juist de oude EI (virtual_ei) op dat punt gebruiken?
-                # het sterke aan herberekenen vind ik dat het hyperparameter onafhankelijk/gelijk is tussen iteraties
-                # calculate new EI at previous point
-                pass
-                virtual_x_min, virtual_y_min = self.get_best_extrapolation()
-                
-                if self.printing:
-                    print(f'Best extrapolation / point at {virtual_x_min} with obj {virtual_y_min}')
-                
-                y_pred, mse_pred = prediction_function(virtual_x_min)
-                _, y_min = self.get_best_sample() # this is a stable value!
-                virtual_ei = self.EI(y_min, y_pred, np.sqrt(mse_pred))
-
-            cost_ratio = self.costs_expected_nested[2]/(self.costs_expected_nested[1])
-
-            ei_corrected = ei - virtual_ei
-
-            # idea: dynamic ei-criterion based on cost difference ratio!
-            # if the ratio is low, then its okay to sample quickly at a higher level
-            if ei_corrected <= self.ei_criterion or ei_corrected <= ei / cost_ratio ** (1/2):
-                # then sample the best extrapolated point, set ei to the corrected (could terminate!)
-                x_new = virtual_x_new 
-
-                # dit corrigeert de EI indien er noise aanwezig is,
-                # adhv de EI op het huidige beste punt! 
-                # zo niet dan is het gelijk aan normale EI!
-                ei = ei_corrected 
-            else:
-                # otherwise continue exploring
-                virtual_x_new = x_new
-                # virtual_ei = ei
+            # There are three types of locations involved:
+            # 1) The current best sample
+            # 2) The current best extrapolation
+            # 3) The best found EI
             
-            # NOTE als we geen het_noise gebruiken maar re-interpolationg is de corrected EI gelijk aan de ei
+            # 2 and 3 should be corrected with the EI at 1
+            # ei at 3 is in principle always > ei at 2 due to a small ofsett in x and thereby added kriging uncertainty (important in flat areas)
+            # 1 does not have extra extrapolation variance, 2 and 3 do.
+            # ei at 3 - ei at 2 should be > ei_criterion; otherwise: sample at level 2 at location 2!
+            # but if ei at the next sample location - ei at 1 < ei_criterion -> stop! -> Do not use re-interpolation? We use it implicitly by doing this.
+
+            # EI at sample
+            x_min_sample, y_min_sample = self.get_best_sample() # this is a stable value!
+            y_pred_sample, mse_pred_sample = prediction_function(x_min_sample)
+            ei_sample = self.EI(y_min_sample, y_pred_sample, np.sqrt(mse_pred_sample)) # y_pred ipv min voor indieen geen reinterpolation!
+
+            if self.proposed:
+                # EI at best extrapolation
+                x_min_extra, y_min_extra = self.get_best_extrapolation() # this is a stable value!
+                y_pred_extra, mse_pred_extra = prediction_function(x_min_extra)
+                ei_extra = self.EI(y_min_sample, y_pred_extra, np.sqrt(mse_pred_extra))
+
+                # EI at new location (best EI)
+                x_best = x_min_sample if y_min_sample < y_min_extra else x_min_extra
+            else:
+                if 'x_ei_max' in locals():
+                    x_best = x_ei_max
+                else:
+                    x_best = None
+
+            x_ei_max, ei_max = super().find_best_point(prediction_function, criterion = 'EI', x_centre_focus = x_best)
             if self.printing:
-                print("MAXIMUM VIRTUAL CORRECTED EI: {:4f}".format(ei_corrected))
+                print(f"FINDING EI TOOK: {time.time() - start:4f}                                           ")
+                print("MAXIMUM EI: {:4f}".format(np.max(ei_max)))
+
+            if self.proposed:
+                # correct both with ei_sample
+                ei_max_corrected = ei_max - ei_sample
+                ei_extra_corrected = ei_extra - ei_sample
+
+            # used for giving preference over sampling a previous known point
+                # we do not want to infinitely sample new low-fi points while sometimes its good to sample a new hifi
+                cost_ratio = self.costs_expected_nested[2]/(self.costs_expected_nested[1])
+
+                # check ei_criterion conditions
+                if (ei_max_corrected - ei_extra_corrected) / cost_ratio**(1/2) <= self.ei_criterion:
+                    ei = ei_extra_corrected
+                    x_new = x_min_extra
+                    if self.printing:
+                        print(f"Using location of best extrapolation with corrected EI of {ei:6f}!")
+                else:
+                    ei = ei_max_corrected
+                    x_new = x_ei_max
+                    if self.printing:
+                        print(f"Using location of max EI with corrected EI of {ei:6f}!")
+            else:
+                ei = ei_max - ei_sample
+                x_new = x_ei_max
 
 
             " output "
@@ -89,38 +105,40 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
                 pp.draw_current_levels(self)
             if cp != None:
                 if cp.iteration_numbers == []: # if not set yet in set_state, we do add the first data
-                    cp.update_convergence_data(self, x_new, ei_corrected) # pass these, we do not want to recalculate!!
+                    cp.update_convergence_data(self, x_new, ei) # pass these, we do not want to recalculate!!
                 cp.plot_convergence()
 
-
+            
+            " Terminate or continue loop based on EI "
             # terminate if criterion met, or when we revisit a point
             # NOTE level 2 is reinterpolated, so normally 0 EI at sampled points per definition!
             # however, we use regulation (both through R_diagonal of the proposed method as regulation constant for steady inversion)
             # this means the effective maximum EI can be higher than the criterion!
             if np.all(ei < self.ei_criterion):
                 if self.printing:
-                    print("Finishing due to reaching EI criterium!")
-                # check if the basis for virtual_x_new has already been sampled
-                if not isin(virtual_x_new, self.X_mf[-1]) and virtual_y_min < y_min: # second condition actually implies the first
-                    if self.printing:
-                        print("Sampled at the best extrapolation to end!")
-                    self.sample_nested(2, x_new)
+                    print(f"Finishing due to reaching EI criterium with (corrected) EI of {ei:6f}!")
+                # # check if the basis for virtual_x_new has already been sampled
+                # if not isin(x_new, self.X_mf[-1]) and virtual_y_min < y_min_sample: # second condition actually implies the first
+                #     if self.printing:
+                #         print("Sampled at the best extrapolation to end!")
+                #     self.sample_nested(2, x_new)
                 break
             if isin(x_new,self.X_mf[-1]):
                 if self.printing:
                     print("Finishing due to resampling previous point!")
                 break
 
-
+            " Sampling and training procedures "
             l = self.level_selection(x_new)
             if self.printing:
                 print("Sampling on level {} at {}".format(l,x_new))
             
             self.sample_nested(l, x_new)
 
-            # weigh each prediction contribution according to distance to point.
-            self.Z_pred, self.mse_pred, _ = self.weighted_prediction()
-            self.create_update_K_pred()
+            if self.proposed:
+                # weigh each prediction contribution according to distance to point.
+                self.Z_pred, self.mse_pred, _ = self.weighted_prediction()
+                self.create_update_K_pred()
 
             if isinstance(self, MFK_org):
                 # build new kriging based on prediction
@@ -153,6 +171,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         if self.printing:
             s_width = 34 + (4 + self.d * 6) + (9 + 8) + 2
             print("┏" + "━" * s_width + "┓")
+            print(f"┃{f' Number of samples (low / high): {self.X_mf[1].shape[0]} / {self.X_mf[-1].shape[0]}':<{s_width}}┃")
             print(f"┃ Best found point \t\tx = {str(self.get_best_sample()[0][0]):<{4+self.d*6}}, f(x) = {f'{self.get_best_sample()[1]:.4f}':<8} ┃")
             if hasattr(self,'K_truth') and hasattr(self.K_truth,'X_opt'):
                 print(f"┃ Best (truth) predicted point \tx = {str(self.K_truth.X_opt[0]):<{4+self.d*6}}, f(x) = {f'{self.K_truth.z_opt:.4f}':<8} ┃") # type: ignore
@@ -181,8 +200,10 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, EfficientGlobalOptimization
         # 2) meenemen in de weighing
         # 3) scalen mbv cost_exp naar Meliani, i.e. argmax(sigma_red[l]/cost_exp[l])
 
-        sigma_red = self._std_reducable_proposed(x_new) # kan op x_new 0 zijn
-        # s0_red, s1_red, s2_red = self._mse_reducable_meliani_smt(x_new)
+        if self.proposed:
+            sigma_red = self._std_reducable_proposed(x_new) # kan op x_new 0 zijn
+        else:
+            sigma_red = self._mse_reducable_meliani_smt(x_new)
         
         maxx = 0
         l = 0
