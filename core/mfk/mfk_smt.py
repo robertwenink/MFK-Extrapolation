@@ -4,6 +4,8 @@ import numpy as np
 from copy import deepcopy, copy
 
 from smt.applications import MFK
+from core.mfk.mfk_ok import MFK_org
+from core.sampling.DoE import LHS
 from utils.formatting_utils import correct_formatX
 
 from core.mfk.mfk_base import MultiFidelityKrigingBase
@@ -47,6 +49,54 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         super().__init__(**self.MFK_kwargs)
         MultiFidelityKrigingBase.__init__(self, *args, **kwargs)
 
+
+    def prepare_initial_surrogate(self, setup, X_l = None):
+        # doe = get_doe(setup)
+        if X_l is None:
+            X_l = LHS(setup, n_per_d = 10)
+        
+        if isinstance(self, MFK_org):
+            tune = True
+
+            hps = None
+            if not tune:
+                # then try to use some old hps
+                if setup.d == 2:
+                    # hps for Branin
+                    hps = np.array([-1.42558281e+00, -2.63967644e+00, 2.00000000e+00, 2.00000000e+00, 1.54854970e-04])
+                elif setup.d == 1:
+                    # hps for Forrester
+                    hps = np.array([1.26756467e+00, 2.00000000e+00, 9.65660595e-04])
+                else:
+                    tune = True
+        
+            self.create_OKlevel(X_l, tune=tune, hps_init = hps)
+            self.create_OKlevel(X_l, tune=tune)
+
+        elif isinstance(self, MFK_smt):
+            self.sample_new(0, X_l)
+            self.sample_new(1, X_l) 
+        else:
+            if self.printing:
+                print("Not initialised as a form of MFK.\nNo levels created: exiting!")
+            import sys
+            sys.exit()
+
+        " level 2 / hifi initialisation "
+        # do we want to sample the complete truth? (yes!)
+
+        if self.printing:
+            print(f"{'':=>25}")
+            print("Sampling the full truth!")
+            print(f"{'':=>25}")
+
+        self.sample_truth()
+
+        # sampling the initial hifi
+        self.sample_initial_hifi(setup) 
+        # self.setK_mf() # already called indirectly!
+
+
     def sample_nested(self, l, X_new):
         """
         Function that does all required actions for nested core.sampling.
@@ -72,9 +122,9 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
             else:
                 self.set_training_data(self.K_truth, [*self.X_mf[:self.max_nr_levels-1], self.X_truth], [*self.Z_mf[:self.max_nr_levels-1], self.Z_truth])
                 self.K_truth.train() # maak nog pullrequest aan voor optim_var bug
-                self.K_truth.X_opt, self.K_truth.z_opt = self.get_best_prediction(self.K_truth)
+                self.K_truth.X_opt, self.K_truth.z_opt = self.get_best_prediction(self.K_truth, x_centre_focus = self.K_truth.X_opt if hasattr(self.K_truth,'X_opt') else None)
                 if self.printing:
-                    print("Succesfully trained Kriging model of truth", end = '\r')
+                    print("Succesfully trained Kriging model of truth")#, end = '\r')
 
     
     def set_training_data(self, model : MFK, X_mf : list, Z_mf : list):
@@ -105,6 +155,10 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 super().__init__(**self.MFK_kwargs)
                 del self.not_maximum_level
             self.set_training_data(self, self.X_mf, self.Z_mf)
+            
+            # if we have all levels, we want optim_var to be true for resampling purposes! 
+            self.options['optim_var'] = True
+            
 
         # NOTE OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
         # elif self.X_mf[-1].shape[0] >= 2:
