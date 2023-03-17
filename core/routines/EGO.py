@@ -8,7 +8,7 @@ class EfficientGlobalOptimization():
     def __init__(self, setup, *args, **kwargs):
         # initial EI
         self.ei = 1
-        self.ei_criterion = 2 * np.finfo(np.float32).eps
+        self.ei_criterion = 0.0001 #2 * np.finfo(np.float32).eps
 
 
     @staticmethod
