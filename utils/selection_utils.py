@@ -30,7 +30,7 @@ def isin_indices(X_test, X, inversed = False):
     If you want to test for the indices where X is in X_test, change input order!
     """
     assert X_test.shape[1:] == X.shape[1:], "x and X not of same format"
-    mask = (X_test == X[:, None]).all(axis=-1).any(axis=0)
+    mask = (np.isclose(X_test, X[:, None])).all(axis=-1).any(axis=0) # isclose was == before
     if inversed:
         return ~mask
     return mask
