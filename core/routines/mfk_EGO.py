@@ -31,7 +31,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
     def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
         self.max_cost = np.inf
-        self.max_iter = 50
+        self.max_iter = 50  
 
         n = 0
         while np.sum(self.costs_total) < self.max_cost and n < self.max_iter:
@@ -98,6 +98,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             else:
                 ei = ei_max - ei_sample
                 x_new = x_ei_max
+                print(f"Corrected EI is {ei:6f}")
 
 
             " output "
@@ -203,7 +204,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         if self.proposed:
             sigma_red = self._std_reducable_proposed(x_new) # kan op x_new 0 zijn
         else:
-            sigma_red = self._mse_reducable_meliani_smt(x_new)
+            sigma_red = np.sqrt(self._mse_reducable_meliani_smt(x_new))
         
         maxx = 0
         l = 0
@@ -221,7 +222,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         if isin(x_new,self.X_mf[l]):
             l += 1 # then already sampled! given we stop when we resample the highest level, try to higher the level we are on!
             if self.printing:
-                print("Highered level, sampling l = {} now!".format(l))
+                print("Already sampled -> Highered level, sampling l = {} now!".format(l))
         
         return l
 
@@ -243,7 +244,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         
 
         " 1) weighed prediction mse "
-        z_pred_weighed, mse_pred_weighed, Ef_weighed = self.weighted_prediction(self, X_test=x_new)
+        z_pred_weighed, mse_pred_weighed, Ef_weighed = self.weighted_prediction(self, X_test=x_new, assign = False)
 
 
         " 2) kriging prediction mse (can be spurious!!) " 
@@ -266,11 +267,13 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         
         # now various options for lvl 2:
         options = [np.sqrt(mse_pred_model).item(), np.sqrt(mse_pred_weighed).item()]
+        extra_string = ""
         if len(std_pred_smt) == 3:
-            options.append(std_pred_smt[2])
+            extra_string = f"\n\tmse_pred_smt_meliani: {std_pred_smt[2]:4f}"
         
         if self.printing:
-            print(f"MSE lvl 2 options are: mse_pred_model, mse_pred_weighed, mse_pred_smt\n\t{options}")
+            print(f"MSE lvl 2 options are: \n\tmse_pred_model:    {options[0]:4f}\n\tmse_pred_weighed: {options[1]:4f}{extra_string}")
+        
         # s2_exp_red = min(options)
         s2_exp_red = np.sqrt(mse_pred_weighed).item()
 
@@ -315,6 +318,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         
         self.options["propagate_uncertainty"] = propagate_uncertainty # standard option, calculates the cumulative 
         MSE_contribution, sigma2_rhos = self.predict_variances_all_levels(x_new)
+        self.options["propagate_uncertainty"] = False # NEEEDS TO BE OFF otherwise reinterpolation will not work!!
 
         # the std2 contribution of level k to the highest fidelity
         # sigma_con = []
