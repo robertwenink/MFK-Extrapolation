@@ -35,7 +35,7 @@ class KrigingBase():
             
             def obj_k(x): 
                 y_pred, mse_pred = prediction_function(x)
-                return -self.EI(y_min, y_pred, np.sqrt(mse_pred)) # TODO hier /2 gedaan! is voor proposed evt beter
+                return -self.EI(y_min, y_pred, np.sqrt(mse_pred)) 
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
                 y_pred, mse_pred_or_cost = prediction_function(np.atleast_2d(x))
