@@ -6,6 +6,7 @@ import numpy as np
 from typing import Callable, Any
 
 from abc import ABC, abstractmethod
+from core.sampling.DoE import LHS
 from utils.formatting_utils import correct_formatX
 from utils.selection_utils import create_X_infill
 from core.sampling.solvers.convergence_base_models import *
@@ -88,8 +89,9 @@ class TestFunction(Solver):
 
             # NOTE X_infill not very scalable but sure, only done once
             self.solver_noise = False # for fake first solving
-            Z = self.solve(create_X_infill(self.d, self.lb, self.ub, 50))[0]
-            self.value_metrics = [np.min(Z), np.max(Z), np.mean(Z), np.median(Z)]
+            X = LHS(setup, n_per_d=40)
+            Z = self.solve(X)[0]
+            self.value_metrics = [np.min(Z), np.max(Z), np.mean(Z)]
 
             self.solver_noise = setup.solver_noise
 
@@ -135,9 +137,9 @@ class TestFunction(Solver):
             )
         elif conv_mod == 2:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                0.5 * np.sin(
-                    np.sqrt(conv_base_func(l) + 1)
-                    / np.sqrt(2)
+                np.sin(
+                    # bij problemen ooit met negatieve power: np.sign(conv_base_func(l))*np.abs((conv_base_func(l)+0j)**(1/2)))
+                    (conv_base_func(l))**(1/8)
                     * X_acc_func(X)
                     * 2
                     * np.pi
@@ -145,7 +147,7 @@ class TestFunction(Solver):
             )
         elif conv_mod == 3:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                0.5 * np.sin((conv_base_func(l) + 1) * X_acc_func(X) * 2 * np.pi)
+                np.sin((conv_base_func(l))**(1/2) * X_acc_func(X) * 2 * np.pi)
             )
         else:
             return lambda X, l: conv_base_func(l) * np.ones(X.shape[0])
@@ -222,7 +224,6 @@ class TestFunction(Solver):
                         # 1 * np.sqrt(2) / np.sqrt(np.pi) = 0.7978845608028655
                         # ik wil dat normaliseren naar 1 zodat het noise_level 
                         # precies overeenkomt met de eenzijdige expectation
-                        #  TODO wel of niet /0.8
                         rng.standard_normal(size = conv.shape) / 0.8
                     )
                     
@@ -231,21 +232,21 @@ class TestFunction(Solver):
 
                     # absolute part of noise, this part is equal for all values
                     # value metrics: min, max, mean, median; used here: median
-                    val += ratio_abs_rel_noise * self.value_metrics[3] * conv_noise
+                    val += ratio_abs_rel_noise * self.value_metrics[2] * conv_noise
                 
-                if self.solver_noise and l != -1:
-                    " noise regardless of fidelity level execpt for the truth / lvl 2 "
-                    # provide noise, present at every fidelity level and relative to the noise value
-                    # defined as 1/10th of the noise_level
-                    #  TODO wel of niet /0.8
-                    const_noise = noise_level / 10 * (rng.standard_normal(size=val.shape)) / 0.8           
+            if self.solver_noise and l != -1:
+                " noise regardless of fidelity level execpt for the truth / lvl 2 "
+                # provide noise, present at every fidelity level and relative to the noise value
+                # defined as 1/10th of the noise_level
+                #  TODO wel of niet /0.8
+                const_noise = noise_level / 10 * (rng.standard_normal(size=val.shape)) / 0.8           
 
-                    # relative part of noise, this part is bigger for larger values
-                    val *= 1 + (1 - ratio_abs_rel_noise) * const_noise
-                    
-                    # absolute part of noise, this part is equal for all values
-                    # value metrics: min, max, mean, median; used here: median
-                    val += ratio_abs_rel_noise * self.value_metrics[3] * const_noise
+                # relative part of noise, this part is bigger for larger values
+                val *= 1 + (1 - ratio_abs_rel_noise) * const_noise
+                
+                # absolute part of noise, this part is equal for all values
+                # value metrics: min, max, mean, median; used here: median
+                val += ratio_abs_rel_noise * self.value_metrics[2] * const_noise
 
 
             return val, cost
