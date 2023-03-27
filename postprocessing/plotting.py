@@ -186,7 +186,7 @@ class Plotting:
     ###########################################################################
 
     def init_1d_fig(self):
-        fig, self.axes = plt.subplots(2, 1, figsize = (12,7.5))
+        fig, self.axes = plt.subplots(2, 1, figsize = (12,8))
         fig.suptitle("{}".format(self.figure_title))
         for ax in self.axes:
             ax.colors = []
@@ -562,7 +562,7 @@ class Plotting:
             if has_prediction:
                 l = self.l_hifi
                 
-                if K_mf_extra == None: # very crowded plot otherwise!
+                if K_mf_extra is None: # very crowded plot otherwise!
                     # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
                     # includes sample points, but not the predicted points!
                     self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
@@ -688,11 +688,15 @@ class Plotting:
             # reorder, surfaces / lines flushed forwards! 
             order = is_line_or_surface + is_other
             if (mf_model.d != 1) and ax_nr == 1 or ax_nr == 3:
-                loc = 'left'
+                loc = 'upper left'
                 bb = (1.08, 1.0)
             else:
-                loc = 'right'
-                bb = (-0.08, 1.0)
+                if mf_model.d == 1 and ax_nr == 0:
+                    bb = (-0.08, 0.45)
+                    loc = 'center right'
+                else:
+                    bb = (-0.08, 1.0)
+                    loc = 'upper right'
             
             extra = []
             extra_text = []
@@ -706,7 +710,7 @@ class Plotting:
                 del order[-4:-2]
                 order += order_sub
 
-            leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc='upper '+loc, bbox_to_anchor=bb)
+            leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc = loc, bbox_to_anchor=bb)
 
             # now reset the color and alpha! (calling ax.legend resets this)
             # NOTE this is only fucked for 3d surface plots
