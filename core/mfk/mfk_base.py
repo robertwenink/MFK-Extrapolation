@@ -279,7 +279,6 @@ class MultiFidelityKrigingBase(KrigingBase):
 
         kernel = self.kernel
         if hps_noise_ub and (hps_init is not None):
-            #TODO this is done for the complete MF_KRIGING!!!!
             # noise upperbound should be larger than previous tuned noise!
             kernel[-1][-1,1] = min(max(hps_init[-1] * 2, kernel[-1][-1,1]),0.5)
 
