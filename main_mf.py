@@ -28,41 +28,18 @@ from core.routines.mfk_EGO import MultiFidelityEGO
 from postprocessing.plotting import Plotting
 from postprocessing.plot_live_metrics import ConvergencePlotting
 
+# new TODO 
+# - linearity check voor proposed met smt afmaken
+# - in proposed method de z_pred op sample locaties incrementen met de noise die we eerder vonden! De noise is namelijk niet 0 op sample locaties.
+# 
+
 # TODO list
-# 1) (DONE) animate the plotting
-# 2) (DONE) set_state get_state for new classes
-# 3) RMSE and other analysis tools for base MFK too!! (important for comparison)
-# 4) repeated experiments for testfunctions
-# 5) 
-#    a) (DONE) bij levelbepaling slechts 1 keer de MFK tunen! -> gebruik get/set_state method
-#    b) (DONE) voor de lager gelegen methodes: als punten dicht bij elkaar liggen (en er noise rond punten wordt aangenomen) 
-#       dan is een punt als waarheid aannemen tegenproductief in de zin dat noise moet vermeerderen aldaar. 
-#       Ofwel, je krijgt een negatieve hoeveelheid noise vermindering -> FOUT (maar kan goed zijn als je alleen naar het top-level kijkt!)
-#       OPLOSSING: Le Gratiet / Meliani beschrijft hoe je de sigma_red vind voor het model van Le Gratiet.
-#       niet de oplossing!
-#
 # 6) DONE in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
-# 7) (DONE) results are quite similar. For the R_diagonal: compare and choose to use either sigma_hat of the OK class or optimal_par.sigma2 of the MFK
-# 8) DONE corr is altijd 1 voor ObjectWrapper (zie schrijven todo 4 ook) -> eerst op level 1 tunen!
-# 9) DONE mse_pred is negatief voor MFK in Kriging_unknown_z
-# 10) DONE (doe ik niet) methode weighing alleen gebruiken als voorbij threshold (not done) én wanneer hoogste level MFK_smt gedefinieerd is (meer dan 3 samples) (Done). (krijgen nu wispelturige resultaten -> DONE smt geimplementeerd)
 # 11) DONE In de proposed method procedure het model met de laagste 2 levels gescheiden houden in K_mf van de prediction!
 #       Dit moet omdat de levels gelinkt zijn (er is bijv maar 1 sigma_hat) 
 #       en het toplevel als de waarheid wordt genomen terwijl dat bij mij niet perse zo is omdat ik predicted points doorgeef.
 #       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
 #       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
-# 12) DONE implement efficient EI optimization
-# 12a) implement some form of resolution procedure such that we do not infinitely focus on one spot.
-#       - EI blijft nu tov het enige echte gesamplde punt! Ik moet juist alle predicted points meenemen! Daar zit uiteraard ook het echte punt tussen.
-#       - omdat we zelf noise toevoegen zullen we altijd noise houden op welke plek dan ook! (zelfs na lvl 0 & 1 samplen op max EI locatie) 
-#         de EI zal dus ook niet naar 0 gaan. In plaats daarvan zouden we de EI moeten vergelijken met de EI van de minimum extrapolated locatie.
-#         Als die EI_new - EI_miny > 0, dan sampelen we daar op level 0 of 1 (op basis van level selection methode)
-#         Anders sampelen we op de locatie van EI_miny (wat dus wordt verhoogd naar lvl 2)
-#         PROBLEEM: hoe onderscheiden we de mse van een echt gesampled punt met die van een extrapolated? een vorm van EI criterion aanhouden en die resetten als lvl 2 is gesampled?
-#         PROBLEEM: als de extrapolatie instabiel is, zal dit ook instabiel zijn omdat onze EI tov minimum extrapolated is -> zal betekenen dat uiteindelijk die minimum extrapolated gesampled wordt en we een correctie krijgen.
-#         OPLOSSING: neem nog steeds het sampled punt als minimum, maar vergelijk consequtive EIs. Als EI2 < EI1 sample op EI1. als EI2> EI1, ga door.
-#                   indien er dan gesampled is op lvl2, schuift simpelweg het minimum weer op en tada! 
-#                   -> geen infinite sampling meer waar elke sampling wel variance reductie geeft en er infinitisimaal dichtbij ernaast gwn weer wordt gesampled.
 
 # optional TODO list
 # 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
@@ -72,9 +49,7 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 # 0a) 'three assumptions' in eigen methode moet de laatste weg, voor vergleijking met le gratiet method moet s0+s1 zijn niet -
 #     bovendien, we hebben de variances per level als iid beschouwd, dat is tegenstrijdig
 #     de afstand tussen twee variances is logischerwijs de som daarvan!! -> is weer normal!
-# 1) DONE level selection procedure
-# 2) integratie van MFK met eigen methode
-# 3) branin aanpassing beschrijven
+# 2) integratie van MFK met eigen methode: bijv de re-interpolation en het-noise
 # 4) beschrijven dat de weighing methode niet werkt met universal kriging omdat er dan niet perse correlaties meer bestaan
 #       de trend beschrijft namelijk al de variabiliteit in de data en de correlatie hoeft niet meer nodig te zijn perse.
         # NOTE dit is dus niet perse waar. Als het GLS model al alle variabiliteit kan omschrijven, hoeft de Kriging correlation niks meer te doen! \
@@ -86,19 +61,22 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 #       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
 # 6) nieuwe EI selection procedure beschrijven!!
 # 7) see train() in mfk_smt: OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
-# 8) discussie: beschrijven dat het interssant is te zien hoe bij noise de initiele surrogate niet heel goed is, maar dat zodra de noise estimates beter worden 
-#               door meer samples op de lower fidelities (dicht bij elkaar) de prediction vele malen beter wordt!!
-
+# 8) discussie: beschrijven dat het interssant is te zien hoe bij noise de initiele surrogate (of eigenlijk vooral het eerste sample dat dicht bij elkaar light)
+#           niet heel goed kan zijn, maar dat zodra de noise estimates beter worden 
+#           door meer samples op de lower fidelities (dicht bij elkaar) de prediction vele malen beter wordt!!
+# 9) combinatie eval_noise + heteroscedastic beschrijven voor proposed, reinterpolation voor de reference. 
+#   Beschrijven dat alhoewel de aangepaste EI procedure voor beide wordt gebruikt, dit gezien de reinterpolatie voor de reference gelijk is aan het gebruikelijke.
 # inits based on input settings
-setup = Input(2)
-reuse_values = False	
+setup = Input(0)
+# setup.conv_mod = 1
+reuse_values = False
 reload_endstate = False
 # NOTE deze waardes aanpassen werkt alleen als reuse_values en reload_endstate uitstaat!
 MFK_kwargs = {'print_global' : False,
-                'print_training' : False,
+                'print_training' : True,
                 'print_prediction' : False,
                 # 'eval_noise' : False,
-                'eval_noise' : setup.noise_regression,
+                'eval_noise' : True, # always true
                 'propagate_uncertainty' : False,  
                 'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
@@ -106,16 +84,18 @@ MFK_kwargs = {'print_global' : False,
                 'corr' : 'squar_exp',
                 }
 
-# mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt! 
-mf_model = MultiFidelityEGO(setup, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+# mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
+mf_model = MultiFidelityEGO(setup, proposed = True, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
+
 
 # NOTE for EVA: refinement levels
 mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
-    mf_model.set_L([2, 3, None])
+    mf_model.set_L([1, 2, None])
     mf_model.set_L_costs([1,9,10000])   
+
 
 # init plotting etc
 pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=True)
@@ -134,7 +114,7 @@ elif hasattr(setup,'model') and hasattr(setup,'prepare_succes') and reuse_values
     # ofwel via set_attr linken we de dict setup.model direct aan de values van mf_model (en die worden geupdate!)
     mf_model.set_state(deepcopy(setup.model)) 
 else: 
-    mf_model.prepare_proposed(setup)  
+    mf_model.prepare_initial_surrogate(setup)  
 
 setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)
 
@@ -147,20 +127,20 @@ if mf_model.X_mf[-1].shape[0] >= 3:
 else:
     print("Too little hifi samples for reliable linearity check!")
 
+# sys.exit()
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
-    # mf_model.optimize(pp,cp)
-    mf_model.optimize()   
+    mf_model.optimize(pp,cp)
+    # mf_model.optimize()   
 
-" post processiung "
+" post processing "
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence() 
 pp.draw_current_levels(mf_model)
 pp.render_video()
 
 print(" Simulation finished ")
-
 plt.show()
-# plt.draw()
+
 
