@@ -157,7 +157,14 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
             self.set_training_data(self, self.X_mf, self.Z_mf)
             
             # if we have all levels, we want optim_var to be true for resampling purposes! 
-            self.options['optim_var'] = True
+            if hasattr(self,'proposed') and self.proposed == True:
+                # NOTE no reinterpolation if proposed method, 
+                # bcs we do not used method weighing and we need the lower fidelities to retain their variances.
+                # reinterpolation on the other hand does not fucntion properly in smt if lower levels retain their variances.
+                self.options['optim_var'] = False 
+            else:
+                self.options['optim_var'] = True
+            
             
 
         # NOTE OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
@@ -182,10 +189,11 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 print("WARNING: TRAINING WITHOUT TOPLEVEL")
             self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
             self.not_maximum_level = True
-        super().train()
+            self.options['optim_var'] = False # explicitly set to false, the medium level is the 'high' fidelity here!!
         
-        if not hasattr(self,'mse_pred') and not hasattr(self,'Z_pred'): # bcs setK_mf called in create_update_K_pred
-            self.setK_mf()
+        super().train()
+        self.setK_mf() # ALWAYS call setK_mf bcs K_mf is used in weighed prediction, i.e. create_update_K_pred is only called AFTER weighed prediction -> = Fault!
+        
 
     def setK_mf(self):
         """
@@ -277,8 +285,10 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
 # https://stackoverflow.com/questions/1443129/completely-wrap-an-object-in-python
 class ObjectWrapper(MFK_smt):
     def __init__(self, baseObject : MFK_smt, l_fake):
-        # TODO dit neemt ook de oude K_mf mee dus je krijgt een zieke nesting van objecten! ofwel gebruik de MFK_smt set_state
+        
+        # direct onderstaande neemt ook de oude K_mf mee dus je krijgt een zieke nesting van objecten! ofwel gebruik de MFK_smt set_state
         # self.__dict__ = deepcopy({k: baseObject.__dict__[k] for k in set(list(baseObject.__dict__.keys())) - set({'K_truth','X_truth','Z_truth'})})
+
         MFK_wrap.__init__(self, **deepcopy(baseObject.MFK_kwargs))
         for key, item in baseObject.get_state().items():
             if key not in ['K_truth', 'K_pred']: # dont add the full dicts of these sub-models
@@ -286,7 +296,7 @@ class ObjectWrapper(MFK_smt):
 
         self.K_mf = []
         # fake hps for proposed method
-        self.hps = None # TODO zou nice zijn hier de echte hps, geconverteerd naar mijn format, te hebben
+        self.hps = None # zou nice zijn hier de echte hps, geconverteerd naar mijn format, te hebben indien gebruik OK
         self.l_fake = l_fake
 
     def predict(self, X):
@@ -306,7 +316,7 @@ class ObjectWrapper(MFK_smt):
         dx = self._differences(X, Y=X_other)
         d = self._componentwise_distance(dx) 
         r_ = self._correlation_types[self.options["corr"]](
-            # self.optimal_theta[self.l_fake], d TODO
+            # self.optimal_theta[self.l_fake], d NOTE poging tot normalizeren
             # max(self.optimal_theta), d * (10/2) ** 2
             self.optimal_theta[self.l_fake], d # TODO normalize with the average distance between real datapoints
         ).reshape(X.shape[0], X_other.shape[0])
