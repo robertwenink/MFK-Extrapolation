@@ -1,5 +1,5 @@
 
-# pyright: reportGeneralTypeIssues=false,
+# pyright: reportGeneralTypeIssues=false
 import numpy as np
 from copy import deepcopy, copy
 

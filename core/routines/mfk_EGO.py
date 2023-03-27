@@ -66,7 +66,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
                 x_best = x_min_sample if y_min_sample < y_min_extra else x_min_extra
             else:
                 if 'x_ei_max' in locals():
-                    x_best = x_ei_max
+                    x_best = x_ei_max # type:ignore
                 else:
                     x_best = None
 
@@ -78,7 +78,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             if self.proposed:
                 # correct both with ei_sample
                 ei_max_corrected = ei_max - ei_sample
-                ei_extra_corrected = ei_extra - ei_sample
+                ei_extra_corrected = ei_extra - ei_sample # type:ignore
 
             # used for giving preference over sampling a previous known point
                 # we do not want to infinitely sample new low-fi points while sometimes its good to sample a new hifi
@@ -87,7 +87,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
                 # check ei_criterion conditions
                 if (ei_max_corrected - ei_extra_corrected) / cost_ratio**(1/2) <= self.ei_criterion:
                     ei = ei_extra_corrected
-                    x_new = x_min_extra
+                    x_new = x_min_extra # type:ignore
                     if self.printing:
                         print(f"Using location of best extrapolation with corrected EI of {ei:6f}!")
                 else:

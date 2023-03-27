@@ -1,5 +1,6 @@
 #%%
 # # https://colab.research.google.com/github/SMTorg/smt/blob/master/tutorial/SMT_MFK_Noise.ipynb
+# pyright: reportGeneralTypeIssues=false
 
 import numpy as np
 from matplotlib import pyplot as plt
