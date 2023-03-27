@@ -42,6 +42,16 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting = Non
     There should already be a high-fidelity / truth Kriging model as part of mf_model.
     # TODO zonder noise is de (geplotte) oplossing toch anders, hoe kan dat? Zou nml perfect moeten zij.
     """
+
+    # hieronder is een oude comment vanuit kriging_unknown_z
+    # NOTE new idea for checking assumption? i.e. if estimated variance deviates too much from kriged variance? 
+    #       -> only works if estimate is correct! (check this somehow?)
+    #
+    # we might include as well the expected improvement, i.e. if the variance is reduced,
+    # do we expect to still see an ei?
+    # Further, even if S1 contributes most, if this is the case, we might only want to sample S0.
+
+
     # TODO deze manier werkt alleen als er noise aanwezig is;
     # als er geen noise aanwezig is moet de aanname PERFECT kloppen, wat nooit zo zal zijn
     if mf_model.printing:
@@ -50,14 +60,13 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting = Non
     
 
     # need the list without X[-1] too
-
     Z_interval = np.max(mf_model.Z_pred) - np.min(mf_model.Z_pred)
     deviation_allowed = .1 * Z_interval # 5 percent noise/deviation allowed in absolute value
 
     start_full = mf_model.Z_pred - 5 * mf_model.mse_pred
     end_full = mf_model.Z_pred + 5 * mf_model.mse_pred
 
-    # TODO extremely ugly ( but correct )
+    # extremely ugly ( but correct )
     inds = [
         i
         for sublist in [np.where(mf_model.X_mf[-1] == item)[0].tolist() for item in mf_model.X_unique]
@@ -114,7 +123,7 @@ def check_linearity(mf_model : ProposedMultiFidelityKriging, pp : Plotting = Non
                 print("NOT LINEAR ENOUGH")
         
         # draw the result
-        # TODO een optie opnemen om een extra level weer te geven zoals de truth.
+        # met een optie opnemen om een extra level weer te geven zoals de truth.
         # K_mf_alt = [*Z_k, Z_k_partial, Z_k_full] # zonder *Z_k wss
         if not pp is None:
             pp.draw_current_levels(mf_model, K_mf_extra=K_mf_partial)
