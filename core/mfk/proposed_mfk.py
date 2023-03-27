@@ -1,6 +1,6 @@
 # pyright: reportGeneralTypeIssues=false
 import numpy as np
-from copy import copy
+from copy import copy, deepcopy
 
 from smt.applications import MFK
 
@@ -30,7 +30,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
         super().prepare_initial_surrogate(setup, X_l)
 
         # and add the (reinterpolated!) predictive level
-        if isinstance(self, MFK_smt): 
+        if hasattr(self, 'proposed') and self.proposed == False:
+            pass
+        elif isinstance(self, MFK_smt): 
             # Universal Kriging does not always provide a representative correlation function for our goal due to the trend!
             # so, first tune an OK on lvl 1
             # K_mf_new = self.create_OKlevel(self.X_mf[1], self.Z_mf[1], append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
@@ -55,26 +57,30 @@ class ProposedMultiFidelityKriging(MFK_smt):
         USE_HET_NOISE_FOR_EI = True # use heteroscedastic noise addition?
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
+            if hasattr(self,'K_pred'):
+                # voor nu bij elke stap opnieuw creeeren om dat uit te sluiten
+                del self.K_pred
+
+            # NOTE voor nu alles met use_het_noise uit! 
+            # Het lijkt alsof smt geen geen noise regression meer doet over punten die al variance bij zich dragen
+            # bovendien wordt de noise van nabijliggende 'neppe' punten niet beperkt door 'echte' punten 
+            # maar wordt de noise van echte punten juist tot het niveau van de neppe punten gebracht omdat die noise 'gemeten, dus waarheid' is.
+            # dit is logisch normaliter maar werkt voor mij counter-productief!
+            # in effect wordt de noise wel geregressed, de level selection gebaseerd op variance is nog informatief, 
+            # maar de EI wordt niet met behulp hiervan berekend. Om dit wel te verkrijgen:
+            # 1) train met: 
+            #    - ['eval_noise'] = True
+            #    - ['optim_var'] = True -> re-interpolation
+            # 2) train met:
+            #    - ['eval_noise'] = False
+            #    - ['optim_var'] = False
+            #    - ['use_het_noise'] = True (voegt eigenlijk alleen maar de noise in de noise-output toe!)
+            # zo hebben we én een noise-regressed mean, en de variance output voor EI (consistent met level selection)
+
             if not hasattr(self,'K_pred'):
                 if self.printing:
                     print("Creating Kriging model of pred")
                 kwargs = copy(self.MFK_kwargs)
-                
-                # NOTE voor nu alles met use_het_noise uit! 
-                # Het lijkt alsof smt geen geen noise regression meer doet over punten die al variance bij zich dragen
-                # bovendien wordt de noise van nabijliggende 'neppe' punten niet beperkt door 'echte' punten 
-                # maar wordt de noise van echte punten juist tot het niveau van de neppe punten gebracht omdat die noise 'gemeten, dus waarheid' is.
-                # dit is logisch normaliter maar werkt voor mij counter-productief!
-                # in effect wordt de noise wel geregressed, de level selection gebaseerd op variance is nog informatief, 
-                # maar de EI wordt niet met behulp hiervan berekend. Om dit wel te verkrijgen:
-                # 1) train met: 
-                #    - ['eval_noise'] = True
-                #    - ['optim_var'] = True -> re-interpolation
-                # 2) train met:
-                #    - ['eval_noise'] = False
-                #    - ['optim_var'] = False
-                #    - ['use_het_noise'] = True (voegt eigenlijk alleen maar de noise in de noise-output toe!)
-                # zo hebben we én een noise-regressed mean, en de variance output voor EI (consistent met level selection)
 
                 # we are going to use heteroscedastic noise evaluation at the top level!
                 kwargs['eval_noise'] = True
@@ -97,29 +103,54 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     self.K_pred.options['noise0'] = [[0.0]]
                 else:
                     self.set_training_data(self.K_pred, [*self.X_mf[:self.max_nr_levels-1], self.X_unique], [*self.Z_mf[:self.max_nr_levels-1], self.Z_pred])
-                    self.K_pred.options['noise0'] = [[0.0]] * 3
-                
+                    # self.K_pred.options['noise0'] = [[0.0]] * 3
+
+                # NOTE voor uitleg van settings, bekijk: smt_debug_optimvar.py
                 self.K_pred.options['eval_noise'] = True
-                self.K_pred.options['optim_var'] = True # not using reinterpolation is way worse for EI
-                self.K_pred.options['use_het_noise'] = False 
+                self.K_pred.options['optim_var'] = False 
+                self.K_pred.options['use_het_noise'] = False
                 self.K_pred.train()
 
                 if USE_HET_NOISE_FOR_EI:
                     if USE_SF_PRED_MODEL:
                         self.K_pred.options['noise0'] = [self.mse_pred]
                     else:
-                        self.K_pred.options['noise0'] = [[0], [0], self.mse_pred]
+                        MSE = self.K_pred.predict_variances_all_levels(self.X_unique)[0]
+                        # TODO kijken of self.mse_pred + noise op samples locatie werkt!
+                        # TODO dit per sample individueel doen, niet aggregated (evaluated noises kunnen bijv wel anders zijn!)
+                        # tegelijkertijd: de minimum mogelijke noise is in principe met de minste hoeveelheid Kriging variance.
+                        mse_medium = np.min(MSE[:,1].reshape(-1,1))
+                        mse_hifi = np.min(MSE[:,2].reshape(-1,1)) # MSE from model with evaluated noise
+                        mse_pred_hifi = np.min(self.mse_pred[np.nonzero(self.mse_pred)])  # extrapolation mag nooit belangrijker zijn dan een sample dus neem de min!
+                        min_mse = np.min([mse_medium,mse_hifi,mse_pred_hifi])
 
-                    self.K_pred.options['eval_noise'] = False
-                    self.K_pred.options['optim_var'] = False
+                        mse_pred_adapted = deepcopy(self.mse_pred)
+                        mse_pred_adapted[np.nonzero(self.mse_pred == 0)] = min_mse
+
+                        self.K_pred.options['noise0'] = [MSE[:,0].reshape(-1,1), MSE[:,1].reshape(-1,1), mse_pred_adapted.reshape(-1,1)] # was self.mse_pred!
+                        # self.K_pred.options['noise0'] = [[0], [0], [self.mse_pred]]
+
+                    self.K_pred.options['eval_noise'] = False # NOTE als dit False is, doet optim_var niks
+                    self.K_pred.options['optim_var'] = False # NOTE True would have the same effect
                     self.K_pred.options['use_het_noise'] = True
 
                     self.K_pred.train()
+
+                    # TODO afmaken en checken
+                    # manual reinterpolation = misschien handig
+                    values = self.K_pred.predict_values(self.X_unique)
+                    self.K_pred.set_training_values(self.X_unique, values)
+                    self.K_pred.options['use_het_noise'] = False
+                    self.K_pred.options['noise0'] = [[0.0]] * 3
+                    self.K_pred.options["eval_noise"] = False 
+                    self.K_pred.train()
+
 
                 self.K_pred.X_opt, self.K_pred.z_opt = self.get_best_prediction(self.K_pred)
                 if self.printing:
                     print("Succesfully trained Kriging model of prediction", end = '\r')
             
+            # update the K_pred model in K_mf!
             self.setK_mf()
 
 
@@ -172,8 +203,6 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
             c_dist = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
 
-            # mask = np.isclose(c,1.0)  # then sampled point # TODO Cant do this for Universal Kriging, since corr = 1 if GLS is perfect fit
-            # idx = mask.any(axis=0)  
              
             # get columns with sampled points
             idx = isin_indices(X_unique, X_s)
@@ -182,7 +211,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
             
             # relative weighing of distance scaling wrt variance scaling
-            c_dist_rel_weight = 10
+            c_dist_rel_weight = 5
             
             #    we want to keep the correlation/weighing the same if there is no variance,
             #    and otherwise reduce it.
@@ -191,7 +220,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
             #    This decreases distance based influence if sigma > 0.
             #    We take the variance of the fraction, S_f
             
-            D_sf_norm = D_Sf * (D_Ef ** 2) # NOTE normalize D_sf to D_Ef
+            # NOTE normalize D_sf to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
+            D_sf_norm = D_Sf * (D_Ef ** 2) 
             c_var = np.exp(-(D_sf_norm)/(np.mean(D_sf_norm)*c_dist_rel_weight))
 
             # # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
@@ -223,6 +253,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
         if assign:
             self.Z_pred = Z_pred
             self.mse_pred = mse_pred
+
+        print(max(self.mse_pred))
 
         return Z_pred, mse_pred, Ef_weighed
     
@@ -267,6 +299,7 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     Z1, S1 = K1.predict(X_unique)
     S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
+    # indexing at 1 always returns a smt MFK object!
     if isinstance(K_mf[1], MFK) and K_mf[1].nlvl == 3:
         # use the MFK solution if available! 
         # predict_top_level could return either a l1 or l2 prediction.
@@ -325,11 +358,13 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     corr = K_mf[-1].corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
     lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
 
-    w = 1 * lin + corr * (1 - lin) 
-    w = lin
+    # w = 1 * lin + corr * (1 - lin) 
+    # w = lin
 
     # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
     w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1
+    w = 1 # TODO no method weighing
+
     # print(f"W = {w}")
     # * np.exp(-abs(Sf/Ef))
 
@@ -346,17 +381,6 @@ def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
     # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
     # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
     S2_p = w * (S1 + abs((S1 + S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
-
-    # TODO get the max uncertainty contribution at an hifi unsampled location`s point!
-    # S1 + abs((S1 - S0) * Ef) should be compared to the total KRIGED variance.
-    # i.e. above might not be equal to that.g
-
-    # NOTE new idea for checking assumption? i.e. if estimated variance deviates too much from kriged variance? 
-    #       -> only works if estimate is correct! (check this somehow?)
-    #
-    # we might include as well the expected improvement, i.e. if the variance is reduced,
-    # do we expect to still see an ei?
-    # Further, even if S1 contributes most, if this is the case, we might only want to sample S0.
 
     # get index in X_unique of x_b
     ind = np.all(X_unique == x_b, axis=1)
