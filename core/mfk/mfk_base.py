@@ -154,6 +154,12 @@ class MultiFidelityKrigingBase(KrigingBase):
         for i in range(l+1):
             self.sample(i, X_new)
 
+        # TODO keep this? otherwise write about it.
+        # sample around each high-fidelity sample for better noise predictions around it at the lower levels!
+        if l == self.max_nr_levels - 1:
+            for x in X_new:
+                self.sample_around(1, x, plus_min = False)
+
         if l == self.max_nr_levels - 1 and hasattr(self, 'X_truth'):
             # NOTE has to be after sampling underlying levels, for the correlation checks
             self.sample_truth(X_new)
@@ -198,6 +204,20 @@ class MultiFidelityKrigingBase(KrigingBase):
 
         self.sample_new(l,X_hifi)
         self.sample_nested(l, X_hifi)
+        self.sample_around(1, x_new)
+
+    def sample_around(self, l, x, plus_min = True):
+        " This function samples around some already known point to get a better noise estimate already from the start "
+        repeats = min(3,self.d)
+        X = np.repeat(correct_formatX(x,self.d), repeats * (1 + plus_min), axis=0)
+        
+        # TODO MINI LHS!!! 
+        X += np.eye(X.shape[0], X.shape[1],-0) * 0.001
+        if plus_min:
+            X += np.eye(X.shape[0], X.shape[1],-repeats) * -0.001
+
+        # X[np.diag_indices_from(X)] -= 0.001
+        self.sample_nested(l, X)
 
     def sample_truth(self, X = None):
         """
@@ -253,9 +273,8 @@ class MultiFidelityKrigingBase(KrigingBase):
         Useful for plotting.
         """
 
-        res_exc = np.array([item for item in self.X_unique if item not in X_exclude])
-
-        return correct_formatX(res_exc, self.d)
+        res_exc = self.X_unique[isin_indices(self.X_unique, X_exclude, inversed = True)]
+        return res_exc
 
     def create_OKlevel(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, name = "", append : bool = True, add_empty : bool = False):
         """
@@ -333,9 +352,10 @@ class MultiFidelityKrigingBase(KrigingBase):
         """
         Gets the current state of the data of the MF Kriging model.
         """
+        # TODO deze functie wordt niet aangeroepen!! maar die van MFK wrap: inherentence probleem
         state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) 
         - set({'options','printer','D_all','F','p','q','optimal_rlf_value','ij','supports','X','X_norma','best_iteration_fail','nb_ill_matrix','sigma2_rho','training_points','y','nt','theta0','noise0',
-        'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
+        'kernel','K_mf','solver','K_truth','X_infill','tune_prediction_every','tune_lower_every','tune_counter','lambs','lamb1','lamb2','pdf'})}
 
         # works for both smt as org
         K_mf_list = []
