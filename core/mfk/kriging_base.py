@@ -1,4 +1,5 @@
 # pyright: reportGeneralTypeIssues=false, reportUnboundVariable = false
+from copy import copy
 import numpy as np
 from pyDOE2 import lhs
 from scipy.optimize import minimize
@@ -9,6 +10,7 @@ from utils.formatting_utils import correct_formatX
 
 import core.routines.EGO as ego
 import core.mfk.mfk_base as mf
+from utils.selection_utils import isin_indices
 
 class KrigingBase():
     def __init__(self, setup, *args, **kwargs) -> None:
@@ -19,6 +21,12 @@ class KrigingBase():
 
         # otherwise always same randomstate at each step, then global search is not diversifying!!
         self.randomstate = 0
+
+        # such that theres no need to test for hasattr proposed
+        if not hasattr(self,'proposed'):
+            self.proposed = False 
+
+        self.use_single_fidelities = False
 
     def find_best_point(self, prediction_function, criterion = 'SBO', x_centre_focus = None):
         """
@@ -34,7 +42,7 @@ class KrigingBase():
             # y_min = np.min(self.Z_pred)
             
             def obj_k(x): 
-                y_pred, mse_pred = prediction_function(x)
+                y_pred, mse_pred = prediction_function(np.atleast_2d(x))
                 return -self.EI(y_min, y_pred, np.sqrt(mse_pred)) 
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
@@ -42,7 +50,7 @@ class KrigingBase():
                 return float(y_pred)
 
         success = False
-        n_start = 40 # vind niet de weg naar optimum bij 20 voor EVA! # TODO evt met 10*d
+        n_start_org = 40 # vind niet de weg naar optimum bij 20 voor EVA! # TODO evt met 10*d
         n_optim = 1  # in order to have some success optimizations with SLSQP
         n_max_optim = 20            
 
@@ -52,9 +60,9 @@ class KrigingBase():
             if not x_centre_focus is None:
                 focus_area = 0.2 # 20%
                 r = self.bounds[1, :] - self.bounds[0, :]
-                ub = np.min(np.vstack((self.bounds[1, :], x_centre_focus + r * 0.2)),axis = 0)
-                lb = np.max(np.vstack((self.bounds[0, :], x_centre_focus - r * 0.2)),axis = 0)
-                n_start = int(n_start/4)
+                ub = np.min(np.vstack((self.bounds[1, :], x_centre_focus + r * focus_area)),axis = 0)
+                lb = np.max(np.vstack((self.bounds[0, :], x_centre_focus - r * focus_area)),axis = 0)
+                n_start = int(copy(n_start_org)/4)
 
                 x_start_focus = lb + lhs(
                     self.d,
@@ -63,6 +71,8 @@ class KrigingBase():
                     iterations=20,
                     random_state=self.randomstate,
                 ) * (ub - lb)
+            else:
+                n_start = n_start_org
 
             # x_start = self._sampling(n_start)
             x_start = self.bounds[0, :] + lhs(
@@ -156,7 +166,9 @@ class KrigingBase():
         return best_ind # type: ignore
 
     def get_best_extrapolation(self, arg = False):
-        best_ind = np.argmin(self.Z_pred)
+        inds = isin_indices(self.X_unique, self.X_mf[-1], inversed = True) # excluding samples
+        min = np.min(self.Z_pred[inds])
+        best_ind = np.where(min == self.Z_pred)[0][0] # can be multiple possible, then only take one!
         if not arg:
             return correct_formatX(self.X_unique[best_ind], self.d), self.Z_pred[best_ind] 
         return best_ind

@@ -201,15 +201,14 @@ class TestFunction(Solver):
                 self.check_format_y(conv)
 
                 " transformation "
-                # TODO scale contributions according to size of domain 
-                # -> maar data range is belangrijker! dit transformation model is afgestemd op forrester (ongeveer datarange van 20) -> normalize!
                 # using abs(conv - 1) is a non-linear effect, but is required for mimicking Forrester/Meliani (in which case it is not non-linear??)
-                linear_gain_mod = 2 * self.d
+                data_range_multiplier = (self.value_metrics[1] - self.value_metrics[0]) / 20 # is ~20 for forrester
+                linear_gain_mod = 1 * data_range_multiplier
                 A = conv
                 B = 10 * (conv - 1) * linear_gain_mod
                 C = -5 * (conv - 1) * linear_gain_mod
 
-                val = A * val + B * (np.sum(X, axis=1) - 0.5) + C
+                val = A * val + B * (np.sum(X, axis=1) / self.d - 0.5 * np.max(self.bound_range)) + C
 
                 if self.solver_noise:
                     " convergence noise "
@@ -234,7 +233,8 @@ class TestFunction(Solver):
                     # value metrics: min, max, mean, median; used here: median
                     val += ratio_abs_rel_noise * self.value_metrics[2] * conv_noise
                 
-            if self.solver_noise and l != -1:
+            # TODO NOTE assume toplevel without noise for less stochastic comparison!
+            if self.solver_noise and l != -1 and not l is None:
                 " noise regardless of fidelity level execpt for the truth / lvl 2 "
                 # provide noise, present at every fidelity level and relative to the noise value
                 # defined as 1/10th of the noise_level

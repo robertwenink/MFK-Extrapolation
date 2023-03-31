@@ -18,7 +18,7 @@ class MFK_wrap(MFK):
         # not: ,'F_all','p_all','q_all','y_norma_all'
         state = {k: self.__dict__[k] for k in set(list(self.__dict__.keys())) 
         - set({'options','printer','D_all','F','p','q','optimal_rlf_value','ij','supports','X','X_norma','best_iteration_fail','nb_ill_matrix','sigma2_rho','training_points','y','nt',
-        'kernel','K_mf','solver','K_truth','K_pred','X_infill','tune_prediction_every','tune_lower_every','tune_counter'})}
+        'kernel','K_mf','solver','K_truth','K_pred','X_infill','tune_prediction_every','tune_lower_every','tune_counter','lambs','lamb1','lamb2','pdf'})}
         
         if hasattr(self, 'K_truth'):
             state['K_truth'] = self.K_truth.get_state()
@@ -39,7 +39,18 @@ class MFK_wrap(MFK):
                 setattr(self, key, data_dict[key])
 
     def predict(self, X):
-        return self.predict_values(X).reshape(-1,), self.predict_variances(X).reshape(-1,)
+        y, mse = self.predict_values(X).reshape(-1,), self.predict_variances(X).reshape(-1,)
+        return y, mse
+    
+    # TODO this is only called for sf functions. Double of the function in Object_wrapper
+    def corr(self, X, X_other):
+        # NOTE from mfk.py line 419
+        dx = self._differences(X, Y=X_other)
+        d = self._componentwise_distance(dx) 
+        r_ = self._correlation_types[self.options["corr"]](
+            self.optimal_theta[0], d 
+        ).reshape(X.shape[0], X_other.shape[0])
+        return r_
 
 class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
     """Provide a wrapper to smt`s MFK, to interface with the own code."""
@@ -121,7 +132,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                 self.K_truth.set_state(data_dict)
             else:
                 self.set_training_data(self.K_truth, [*self.X_mf[:self.max_nr_levels-1], self.X_truth], [*self.Z_mf[:self.max_nr_levels-1], self.Z_truth])
-                self.K_truth.train() # maak nog pullrequest aan voor optim_var bug
+                self.K_truth.train() 
                 self.K_truth.X_opt, self.K_truth.z_opt = self.get_best_prediction(self.K_truth, x_centre_focus = self.K_truth.X_opt if hasattr(self.K_truth,'X_opt') else None)
                 if self.printing:
                     print("Succesfully trained Kriging model of truth")#, end = '\r')
@@ -148,54 +159,37 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         """
         Update the training data and train.
         """
-        if self.X_mf[-1].shape[0] >= len(self.X_mf):
-            # then just train the full model
-            if hasattr(self,'not_maximum_level'):
-                # when changing the amount of used levels, the model should be re-initialised
-                super().__init__(**self.MFK_kwargs)
-                del self.not_maximum_level
-            self.set_training_data(self, self.X_mf, self.Z_mf)
-            
-            # if we have all levels, we want optim_var to be true for resampling purposes! 
-            if hasattr(self,'proposed') and self.proposed == True:
-                # NOTE no reinterpolation if proposed method, 
-                # bcs we do not used method weighing and we need the lower fidelities to retain their variances.
-                # reinterpolation on the other hand does not fucntion properly in smt if lower levels retain their variances.
-                self.options['optim_var'] = False 
+        # TODO this is only valid when no method weighing is done!!
+        if not (self.proposed and self.use_single_fidelities) or True: # TODO
+            if self.X_mf[-1].shape[0] >= len(self.X_mf):
+                # then just train the full model
+                if hasattr(self,'not_maximum_level'):
+                    # when changing the amount of used levels, the model should be re-initialised
+                    super().__init__(**self.MFK_kwargs)
+                    del self.not_maximum_level
+                self.set_training_data(self, self.X_mf, self.Z_mf)
+                
+                # if we have all levels, we want optim_var to be true for resampling purposes! 
+                if hasattr(self,'proposed') and self.proposed == True:
+                    # NOTE no reinterpolation if proposed method, 
+                    # bcs we do not used method weighing and we need the lower fidelities to retain their variances.
+                    # reinterpolation on the other hand does not fucntion properly in smt if lower levels retain their variances.
+                    self.options['optim_var'] = False 
+                else:
+                    self.options['optim_var'] = True # TODO Now always False!! was True
+
             else:
-                self.options['optim_var'] = True
+                if self.printing:
+                    print("WARNING: TRAINING WITHOUT TOPLEVEL")
+                self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
+                self.not_maximum_level = True
+                self.options['optim_var'] = False # explicitly set to false, the medium level is the 'high' fidelity here!!
             
-            
-
-        # NOTE OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
-        # elif self.X_mf[-1].shape[0] >= 2:
-        #     # then use the top 2 levels, NOTE based on using 3 levels -> quite proposed method specific
-        #     if not np.all(self.X_mf[0].shape[0] == [x.shape[0] for x in self.X_mf[:-1]]):
-        #         print("Not using extra information on a lower level (no perfect nesting!)")
-
-        #     if hasattr(self,'not_maximum_level') and self.not_maximum_level == True:
-        #         # when changing the amount of used levels, the model should be re-initialised
-        #         super().__init__(**self.MFK_kwargs)
-        #         print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ\n\
-        #               TRAINING WITH TOP 2 LEVELS ONLY FROM NOW\n\
-        #               ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
-        #     self.not_maximum_level = False
-            
-        #     print("Traning with the 2 top levels")
-        #     self.set_training_data(self, self.X_mf[-2:], self.Z_mf[-2:])
-
-        else:
-            if self.printing:
-                print("WARNING: TRAINING WITHOUT TOPLEVEL")
-            self.set_training_data(self, self.X_mf[:self.max_nr_levels - 1], self.Z_mf[:self.max_nr_levels - 1])
-            self.not_maximum_level = True
-            self.options['optim_var'] = False # explicitly set to false, the medium level is the 'high' fidelity here!!
-        
-        super().train()
+            super().train()
         self.setK_mf() # ALWAYS call setK_mf bcs K_mf is used in weighed prediction, i.e. create_update_K_pred is only called AFTER weighed prediction -> = Fault!
         
 
-    def setK_mf(self):
+    def setK_mf(self, only_rebuild_top_level = False, retrain = False):
         """
         After each model update this function needs to be called to set the K_mf list, 
         such that the code does not change with respect to stacked Kriging models (original 'MFK')
@@ -205,18 +199,50 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         2) The proposed mfk model; 
             our model then has, similar to K_truth, a Z_pred and X_pred (next to mse_pred)
             if proposed exists, we init K_mf using it
+
+        @param only_rebuild_top_level: only retrain the top level. This implies lower levels are/should be already up-to-date!
+            in terms of training only actually important while using single fidelity levels, since they are created/trained in this function.
         """
+
+        # in case of proposed
+        USE_SF_LEVELS_FOR_PROPOSED = self.use_single_fidelities
+        
         K_mf = []
 
-        nlvl = 3 if hasattr(self, 'K_pred') else self.nlvl
-        for l in range(nlvl):
-            base_object = self
-            if l == 2 and hasattr(self, 'K_pred'):
-                base_object = self.K_pred
-                l = base_object.nlvl - 1 # needed to get correct predict_l in case of SF K_pred
-            obj = ObjectWrapper(base_object, l)
+        nlvl = 3 if self.proposed else self.nlvl
 
-            K_mf.append(obj)
+        if USE_SF_LEVELS_FOR_PROPOSED and self.proposed:
+            # then top-level will be K_pred, which should already be formulated (setK_mf called after create_update_K_pred!)
+            if only_rebuild_top_level:
+                # just re-use the previously defined and trained levels
+                for l in range(nlvl - 1):
+                    K_mf.append(self.K_mf[l])
+            else:
+                if self.printing:
+                    print("Training single-fidelity lower levels.")
+                for l in range(nlvl - 1):
+                    if len(self.K_mf) != 0 and not retrain: #K_mf is defined in the kriging_base
+                        sf_model = self._create_train_sf_model(l, old_model=self.K_mf[l])
+                    else:
+                        sf_model = self._create_train_sf_model(l)
+                    K_mf.append(sf_model)
+
+            # always add current K_pred model
+            if hasattr(self,'K_pred'):
+                # K_pred not defined on first call (it uses the lower levels of K_mf to be build)
+                K_mf.append(self.K_pred)
+        else:
+            for l in range(nlvl):
+                base_object = self
+                if l == 2 and self.proposed:
+                    if hasattr(self, 'K_pred'):
+                        base_object = self.K_pred
+                        l = base_object.nlvl - 1 # needed to get correct predict_l in case of SF K_pred
+                        obj = ObjectWrapper(base_object, l)
+                else:
+                    obj = ObjectWrapper(base_object, l)
+
+                K_mf.append(obj) #type:ignore
 
         # # to test
         # for i, K in enumerate(K_mf):
@@ -226,6 +252,31 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         #     print("---------------------------------------")
 
         self.K_mf = K_mf
+
+    def _create_train_sf_model(self, l, old_model = None):
+        """
+        For creating and training a single fidelity level Kriging model (implemented as a MFK with just one level)
+        """
+
+        # initialise
+        if old_model is None:
+            kwargs = deepcopy(self.MFK_kwargs)
+            kwargs['optim_var'] = False # required False!
+            kwargs['eval_noise'] = True
+            kwargs['noise0'] = [[0.0]] # stupid that this is required
+            kwargs['n_start'] *= 2
+            sf_model = MFK_wrap(**kwargs)
+            sf_model.name = f"sf_model_{l}"
+        else:
+            sf_model = old_model
+            # self.options['noise0'] = [[0.0]]
+
+
+        # train
+        sf_model.set_training_values(self.X_mf[l], self.Z_mf[l])
+        sf_model.train()
+
+        return sf_model
 
     def _predict_l(self, X_new, l):
         """
@@ -295,8 +346,6 @@ class ObjectWrapper(MFK_smt):
                 self.__setattr__(key,deepcopy(item))
 
         self.K_mf = []
-        # fake hps for proposed method
-        self.hps = None # zou nice zijn hier de echte hps, geconverteerd naar mijn format, te hebben indien gebruik OK
         self.l_fake = l_fake
 
     def predict(self, X):
@@ -310,7 +359,7 @@ class ObjectWrapper(MFK_smt):
         """
         return self._predict_l(X, self.l_fake)
     
-    def corr(self, X, X_other, hps):
+    def corr(self, X, X_other):
         # NOTE from mfk.py line 419
         # dx = self._differences(X, Y=self.X_norma_all[lvl])
         dx = self._differences(X, Y=X_other)

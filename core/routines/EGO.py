@@ -19,7 +19,12 @@ class EfficientGlobalOptimization():
         param y_pred: (predicted) points at level l, locations X_pred
         param sigma_pred: (predicted) variance of points at level l, locations X_pred
         """
+        # was:
+        # u = np.where(sigma_pred == 0, 0, (y_min - y_pred) / sigma_pred)  # normalization
+        # EI = sigma_pred * (u * scistats.norm.cdf(u) + scistats.norm.pdf(u))
 
-        u = np.where(sigma_pred == 0, 0, (y_min - y_pred) / sigma_pred)  # normalization
-        EI = sigma_pred * (u * scistats.norm.cdf(u) + scistats.norm.pdf(u))
+        # maar, in dit geval (en igv reinterpolation) behoort een sample gebaseerd te worden op zijn waarde.
+        # de expected improvement van een betere extrapolation, maar met sigma 0 is immers (y_min - y_pred)
+        u = np.where(sigma_pred == 0, np.inf, (y_min - y_pred) / sigma_pred)  # normalization
+        EI = sigma_pred * scistats.norm.pdf(u) + (y_min - y_pred) * scistats.norm.cdf(u)
         return float(EI)

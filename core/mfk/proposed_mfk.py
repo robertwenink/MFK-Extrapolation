@@ -1,8 +1,11 @@
 # pyright: reportGeneralTypeIssues=false
+import time
 import numpy as np
+import scipy.integrate
 from copy import copy, deepcopy
 
 from smt.applications import MFK
+from numba import njit 
 
 from core.sampling.DoE import LHS
 from core.mfk.mfk_smt import MFK_smt, MFK_wrap
@@ -25,6 +28,15 @@ class ProposedMultiFidelityKriging(MFK_smt):
         """
         super().__init__(*args, **kwargs)
 
+        # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz/simpon integral part
+        self.lambs = np.arange(-5, 5, 0.01)
+        self.lamb1, self.lamb2 = np.meshgrid(self.lambs, self.lambs)
+
+        # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
+        # bivariate : https://mathworld.wolfram.com/BivariateNormalDistribution.html
+        rho = 0.0   # pearson correlation coefficient between variance of lvl 0 and 1 !!! In this work, we assume full independence, so 0
+        self.pdf = np.exp(-(self.lamb1 ** 2 - 2 * rho * self.lamb1 * self.lamb2 + self.lamb2 ** 2) / (2 * (1-rho**2))) / (2 * np.pi * np.sqrt(1-rho**2))
+
 
     def prepare_initial_surrogate(self, setup, X_l = None):
         super().prepare_initial_surrogate(setup, X_l)
@@ -38,7 +50,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # K_mf_new = self.create_OKlevel(self.X_mf[1], self.Z_mf[1], append = True, tune = True, hps_noise_ub = True) # sigma_hat is not known yet!
 
             # do an initial prediction (based on lvl index -1 = lvl 1)
-            self.Z_pred, self.mse_pred, _ = self.weighted_prediction()
+            self.weighted_prediction()
             self.create_update_K_pred()
 
             # K_mf_new.train(self.X_unique, Z_pred, tune = True, retuning = False, R_diagonal = mse_pred / K_mf_new.sigma_hat)
@@ -49,18 +61,17 @@ class ProposedMultiFidelityKriging(MFK_smt):
             K_mf_new = self.create_OKlevel(self.X_unique, Z_pred, append = True, tune = True, hps_noise_ub = True, R_diagonal= mse_pred / self.K_mf[-1].sigma_hat)
             K_mf_new.reinterpolate()
 
+        # auxiliary help variable
         self.prepare_succes = True
 
     def create_update_K_pred(self, data_dict = None):
         # options
-        USE_SF_PRED_MODEL = False # use as single fidelity?
-        USE_HET_NOISE_FOR_EI = True # use heteroscedastic noise addition?
+        USE_SF_PRED_MODEL = False # base Proposed model on single fidelity levels?
+        USE_SF_PRED_MODEL = self.use_single_fidelities # base Proposed model on single fidelity levels?
+        USE_HET_NOISE_FOR_EI = False # use heteroscedastic noise addition?
+        DO_MANUAL_REINTERPOLATE = False
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
-            if hasattr(self,'K_pred'):
-                # voor nu bij elke stap opnieuw creeeren om dat uit te sluiten
-                del self.K_pred
-
             # NOTE voor nu alles met use_het_noise uit! 
             # Het lijkt alsof smt geen geen noise regression meer doet over punten die al variance bij zich dragen
             # bovendien wordt de noise van nabijliggende 'neppe' punten niet beperkt door 'echte' punten 
@@ -88,7 +99,6 @@ class ProposedMultiFidelityKriging(MFK_smt):
                 kwargs['theta_bounds'] = [0.01,20]
                 kwargs['theta0'] = [kwargs['theta_bounds'][0]]
                 kwargs['print_training'] = False
-                # kwargs['optim_var'] = True
 
                 self.K_pred = MFK_wrap(**kwargs)
                 self.K_pred.d = self.d
@@ -107,9 +117,13 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
                 # NOTE voor uitleg van settings, bekijk: smt_debug_optimvar.py
                 self.K_pred.options['eval_noise'] = True
-                self.K_pred.options['optim_var'] = False 
+                self.K_pred.options['optim_var'] = True # TODO nu doen beide methodes reintegration!
                 self.K_pred.options['use_het_noise'] = False
                 self.K_pred.train()
+
+                # tested: all 0!
+                # _,mse_test = self.K_pred.predict(self.X_unique)
+                # print(f"mse_test: {mse_test}")
 
                 if USE_HET_NOISE_FOR_EI:
                     if USE_SF_PRED_MODEL:
@@ -136,22 +150,26 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
                     self.K_pred.train()
 
+                if DO_MANUAL_REINTERPOLATE:
                     # TODO afmaken en checken
                     # manual reinterpolation = misschien handig
                     values = self.K_pred.predict_values(self.X_unique)
                     self.K_pred.set_training_values(self.X_unique, values)
                     self.K_pred.options['use_het_noise'] = False
-                    self.K_pred.options['noise0'] = [[0.0]] * 3
+                    if USE_SF_PRED_MODEL:
+                        self.K_pred.options['noise0'] = [[0.0]]
+                    else:
+                        self.K_pred.options['noise0'] = [[0.0]] * 3
                     self.K_pred.options["eval_noise"] = False 
                     self.K_pred.train()
 
 
                 self.K_pred.X_opt, self.K_pred.z_opt = self.get_best_prediction(self.K_pred)
                 if self.printing:
-                    print("Succesfully trained Kriging model of prediction", end = '\r')
+                    print("Succesfully trained Kriging model of prediction")#, end = '\r')
             
             # update the K_pred model in K_mf!
-            self.setK_mf()
+            self.setK_mf(only_rebuild_top_level=True)
 
 
     def weighted_prediction(self, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
@@ -172,7 +190,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         @param X_test: only used when assessing one single point in isolation instead of complete X_unique.
 
         X_s, Z_s and assign are only used when using a reduced dataset in linearity check
-        """
+        """ 
 
         # data pre-setting
         X_unique, K_mf =  self.X_unique, self.K_mf
@@ -185,23 +203,22 @@ class ProposedMultiFidelityKriging(MFK_smt):
         
         # In case there is only one sample, nothing to weigh
         if len(Z_s) == 1:
-            Z_pred, mse_pred, D_Sf, Ef_weighed = Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_sf
+            Z_pred, mse_pred, Sf2_weighed, Ef_weighed = self.Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_Sf2
         else:
             " Collect new results "
             # NOTE if not in X_unique, we could just add a 0 to all previous,
             # might be faster but more edge-cases
-            n = X_s.shape[0]
-            D_z, D_mse, D_Sf, D_Ef = [], [], [], []
+            D_z, D_mse, D_Sf2, D_Ef = [], [], [], []
             for i in range(X_s.shape[0]):
-                Z_p, mse_p, Sf, Ef = Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
-                D_z.append(Z_p), D_mse.append(mse_p), D_Sf.append(Sf), D_Ef.append(Ef) # type: ignore
-            D_z, D_mse, D_Sf, D_Ef = np.array(D_z), np.array(D_mse), np.array(D_Sf), np.array(D_Ef)
+                Z_p, mse_p, Sf2, Ef = self.Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
+                D_z.append(Z_p), D_mse.append(mse_p), D_Sf2.append(Sf2), D_Ef.append(Ef) # type: ignore
+            D_z, D_mse, D_Sf2, D_Ef = np.array(D_z), np.array(D_mse), np.array(D_Sf2), np.array(D_Ef)
 
             " Weighing "
             # 1) distance based: take the (tuned) Kriging correlation function
             # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
             # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-            c_dist = K_mf[-1].corr(X_s, X_unique, K_mf[-1].hps)
+            c_dist = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
 
              
             # get columns with sampled points
@@ -220,12 +237,18 @@ class ProposedMultiFidelityKriging(MFK_smt):
             #    This decreases distance based influence if sigma > 0.
             #    We take the variance of the fraction, S_f
             
-            # NOTE normalize D_sf to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
-            D_sf_norm = D_Sf * (D_Ef ** 2) 
-            c_var = np.exp(-(D_sf_norm)/(np.mean(D_sf_norm)*c_dist_rel_weight))
+            # NOTE normalize D_Sf2 to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
+            D_Sf2_norm = D_Sf2 * (abs(D_Ef) ** 2) 
+            c_var = np.exp(-(D_Sf2_norm)/(np.min(D_Sf2_norm)*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
 
             # # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
             c = (c_dist.T * c_var).T 
+             
+            if self.printing:
+                if np.min(D_Sf2) * 1000 < np.max(D_Sf2):
+                    print("FF kijken hier")
+                if np.min(D_Sf2) > np.max(D_Ef**2):
+                    print("WARNING: np.min(D_Sf) > np.max(D_Ef)")
 
             " Scale to sum to 1; correct for sampled locations "
             # Contributions coefficients should sum up to 1.
@@ -246,17 +269,18 @@ class ProposedMultiFidelityKriging(MFK_smt):
             mse_pred = np.sum(np.multiply(D_mse, c_mse), axis=0)
 
             Ef_weighed = np.dot(D_Ef, c_z)
+            Sf2_weighed = np.dot(D_Sf2, c_z)
 
-        # print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
+        # print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf2, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
         # assign the found values to the mf_model, in order to be easily retrieved.
         if assign:
             self.Z_pred = Z_pred
             self.mse_pred = mse_pred
+            if self.printing:
+                print(f"Max mse_pred = {max(self.mse_pred)}")
 
-        print(max(self.mse_pred))
-
-        return Z_pred, mse_pred, Ef_weighed
+        return Z_pred, mse_pred, Ef_weighed, np.sqrt(Sf2_weighed)
     
     
     def set_state(self, data_dict):
@@ -273,126 +297,155 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
 
 
-def Kriging_unknown_z(x_b, X_unique, z_pred, K_mf):
-    """
-    Assume the relative differences at one location are representative for the
-     differences elsewhere in the domain, if we scale according to the same convergence.
-     Use this to predict a location, provide an correction/expectation based on chained variances.
+    def Kriging_unknown_z(self, x_b, X_unique, z_pred, K_mf):
+        """
+        Assume the relative differences at one location are representative for the
+        differences elsewhere in the domain, if we scale according to the same convergence.
+        Use this to predict a location, provide an correction/expectation based on chained variances.
 
-    @param x_b: a (presumably best) location at which we have/will sample(d) the new level.
-    @param X_unique: all unique previously sampled locations in X.
-    @param z_pred: new level`s sampled location value(s).
-    @param K_mf: Kriging models of the levels, should only contain known levels.
-    @return extrapolated predictions Z2_p, corresponding mse S2_p (squared!)
-    """
+        @param x_b: a (presumably best) location at which we have/will sample(d) the new level.
+        @param X_unique: all unique previously sampled locations in X.
+        @param z_pred: new level`s sampled location value(s).
+        @param K_mf: Kriging models of the levels, should only contain known levels.
+        @return extrapolated predictions Z2_p, corresponding mse S2_p (squared!)
+        """
 
-    K0 = K_mf[0]
-    K1 = K_mf[1]
+        K0 = K_mf[0]
+        K1 = K_mf[1]
 
-    # get values corresponding to x_b of previous 2 levels
-    z0_b, s0_b = K0.predict(x_b)
-    z1_b, s1_b = K1.predict(x_b)
-    s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)  # NOTE apparent noise due to smt nugget
+        # get values corresponding to x_b of previous 2 levels
+        # NOTE using predict might be less reliable than using the actual sample
+        #   because predict is not necessarily equal to the sample. 
+        #   So, if noise/mean estimates are not very well we could get terrible results.
+        x_b = correct_formatX(x_b, self.d)
+        z0_b, s0_b = K0.predict(x_b)
+        z1_b, s1_b = K1.predict(x_b)
+        s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)  # NOTE apparent noise due to smt nugget
 
-    # get all other values of previous 2 levels
-    Z0, S0 = K0.predict(X_unique)
-    Z1, S1 = K1.predict(X_unique)
-    S0, S1 = np.sqrt(S0), np.sqrt(S1)
+        # using the actual samples! # NOTE VEEL VEEL SLECHTER, hebben echt noise regression nodig
+        # mask = isin_indices(X_unique, correct_formatX(x_b,self.d))
+        # z0_b = self.Z_mf[0][mask]
+        # z1_b = self.Z_mf[1][mask]
 
-    # indexing at 1 always returns a smt MFK object!
-    if isinstance(K_mf[1], MFK) and K_mf[1].nlvl == 3:
-        # use the MFK solution if available! 
-        # predict_top_level could return either a l1 or l2 prediction.
-        Z1_alt, S1_alt = K_mf[1].predict_top_level(X_unique)
-        S1_alt = np.sqrt(S1_alt)
-    else:
-        Z1_alt, S1_alt = Z1, S1
+        # get all other values of previous 2 levels
+        Z0, S0 = K0.predict(X_unique)
+        Z1, S1 = K1.predict(X_unique)
+        S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
-    def exp_f(lamb1, lamb2):
-        """get expectation of the function according to
-        integration of standard normal gaussian function lamb"""
-        c1 = z_pred - z1_b
-        c2 = z1_b - z0_b
-        div = c2 + lamb1 * s1_b + lamb2 * s0_b
-        f = np.divide((c1 - lamb1 * s1_b), div, out=np.zeros_like(lamb1), where=div!=0)
-        # f = (c1 - lamb1 * s1_b) / (
-        #     c2 + lamb1 * s1_b + lamb2 * s0_b + np.finfo(np.float64).eps
-        # )
+        # indexing at 1 always returns a smt MFK object!
+        if isinstance(K_mf[1], MFK) and K_mf[1].nlvl == 3: # TODO never use smt as alternative!!
+            # use the MFK solution if available! 
+            # predict_top_level could return either a l1 or l2 prediction.
+            Z1_alt, S1_alt = K_mf[1].predict_top_level(X_unique)
+            S1_alt = np.sqrt(S1_alt)
+        else:
+            Z1_alt, S1_alt = Z1, S1
+        
+        # variables for function below
+        Ef_non_corrected = ((z_pred - z1_b) / (z1_b - z0_b)).item()
 
-        # scipy.stats.norm.pdf(lamb) == np.exp(-x**2 / 2) / np.sqrt(2*np.pi)
-        # bivariate : https://mathworld.wolfram.com/BivariateNormalDistribution.html
-        return f * np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi), f
+        # @njit
+        def exp_f(lamb1, lamb2, pdf):
+            """get expectation of the function according to
+            integration of standard normal gaussian function lamb"""
+            c1 = z_pred - z1_b
+            c2 = z1_b - z0_b
+            div = c2 + lamb1 * s1_b + lamb2 * s0_b
 
-    # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz part
-    # 1000 steps; evaluates norm to 0.9999994113250346 ( met 1000x1000 evaluations!!)
-    # 200 steps to 0.9999986775391365
-    # 100 to       0.9999984361381121
-    # 20 to        0.9999895499778308
-    lambs = np.arange(-5, 5, 0.1)
-    lamb1, lamb2 = np.meshgrid(lambs, lambs)
+            f = np.divide((c1 - lamb1 * s1_b), div, out=np.ones_like(lamb1) * 0, where=div!=0) # liever wat kleiner (trekt naar Z1 toe) dan heel groot, dus 0
+            # f = np.zeros_like(lamb1)
+            # mask = np.nonzero(div)
+            # f[mask] = np.divide((c1 - lamb1[mask] * s1_b), div[mask])
 
-    # evaluate expectation
-    Y, f = exp_f(lamb1, lamb2)
-    Ef = np.trapz(
-        np.trapz(Y, lambs, axis=0), lambs, axis=0
-    )  # axis=0 because the last axis (default) are the dimensions.
+            return f * pdf, f
+        
+        # start = time.time()
+        # evaluate expectation
+        Y, f = exp_f(self.lamb1, self.lamb2, self.pdf)
+        
+        Ef = scipy.integrate.simpson(
+            scipy.integrate.simpson(Y, self.lambs, axis=0), self.lambs, axis=0
+        )  # axis=0 because the last axis (default) are the dimensions.
 
-    def var_f(lamb1, lamb2):
-        # Var X = E[(X-E[X])**2]
-        # down below: random variable - exp random variable, squared, times the pdf of rho (N(0,1));
-        # we integrate this function and retrieve the expectation of this expression, i.e. the variance.
-        return (f - Ef) ** 2 * np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi)
+        # mid = time.time()
+        # print(f"double integral took: {mid - start}")
 
-    Y = var_f(lamb1, lamb2)
-    Sf = np.sqrt(
-        np.trapz(np.trapz(Y, lambs, axis=0), lambs, axis=0)
-    )  # NOTE not a normal gaussian variance, but we use it as such
-    
-    # scaling according to reliability of Ef based on ratio Sf/Ef, and correlation with surrounding samples
-    # important for: suppose the scenario where a sample at L1 lies between samples of L2. 
-    # Then it would not be reasonable to discard all weighted information and just take the L1 value even if Sf/Ef is high.
+        # Ef = Ef_non_corrected
+        @njit
+        def var_f(pdf):
+            # Var X = E[(X-E[X])**2]
+            # down below: random variable - exp random variable, squared, times the pdf of rho (N(0,1));
+            # we integrate this function and retrieve the expectation of this expression, i.e. the variance.
+            return (f - Ef) ** 2 * pdf
 
-    # so:   if high Sf/Ef -> use correlation (sc = correlation)
-    #       if low Sf/Ef -> use prediction (sc = 1)
-    
-    corr = K_mf[-1].corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
-    lin = np.exp(-1/2 * abs(Sf/Ef)) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
+        Y = var_f(self.pdf)
+        Sf = np.sqrt(
+            scipy.integrate.simpson(scipy.integrate.simpson(Y, self.lambs, axis=0), self.lambs, axis=0)
+        )  # NOTE not a normal gaussian variance, but we use it as such
+        # print(f"second double integral took: {time.time() - mid}")
+        
+        # scaling according to reliability of Ef based on ratio Sf/Ef, and correlation with surrounding samples
+        # important for: suppose the scenario where a sample at L1 lies between samples of L2. 
+        # Then it would not be reasonable to discard all weighted information and just take the L1 value even if Sf/Ef is high.
 
-    # w = 1 * lin + corr * (1 - lin) 
-    # w = lin
+        # so:   if high Sf/Ef -> use correlation (sc = correlation)
+        #       if low Sf/Ef -> use prediction (sc = 1)
+        
+        # corr = K_mf[-1].corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
+        lin = np.exp(-1/2 * abs(Sf * Ef)**2) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
+        
+        # we want to linearly decrease lin between some bounds. Lets say untill Sf = 1 * Ef we find this acceptable, after which we will decrease lin (or w) to 0 at Sf = 5 * Ef
+        # so with in this example a = 1 and b = 5
+        a, b = 1, 5
+        if Sf <= a * abs(Ef):
+            lin = 1
+        elif Sf >= b * abs(Ef):
+            lin = 0
+        else:
+            c = Sf / abs(Ef)
+            lin = (c - a) / (b - a) 
 
-    # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
-    w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1
-    w = 1 # TODO no method weighing
 
-    # print(f"W = {w}")
-    # * np.exp(-abs(Sf/Ef))
+        # w = 1 * lin + corr * (1 - lin) 
+        # w = lin
 
-    # NOTE
-    # this is the point at which we can integrate other MF methods!!!!
-    # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
-    # then, we can use Sf not to switch back to L1, but to switch back to the other model if our prediction turns out to be unreliable.
-    # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
+        # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
+        # w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1 # this means effectively only method weighing with MFK result!
+        w = 1 # if no method weighing
+        # w = lin
 
-    # retrieve the (corrected) prediction + std
-    # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
-    Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1-w) * Z1_alt
+        # print(f"W = {w}")
+        # * np.exp(-abs(Sf/Ef))
 
-    # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
-    # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
-    S2_p = w * (S1 + abs((S1 + S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
+        # NOTE
+        # this is the point at which we can integrate other MF methods!!!!
+        # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
+        # then, we can use Sf not to switch back to L1, but to switch back to the other model if our prediction turns out to be unreliable.
+        # bcs there is no hi-fi info available for the other MF method I presume it will use L1 values further away from our L2 values, just like we want!
 
-    # get index in X_unique of x_b
-    ind = np.all(X_unique == x_b, axis=1)
+        # retrieve the (corrected) prediction + std
+        # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
+        Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1 - w) * Z1_alt
 
-    # set Z2_p to z_pred at that index
-    Z2_p[ind] = z_pred
+        # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
+        # with s_[Z1-Z0] approximated as S1 + S0 for a pessimistic always oppositely moving case
+        S2_p = w * (S1 + abs((S1 + S0) * Ef) + abs(Z1 - Z0) * Sf ) + (1 - w) * S1_alt
 
-    # set S2_p to 0 at that index (we will later include variance from noise.)
-    S2_p[ind] = 0
+        # get index in X_unique of x_b
+        # ind = np.all(X_unique == x_b, axis=1)
+        ind = isin_indices(X_unique, correct_formatX(x_b,self.d))
 
-    # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
-    return Z2_p, S2_p ** 2, Sf ** 2, Ef
+        # set Z2_p to z_pred at that index
+        Z2_p[ind] = z_pred
+
+        # set S2_p to 0 at that index (we will later include variance from noise.)
+        S2_p[ind] = 0
+
+        # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
+        if self.printing:
+            print(f"({x_b}) Ef org: {Ef_non_corrected:6f} vs Ef corrected: {Ef:6f}; Sf: {Sf:6f}; w: {w}")
+
+        return Z2_p, S2_p ** 2, Sf ** 2, Ef
 
 
 

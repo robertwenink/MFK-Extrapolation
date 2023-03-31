@@ -330,7 +330,7 @@ class Plotting:
         if ax.name == "3d":
             # if the axis is 3d, we will plot a surface
             alpha_main = 0.35
-            alpha_std = 0.1
+            alpha_std = 0.05
 
             fix_colors(ax.plot_surface(*self.X_plot, y_hat, alpha=alpha_main, color=color, label=label))
             ax.plot_surface(*self.X_plot_sub, y_sub, alpha=alpha_std, color=color)

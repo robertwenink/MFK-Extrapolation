@@ -2,7 +2,7 @@ import numpy as np
 
 from core.sampling.solvers.internal import TestFunction
 from core.sampling.solvers.solver import get_solver
-np.set_printoptions(precision=3,linewidth = 150,sign=' ')
+np.set_printoptions(precision=3,linewidth = 150,sign=' ',suppress = True)
 import sys
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 11})
@@ -66,17 +66,29 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 #           door meer samples op de lower fidelities (dicht bij elkaar) de prediction vele malen beter wordt!!
 # 9) combinatie eval_noise + heteroscedastic beschrijven voor proposed, reinterpolation voor de reference. 
 #   Beschrijven dat alhoewel de aangepaste EI procedure voor beide wordt gebruikt, dit gezien de reinterpolatie voor de reference gelijk is aan het gebruikelijke.
+# 10) verandering van Sf weighing naar min ipv mean omdat het beste sample richtgevend moet zijn.
+# 11) No clear difference between using heteroscedastic noise evaluation or normal noise + reinterpolation has been observed.
+
+
 # inits based on input settings
 setup = Input(0)
-# setup.conv_mod = 1
+
+conv_mods = [0, 1, 2, 3]
+solver_noises = [0.0, 0.02, 0.1]
+conv_types = ["Stable up", "Stable down", "Alternating"]
+
+setup.conv_mod = conv_mods[1]
+setup.conv_type = conv_types[0] # 1 TODO
+setup.solver_noise = solver_noises[1] # 0 TODO
+
 reuse_values = False
 reload_endstate = False
 # NOTE deze waardes aanpassen werkt alleen als reuse_values en reload_endstate uitstaat!
 MFK_kwargs = {'print_global' : False,
                 'print_training' : True,
                 'print_prediction' : False,
-                # 'eval_noise' : False,
-                'eval_noise' : True, # always true
+                'eval_noise' : True,# always true
+                # 'eval_noise' : setup.noise_regression, 
                 'propagate_uncertainty' : False,  
                 'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
@@ -94,11 +106,11 @@ mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L([1, 2, None])
-    mf_model.set_L_costs([1,9,10000])   
+    mf_model.set_L_costs([1,10,1000])   
 
 
 # init plotting etc
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=True)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=False)
 pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
 cp = ConvergencePlotting(setup)
 

@@ -85,7 +85,7 @@ MFK_kwargs = {'print_global' : False,
                 # 'eval_noise' : False,
                 'eval_noise' : True, # Always true, but not always add noise!
                 'propagate_uncertainty' : False,  
-                'optim_var' : True, # true: HF samples is forced to zero; = reinterpolation
+                'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 'corr' : 'squar_exp',

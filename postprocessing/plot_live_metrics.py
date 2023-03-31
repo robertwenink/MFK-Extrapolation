@@ -139,7 +139,7 @@ class ConvergencePlotting():
             RMSE = RMSE_norm_MF(model, no_samples=True)
             RMSE_focussed = RMSE_focussed_func(model, self.X_RMSE, self.RMSE_focuss_percentage)
             x_best, value_best = model.get_best_sample()
-            x_new, value_x_new = model.get_best_prediction(model, x_new)
+            x_new, value_x_new = model.get_best_prediction(model.K_mf[-1], x_new)
             if isinstance(self.solver,TestFunction):
                 x_opt = correct_formatX(self.X_opt, self.d)
                 value_opt = self.Z_opt
