@@ -227,7 +227,7 @@ class EVA(ExternalSolver):
         if only_ax2:
             fig, (ax2) = plt.subplots(1, 1)
         else:
-            fig, (ax1, ax2) = plt.subplots(1, 2)\
+            fig, (ax2, ax1) = plt.subplots(1, 2, figsize = (13, 5.2))
             
             ax1.imshow(plt.imread(os.path.join(output_path, "NURBS.png")))
             ax1.tick_params(
@@ -268,15 +268,26 @@ class EVA(ExternalSolver):
             label="Composite signal filter", linewidth=3,
         )
         # set non overlapping ticks and legend
-        ax2.set_xticks(x[:: int(len(x) / 10)])
-        ax2.set_xticklabels(ax2.get_xticks(), rotation=45, ha="right")
+        x_ticks = x[:: int(len(x) / 10)]
+        x_ticks = x_ticks.drop(x_ticks.index[1])
+        ax2.set_xticks(x_ticks)
+        x_ticks_labels = ax2.get_xticks()
+        ax2.set_xticklabels(x_ticks_labels, rotation=45, ha="right")
         ax2.set_xlabel("Time [s]")
         ax2.set_ylabel("Body force in y-direction [N/m]")
         if legend:
-            ax2.legend()
+            handles, labels = ax2.get_legend_handles_labels()
+            ax1.legend(handles, labels, loc = 'upper center', bbox_to_anchor=(0.5, -0.03))
 
         # naming the figure such that we can remove it later when we plot another one
-        fig.tight_layout()
+        fig.subplots_adjust(top=0.903,
+            bottom=0.294,
+            left=0.081,
+            right=0.987,
+            hspace=0.2,
+            wspace=0.0
+            )
+        
         fig.set_label("body_forces")
         if alternative_sup_title:
             fig.suptitle(alternative_sup_title)

@@ -144,3 +144,5 @@ belangrijke EVA runs gebruikt in rapport/
 *.json
 *.mp4
 *.zip
+*.csv
+*.tex

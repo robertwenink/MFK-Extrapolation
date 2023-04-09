@@ -117,7 +117,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
                 # NOTE voor uitleg van settings, bekijk: smt_debug_optimvar.py
                 self.K_pred.options['eval_noise'] = True
-                self.K_pred.options['optim_var'] = True # TODO nu doen beide methodes reintegration!
+                self.K_pred.options['optim_var'] = self.optim_var and self.use_single_fidelities and not DO_MANUAL_REINTERPOLATE
                 self.K_pred.options['use_het_noise'] = False
                 self.K_pred.train()
 
@@ -150,7 +150,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
                     self.K_pred.train()
 
-                if DO_MANUAL_REINTERPOLATE:
+                if DO_MANUAL_REINTERPOLATE and self.optim_var and not self.use_single_fidelities:
                     # TODO afmaken en checken
                     # manual reinterpolation = misschien handig
                     values = self.K_pred.predict_values(self.X_unique)

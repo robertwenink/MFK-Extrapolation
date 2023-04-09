@@ -101,7 +101,11 @@ class Plotting:
                 i = len(dirs)
                 self.video_path = os.path.join(self.video_path,f"run_{i}")  
                 os.makedirs(self.video_path)
+
+                # copy the input file
                 shutil.copy(setup.file_path, self.video_path)
+                self.setup_file_path = setup.file_path
+
                 print(f"Writing results to {os.path.join(*self.video_path.split(os.sep)[-3:])}")
             else:
                 img_paths_list = sorted(glob.glob(self.video_path + os.path.sep + "image_*.png"), key=os.path.getmtime)
@@ -845,6 +849,10 @@ class Plotting:
                 for i in range(5):
                     writer.append_data(img) # type:ignore
             print(f"Gif creation time: {time.time() - start:.4f}")
+
+            # copy the end-state input file
+            shutil.copy(self.setup_file_path, self.video_path)
+
 
             
             

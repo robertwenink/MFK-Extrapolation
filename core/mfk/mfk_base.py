@@ -8,6 +8,7 @@ from core.ordinary_kriging.kernel import get_kernel
 from core.ordinary_kriging.OK import OrdinaryKriging
 from core.sampling.solvers.solver import get_solver
 from core.sampling.DoE import LHS_subset
+from pyDOE2 import lhs
 
 from utils.selection_utils import isin_indices
 from utils.formatting_utils import correct_formatX
@@ -98,6 +99,11 @@ class MultiFidelityKrigingBase(KrigingBase):
         # set total cost per level if expected costs are set
         if hasattr(self,'C'):
             self.costs_per_level[l] = self.C[l] * self.X_mf[l].shape[0]
+        
+        # TODO cheap fix for not using lowest level reference method.
+        if not self.proposed:
+            self.costs_per_level[0] = 0
+        
 
         # expected cost per sample at a level
         self.costs_expected[l] = self.costs_per_level[l] / self.X_mf[l].shape[0]
@@ -151,14 +157,14 @@ class MultiFidelityKrigingBase(KrigingBase):
         Function that does all required actions for nested core.sampling.
         """
 
-        for i in range(l+1):
+        for i in range(not self.proposed, l+1):
             self.sample(i, X_new)
-
-        # TODO keep this? otherwise write about it.
-        # sample around each high-fidelity sample for better noise predictions around it at the lower levels!
-        if l == self.max_nr_levels - 1:
-            for x in X_new:
-                self.sample_around(1, x, plus_min = False)
+        
+        if not self.proposed and l == 1:
+            # for fairness, use only 1 level for MFK reference
+            # TODO easy shortcut solution
+            self.Z_mf[0] = self.Z_mf[1]
+            self.X_mf[0] = self.X_mf[1]
 
         if l == self.max_nr_levels - 1 and hasattr(self, 'X_truth'):
             # NOTE has to be after sampling underlying levels, for the correlation checks
@@ -203,21 +209,43 @@ class MultiFidelityKrigingBase(KrigingBase):
         X_hifi = correct_formatX(LHS_subset(setup, self.X_unique, x_new, self.initial_nr_samples),setup.d)
 
         self.sample_new(l,X_hifi)
+
+        # sample around initial samples to improve noise estimates, no training
+        x_new = correct_formatX(x_new, self.d)
+        self.sample_around(1, x_new, initial = True)
+        X_hifi_sub = correct_formatX(X_hifi[isin_indices(X_hifi, x_new, inversed = True)],self.d) # from return_unique_exc
+        self.sample_around(1, X_hifi_sub, initial = False)
+
+        # calls to train
         self.sample_nested(l, X_hifi)
-        self.sample_around(1, x_new)
 
-    def sample_around(self, l, x, plus_min = True):
-        " This function samples around some already known point to get a better noise estimate already from the start "
-        repeats = min(3,self.d)
-        X = np.repeat(correct_formatX(x,self.d), repeats * (1 + plus_min), axis=0)
-        
-        # TODO MINI LHS!!! 
-        X += np.eye(X.shape[0], X.shape[1],-0) * 0.001
-        if plus_min:
-            X += np.eye(X.shape[0], X.shape[1],-repeats) * -0.001
 
-        # X[np.diag_indices_from(X)] -= 0.001
-        self.sample_nested(l, X)
+    def sample_around(self, l, X_new, bounds_percentage = 0.01, initial = False):
+        """ 
+        This function samples around some already known point to get a better noise estimate already from the start
+        @param initial (bool): for the initial sample we would like a higher periferal sample amount
+        """
+        # only do this for the proposed method! not fair otherwise
+        if self.proposed:
+            for x in X_new:
+                bounds_range = (self.bounds[1, :] - self.bounds[0, :]) * bounds_percentage / 100
+                lb = x - bounds_range
+                ub = x + bounds_range
+                nr_samples = min(self.d * (1 + initial),6)
+                
+                X_noise = lb + lhs(
+                        self.d,
+                        samples=nr_samples,
+                        criterion="maximin",
+                        iterations=20,
+                        random_state=self.randomstate,
+                    ) * (ub - lb)
+                
+                # simply remove samples that are outside the original bounds
+                
+                X_noise = X_noise[~(((X_noise > self.bounds[1, :]) & (X_noise < self.bounds[0, :])).any(1))]
+
+                self.sample_nested(l, X_noise, train = False)
 
     def sample_truth(self, X = None):
         """
@@ -273,7 +301,7 @@ class MultiFidelityKrigingBase(KrigingBase):
         Useful for plotting.
         """
 
-        res_exc = self.X_unique[isin_indices(self.X_unique, X_exclude, inversed = True)]
+        res_exc = correct_formatX(self.X_unique[isin_indices(self.X_unique, X_exclude, inversed = True)],self.d)
         return res_exc
 
     def create_OKlevel(self, X_l, y_l = [], train=True, tune=False, hps_init=None, hps_noise_ub = False, R_diagonal=0, name = "", append : bool = True, add_empty : bool = False):

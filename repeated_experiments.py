@@ -11,7 +11,7 @@ from copy import deepcopy
 from utils.error_utils import RMSE_norm_MF, RMSE_focussed
 np.set_printoptions(precision=3,linewidth = 150,sign=' ')
 
-import warnings
+import warnings 
 warnings.simplefilter("ignore", RuntimeWarning) # Scipy optimize can throw x out of bounds, but this is really consequential
 
 import pandas as pd
@@ -32,11 +32,12 @@ from preprocessing.input import Input
 
 # options to pick starting class from
 from core.mfk.mfk_base import MultiFidelityKrigingBase
-from core.mfk.mfk_smt import MFK_smt
+from core.mfk.mfk_smt import MFK_smt 
 from core.mfk.mfk_ok import MFK_org
 from core.mfk.proposed_mfk import ProposedMultiFidelityKriging
 from core.routines.mfk_EGO import MultiFidelityEGO
 
+#%%
 
 def optimize_with_plotting(setup,mf_model):
     # incl plotting etc
@@ -45,39 +46,6 @@ def optimize_with_plotting(setup,mf_model):
     pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
     cp = ConvergencePlotting(setup)
     mf_model.optimize(pp,cp)
-
-# variables 
-conv_mods = [0, 1, 2, 3]
-solver_noises = [0.0, 0.02, 0.1] # to be passed as solver.noise_level = .. 
-conv_types = ["Stable up", "Stable down", "Alternating"] # average these results
-
-# NOTE testing only
-# conv_types = ["Stable up"] # average these results
-# solver_noises = [0.0] # to be passed as
-# conv_mods = [0]
-
-
-# Solver / scenario dependent variables
-proposed_and_samples = [(True, 1), (True, 3), (False, 3)] # 1 en 3 voor Own, alleen 3 voor reference.
-solver_str = 'Branin' # 'Rosenbrock'
-d = 2 # 2 if branin, 5 or 10 if Rosenbrock
-scenarios = [['Branin',2],
-             ['Rosenbrock',2],
-             ['Rosenbrock',5]]
-
-# Define the DoE based on a fake input
-solver = get_solver(name = solver_str)
-ss = solver.get_preferred_search_space(d)
-ss[1], ss[2] = np.array(ss[1]), np.array(ss[2])
-setup = lambda x: 0
-setup.search_space = ss
-setup.d = d
-X_l = LHS(setup, n_per_d = 10)
-
-# RMSE requirements
-# X_RMSE = create_X_infill(setup.d, setup.search_space[1], setup.search_space[2], int(1000**(1/d)))
-X_RMSE = LHS(setup, n_per_d=40)
-RMSE_focuss_percentage = 10
 
 MFK_kwargs = {'print_global' : False,
                 'print_training' : False,
@@ -91,15 +59,33 @@ MFK_kwargs = {'print_global' : False,
                 'corr' : 'squar_exp',
                 }
 
+def create_Xs(solver_str, d, nr_repetitions):
+    # Define the DoE based on a fake input
+    ss = get_solver(name = solver_str).get_preferred_search_space(d)
+    ss[1], ss[2] = np.array(ss[1]), np.array(ss[2])
+    setup = lambda x: 0
+    setup.search_space = ss
+    setup.d = d
 
-def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type):
+    XX_l = []
+    for repetition in range(nr_repetitions):
+        X_l = LHS(setup, n_per_d = 10, random_state = repetition)
+        XX_l.append(X_l)
+
+    # # RMSE requirements
+    # X_RMSE = LHS(setup, n_per_d=40)
+    # RMSE_focuss_percentage = 10
+
+    return XX_l
+
+def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type, X_l, solver_str, d):
     try:
         if proposed:
-            print(f"Started run: Proposed,  {nr_samples} start samples, conv_mod {conv_mod}, {f'{conv_type},':<12} solver_noise {solver_noise}\n", end="\r")
+            print(f"\rStarted run: Proposed,  {nr_samples} start samples, conv_mod {conv_mod}, {f'{conv_type},':<12} solver_noise {solver_noise}\n", end="\r")
         else:
-            print(f"Started run: Reference, {nr_samples} start samples, conv_mod {conv_mod}, {f'{conv_type},':<12} solver_noise {solver_noise}\n", end="\r")
+            print(f"\rStarted run: Reference, {nr_samples} start samples, conv_mod {conv_mod}, {f'{conv_type},':<12} solver_noise {solver_noise}\n", end="\r")
 
-        # return 1,1,1,1,1,1,1,1,1,1,1
+        # return 1,1,1,1,1,1,1,1,1,1
 
         " Creating setup object"
         # fake setup as a function object
@@ -113,6 +99,8 @@ def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type):
         
         setup.solver_str = solver_str
         setup.d = d
+        ss = get_solver(name = solver_str).get_preferred_search_space(d)
+        ss[1], ss[2] = np.array(ss[1]), np.array(ss[2])
         setup.search_space = ss
 
         # set the variable settings
@@ -121,20 +109,14 @@ def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type):
         setup.solver_noise = solver_noise
         
         " Creating new model "
-        mf_model = MultiFidelityEGO(setup, proposed = proposed, initial_nr_samples = nr_samples, max_cost = np.inf, MFK_kwargs = MFK_kwargs, printing = False)
+        # NOTE optim_var was true voor 2d!! False voor 5d
+        mf_model = MultiFidelityEGO(setup, proposed = proposed, optim_var = False, initial_nr_samples = nr_samples, max_cost = np.inf, MFK_kwargs = MFK_kwargs, printing = False)
         mf_model.set_L([2, 3, None])
         mf_model.set_L_costs([1,10,1000])   
         mf_model.prepare_initial_surrogate(setup, X_l)   
 
-        # if mf_model.X_mf[-1].shape[0] >= 3:
-        #     if not check_linearity(mf_model, None):
-        #         print("WARNING Linearity check: NOT LINEAR enough!")
-        #     else:
-        #         print("Linearity check: LINEAR enough!")
-        # else:
-        #     print("Too little hifi samples for reliable linearity check!")
-
         " run "
+        RMSE_start = RMSE_norm_MF(mf_model, no_samples=True)
         mf_model.optimize()
         # optimize_with_plotting(setup, mf_model)
 
@@ -166,10 +148,10 @@ def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type):
         # – For the full surrogate
         RMSE = RMSE_norm_MF(mf_model, no_samples=True)
 
-        # – For the ’focussed’ surrogate: only taking into account the responses with objective values 10% above the known optimum
-        RMSE_focus = RMSE_focussed(mf_model, X_RMSE, RMSE_focuss_percentage)
-
-        return cost_total, cost_high, nr_samples_high, nr_samples_low, z_diff_absolute, z_diff_relative, x_dist_euclidian, RMSE[1], RMSE[2], RMSE_focus[1], RMSE_focus[2]
+        # # – For the ’focussed’ surrogate: only taking into account the responses with objective values 10% above the known optimum
+        # RMSE_focus = RMSE_focussed(mf_model, X_RMSE, RMSE_focuss_percentage)
+ 
+        return cost_total, cost_high, nr_samples_high, nr_samples_low, z_diff_absolute, z_diff_relative, x_dist_euclidian, RMSE_start[2], RMSE[2], RMSE[1]
     except:
         print(f"WARNING: Run {proposed, nr_samples, conv_mod, solver_noise, conv_type} failed!")
         logging.exception(f"Run {proposed, nr_samples, conv_mod, solver_noise, conv_type} failed with following message:")
@@ -177,31 +159,37 @@ def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type):
         # return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
 
-amnt = len(conv_mods) * len(conv_types) * len(solver_noises) * len(proposed_and_samples)
-amnt_tot = deepcopy(amnt)
 def progress(unused_result):
     global amnt
     amnt = amnt - 1
 
-    print(f"{amnt} runs of {amnt_tot} left in queue  ", end='\r') # \033[A voor ook omhoog
+    # works untill 1 day, afterwards gives +1 day answer
+    amnt_completed = amnt_tot - amnt
+    t_end_exp = time.strftime('%a %H:%M:%S', time.localtime(time.time() + (time.time() - t_start_scenario)/amnt_completed * amnt))
+
+    print(f"{amnt} runs of {amnt_tot} left in queue. Estimated end scenario at {t_end_exp}", end='\r') # \033[A voor ook omhoog
     if amnt == 0:
         print("")
 
 
-filename = f"{solver_str}_{d}d.csv"
 
-#%%
-if __name__ == '__main__':
-    # setup dataframe    
-    
+def run_scenario(solver_str, d, XX_l):
+    string = f"~~~~ Running {solver_str} {d}d scenario with {amnt_tot} runs ~~~~"
+    print("~"*len(string))
+    print(string)
+    print("~"*len(string))
+    filename = f"{solver_str}_{d}d.csv"
+    nr_repetitions = len(XX_l)
+
+    # setting up the dataframe with multi_indexes
     colum_names = ["cost_total", "cost_high", "nr_samples_high", "nr_samples_low", "z_diff_absolute", \
-                   "z_diff_relative", "x_dist_euclidian", "RMSE_low", "RMSE", "RMSE_focus_low", "RMSE_focus"]
+                   "z_diff_relative", "x_dist_euclidian", "RMSE_start", "RMSE_end", "RMSE_medium"]
     new_indexes = pd.MultiIndex.from_product([colum_names, proposed_and_samples])
     tuple_indexlist = [(method, samples, proposed) for method, (samples, proposed) in new_indexes.values]
     index_names = ["Metric", "Proposed_method", "Nr_initial_samples"]
     new_indexes = pd.MultiIndex.from_tuples(tuple_indexlist, names = index_names)
-    new_columns = pd.MultiIndex.from_product([conv_mods, solver_noises, conv_types], 
-                                             names = ["Convergence_modifier", "Solver_noise", "Convergence_types"])
+    new_columns = pd.MultiIndex.from_product([conv_mods, solver_noises, conv_types, np.arange(nr_repetitions)], 
+                                             names = ["Convergence_modifier", "Solver_noise", "Convergence_type", "Repetition"])
     df = pd.DataFrame(index = new_indexes, columns = new_columns)
 
     # setup process pool    
@@ -211,8 +199,9 @@ if __name__ == '__main__':
         for conv_mod in conv_mods:    
             for solver_noise in solver_noises:
                 for conv_type in conv_types:
-                    # workers los toevoegen, .get() is uiteraard blocking, dus we moeten eerst close en join aanroepen.
-                    workers.append(tp.apply_async(worker, (proposed, nr_samples, conv_mod, solver_noise, conv_type), callback = progress))
+                    for run_nr in range(nr_repetitions):
+                        # workers los toevoegen, .get() is uiteraard blocking, dus we moeten eerst close en join aanroepen.
+                        workers.append(tp.apply_async(worker, (proposed, nr_samples, conv_mod, solver_noise, conv_type, XX_l[run_nr], solver_str, d), callback = progress))
 
     # close and join pool
     tp.close()
@@ -225,37 +214,134 @@ if __name__ == '__main__':
         for conv_mod in conv_mods:    
             for solver_noise in solver_noises:
                 for conv_type in conv_types:
-                    df.loc[idx[:, proposed, nr_sample], idx[conv_mod, solver_noise, conv_type]] = workers[i].get() 
-                    i += 1
+                    for run_nr in range(nr_repetitions):
+                        df.loc[idx[:, proposed, nr_sample], idx[conv_mod, solver_noise, conv_type, run_nr]] = workers[i].get() 
+                        i += 1
     
     print(df)
 
     # save the complete dataframe
     df.to_csv(filename)
 
-    #%%
-    # reading into multi-index
-    filename = f"{solver_str}_{d}d.csv"
-    df = pd.read_csv(filename, index_col=[0,1,2], header = [0,1,2])
 
-    # take the mean over axis 1, grouped by the first two levels (so except convergence_types)
-    df = df.groupby(level=[0,1], axis = 1).mean().apply(lambda x: round(x, 3))
+def run_scenario_per_rep(solver_str, d, X_l, rep_nr):
+    time_start_batch = time.time()
+    string = f"~~~~ Running {solver_str} {d}d scenario repetition {rep_nr} with {amnt_batch} runs ~~~~"
+    print("\n" + "~"*len(string))
+    print(string)
+    print("~"*len(string))
+    filename = f"{solver_str}_{d}d_{rep_nr}.csv"
 
-    idx = pd.IndexSlice 
-    # print(df.loc[idx[["RMSE_low", "RMSE"],:,:]])
-    proj = df.loc[idx[["RMSE_low", "RMSE"],:,:]].groupby(level = [1,2]).agg(tuple)
-    proj = df.loc[idx[["RMSE_focus_low", "RMSE_focus"],:,:]].groupby(level = [1,2]).agg(tuple)
+    # setting up the dataframe with multi_indexes
+    colum_names = ["cost_total", "cost_high", "nr_samples_high", "nr_samples_low", "z_diff_absolute", \
+                   "z_diff_relative", "x_dist_euclidian", "RMSE_start", "RMSE_end", "RMSE_medium"]
+    new_indexes = pd.MultiIndex.from_product([colum_names, proposed_and_samples])
+    tuple_indexlist = [(method, samples, proposed) for method, (samples, proposed) in new_indexes.values]
+    index_names = ["Metric", "Proposed_method", "Nr_initial_samples"]
+    new_indexes = pd.MultiIndex.from_tuples(tuple_indexlist, names = index_names)
+    new_columns = pd.MultiIndex.from_product([conv_mods, solver_noises, conv_types, [rep_nr]],
+                                             names = ["Convergence_modifier", "Solver_noise", "Convergence_type", "Repetition"])
+    df = pd.DataFrame(index = new_indexes, columns = new_columns)
 
-    # prepend the correct indices again (groupby loses these)
-    df.loc[idx["RMSE",:,:]] = pd.concat({'RMSE': proj}, names=['Metric'])
-    df.loc[idx["RMSE_focus",:,:]] = pd.concat({'RMSE_focus': proj}, names=['Metric'])
+    # setup process pool    
+    tp = Pool(int(cpu_count()))
+    workers = []
+    for proposed, nr_samples in proposed_and_samples:
+        for conv_mod in conv_mods:    
+            for solver_noise in solver_noises:
+                for conv_type in conv_types:
+                    # workers los toevoegen, .get() is uiteraard blocking, dus we moeten eerst close en join aanroepen.
+                    workers.append(tp.apply_async(worker, (proposed, nr_samples, conv_mod, solver_noise, conv_type, X_l, solver_str, d), callback = progress))
 
-    # remove non-needed parts now
-    df.drop(('RMSE_low'), axis=0, inplace=True)
-    df.drop(('RMSE_focus_low'), axis=0, inplace=True)
+    # close and join pool
+    tp.close()
+    tp.join()
+    
+    # write results to dataframe
+    i = 0
+    idx = pd.IndexSlice # needed bcs we cant do .loc[bla,bla2,bla3]["c","c2"] etc omdat dat een slice/ projectie is
+    for proposed, nr_sample in proposed_and_samples:
+        for conv_mod in conv_mods:    
+            for solver_noise in solver_noises:
+                for conv_type in conv_types:
+                    df.loc[idx[:, proposed, nr_sample], idx[conv_mod, solver_noise, conv_type, rep_nr]] = workers[i].get() 
+                    i += 1
+    
+    # save the complete dataframe
+    df.to_csv(filename)
+    t = (time.time() - time_start_batch)
+    print(f"Batch took {np.floor(t/3600)}:{round(t%3600/60)} hours")
 
-    filename = f"{solver_str}_{d}d_processed.csv"
 
-    df.to_csv(filename, float_format='%.3f')
+#%%
+if __name__ == '__main__':
+    global amnt_batch, amnt, amnt_tot, solver_str, d, conv_types, solver_noises, conv_mods, t_start_scenario
 
+    scenarios = [('Branin',2),
+                ('Rosenbrock',2),
+                ('Rosenbrock',5)]
+    scenarios = [scenarios[-1]]
+
+    nr_repetitions = 2
+    rep_start_index = 2 # in case we already done x repetitions before and dfs are already defined.
+
+    # Solver / scenario dependent variables
+    proposed_and_samples = [(True, 1), (True, 3), (False, 3)] # 1 en 3 voor Own, alleen 3 voor reference.
+
+    # variables 
+    conv_mods = [0, 1, 2, 3]
+    solver_noises = [0.0, 0.02, 0.1] # to be passed as solver.noise_level = .. 
+    conv_types = ["Stable up", "Stable down", "Alternating"] # average these results
+
+    # NOTE testing only
+    # conv_types = ["Stable up"] # average these results
+    # solver_noises = [0.0] # to be passed as
+    # conv_mods = [0]
+
+    # Run scenarios   
+    for solver_str, d in scenarios:
+        t_start_scenario = time.time()
+        amnt_batch = len(conv_mods) * len(conv_types) * len(solver_noises) * len(proposed_and_samples)
+        amnt = amnt_batch * nr_repetitions #* len(scenarios)
+        amnt_tot = deepcopy(amnt)
+
+        XX_l = create_Xs(solver_str, d, nr_repetitions)
+        for rep_nr in range(nr_repetitions):
+            # run_scenario_per_rep(solver_str, d, XX_l[rep_nr], rep_nr + rep_start_index)
+            pass
+
+        # process dfs of scenario
+        if True: # False if just reading a _complete file already.
+            df_all = []
+            for rep_nr in range(nr_repetitions + rep_start_index):
+                # load all dfs
+                filename = f"{solver_str}_{d}d_{rep_nr}.csv"
+                df_all.append(pd.read_csv(filename, index_col=[0,1,2], header = [0,1,2,3]))
+
+            df_all = pd.concat(df_all, axis=1)
+            df_all.to_csv(f"{solver_str}_{d}d_complete.csv")
+            print(df_all)
+        else:
+            df_all = pd.read_csv(f"{solver_str}_{d}d_complete.csv", index_col=[0,1,2], header = [0,1,2,3])
+
+        def round_to_significant(x, N):
+            return round(x, max(3-int(np.floor(np.log10(abs(x)))),0)) 
+
+        # take the mean over axis 1, grouped by the first two levels (so except Convergence_type / run_nr)
+        df = df_all.groupby(level=[0,1], axis = 1).mean()#.apply(lambda x: f"{round(x, 2):.2f}")
+
+        # NOTE commented bcs fuck excel, better thing to do is everything manually
+        # additionally round costs and nr_samples to 0 and 1 decimal respectively
+        idx = pd.IndexSlice
+        for ind in ["cost_total", "cost_high"]:
+            df.loc[idx[ind,:,:], :] = df.loc[idx[ind,:,:],:].apply(lambda x: round(x,0))
+        
+        for ind in ["nr_samples_high", "nr_samples_low"]:
+            df.loc[idx[ind,:,:], :] = df.loc[idx[ind,:,:],:].apply(lambda x: round(x,1))
+
+        df.to_csv(f"{solver_str}_{d}d_processed.csv", float_format='%.2f')
+        # gebruiken: column_format = "@{\hspace{3pt}}cr@{\hspace{2pt}}lccccccccccccccc@{}"
+        df.to_latex(f'{solver_str}_{d}d.tex')
+        print(df)
     # %%
+

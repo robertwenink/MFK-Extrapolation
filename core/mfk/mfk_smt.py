@@ -38,8 +38,8 @@ class MFK_wrap(MFK):
             else:    
                 setattr(self, key, data_dict[key])
 
-    def predict(self, X):
-        y, mse = self.predict_values(X).reshape(-1,), self.predict_variances(X).reshape(-1,)
+    def predict(self, X, redo_Ft = True):
+        y, mse = self.predict_values(X).reshape(-1,), self.predict_variances_all_levels(X, redo_Ft)[0][:, -1].reshape(-1,)
         return y, mse
     
     # TODO this is only called for sf functions. Double of the function in Object_wrapper
@@ -108,13 +108,14 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         # self.setK_mf() # already called indirectly!
 
 
-    def sample_nested(self, l, X_new):
+    def sample_nested(self, l, X_new, train = True):
         """
         Function that does all required actions for nested core.sampling.
         """
 
         super().sample_nested(l, X_new)
-        self.train()
+        if train:
+            self.train()
 
     def create_update_K_truth(self, data_dict = None):
         if hasattr(self,'X_truth') and hasattr(self,'Z_truth'):
@@ -124,7 +125,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                     print("Creating Kriging model of truth")
                 kwargs = deepcopy(self.MFK_kwargs)
                 kwargs['n_start'] *= 2 # truth is not tuned often so rather not have any slipups
-                kwargs['optim_var'] = True
+                kwargs['optim_var'] = self.optim_var
                 self.K_truth = MFK_wrap(**kwargs)
                 self.K_truth.name = "K_truth"
 
@@ -160,7 +161,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         Update the training data and train.
         """
         # TODO this is only valid when no method weighing is done!!
-        if not (self.proposed and self.use_single_fidelities) or True: # TODO
+        if not (self.proposed and self.use_single_fidelities):# or True: # TODO
             if self.X_mf[-1].shape[0] >= len(self.X_mf):
                 # then just train the full model
                 if hasattr(self,'not_maximum_level'):
@@ -176,7 +177,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                     # reinterpolation on the other hand does not fucntion properly in smt if lower levels retain their variances.
                     self.options['optim_var'] = False 
                 else:
-                    self.options['optim_var'] = True # TODO Now always False!! was True
+                    self.options['optim_var'] = self.optim_var
 
             else:
                 if self.printing:
@@ -202,6 +203,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
 
         @param only_rebuild_top_level: only retrain the top level. This implies lower levels are/should be already up-to-date!
             in terms of training only actually important while using single fidelity levels, since they are created/trained in this function.
+        @param retrain (unused): was used to retrain each step to check if that would improve results.
         """
 
         # in case of proposed
@@ -278,7 +280,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
 
         return sf_model
 
-    def _predict_l(self, X_new, l):
+    def _predict_l(self, X_new, l, redo_Ft = True):
         """
         Predicts and returns the prediction and associated mean square error
         
@@ -295,7 +297,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         y_hat = self._predict_intermediate_values(X_new, lvl).reshape(-1,)
 
         # call for the MSE, contains all MSE for each level (over the columns)
-        MSE, sigma2_rhos = self.predict_variances_all_levels(X_new)
+        MSE, sigma2_rhos = self.predict_variances_all_levels(X_new, redo_Ft)
         
         # std = np.sqrt(MSE[:,l].reshape(-1,1))        
         MSE_lvl = MSE[:,l].reshape(-1,)
@@ -348,7 +350,7 @@ class ObjectWrapper(MFK_smt):
         self.K_mf = []
         self.l_fake = l_fake
 
-    def predict(self, X):
+    def predict(self, X, redo_Ft = True):
         """
         Predicts and returns the prediction and associated mean square error
         
@@ -357,7 +359,7 @@ class ObjectWrapper(MFK_smt):
         - y_hat : the Kriging mean prediction
         - mse_var : the Kriging mean squared error
         """
-        return self._predict_l(X, self.l_fake)
+        return self._predict_l(X, self.l_fake, redo_Ft)
     
     def corr(self, X, X_other):
         # NOTE from mfk.py line 419

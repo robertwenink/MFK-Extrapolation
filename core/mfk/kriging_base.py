@@ -36,13 +36,15 @@ class KrigingBase():
                 providing focus in the previous area of the best found point in terms of starting locations.
                 This is usefull when around the current optimum there are local optima / maxima present, especially near boundaries this gives problems
         """
+        # make sure Ft is set
+        prediction_function(np.atleast_2d(self.X_unique[0]))
 
         if criterion == "EI" and isinstance(self, ego.EfficientGlobalOptimization):
             _, y_min = self.get_best_sample() 
             # y_min = np.min(self.Z_pred)
             
             def obj_k(x): 
-                y_pred, mse_pred = prediction_function(np.atleast_2d(x))
+                y_pred, mse_pred = prediction_function(np.atleast_2d(x), redo_Ft = False)
                 return -self.EI(y_min, y_pred, np.sqrt(mse_pred)) 
         else: # then just use the surrogates prediction (surrogate based optimization: SBO)
             def obj_k(x): 
@@ -50,7 +52,7 @@ class KrigingBase():
                 return float(y_pred)
 
         success = False
-        n_start_org = 40 # vind niet de weg naar optimum bij 20 voor EVA! # TODO evt met 10*d
+        n_start_org = 20 # vind niet de weg naar optimum bij 20 voor EVA! # TODO evt met 10*d
         n_optim = 1  # in order to have some success optimizations with SLSQP
         n_max_optim = 20            
 

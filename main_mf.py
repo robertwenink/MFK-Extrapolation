@@ -77,12 +77,12 @@ conv_mods = [0, 1, 2, 3]
 solver_noises = [0.0, 0.02, 0.1]
 conv_types = ["Stable up", "Stable down", "Alternating"]
 
-setup.conv_mod = conv_mods[1]
+setup.conv_mod = conv_mods[0]
 setup.conv_type = conv_types[0] # 1 TODO
 setup.solver_noise = solver_noises[1] # 0 TODO
 
-reuse_values = False
-reload_endstate = False
+reuse_values = True
+reload_endstate = True
 # NOTE deze waardes aanpassen werkt alleen als reuse_values en reload_endstate uitstaat!
 MFK_kwargs = {'print_global' : False,
                 'print_training' : True,
@@ -96,8 +96,9 @@ MFK_kwargs = {'print_global' : False,
                 'corr' : 'squar_exp',
                 }
 
+# NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, proposed = True, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, proposed = True, optim_var=True, initial_nr_samples = 3, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 
@@ -110,7 +111,7 @@ if isinstance(get_solver(setup),TestFunction):
 
 
 # init plotting etc
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=True, make_video=False)
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=False, make_video=True)
 pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
 cp = ConvergencePlotting(setup)
 

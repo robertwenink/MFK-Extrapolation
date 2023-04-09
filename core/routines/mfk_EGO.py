@@ -18,7 +18,8 @@ from utils.formatting_utils import correct_formatX
 
 class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOptimization):
     
-    def __init__(self, setup, proposed = True, *args, **kwargs):
+    def __init__(self, setup, proposed = True, optim_var = True, *args, **kwargs):
+        self.optim_var = optim_var
         self.proposed = proposed
         if proposed:
             super().__init__(setup, *args, **kwargs)
@@ -34,11 +35,11 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
     def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
         self.max_cost = np.inf
-        self.max_iter = 50  
+        self.max_iter = 50
 
         n = 0
         while np.sum(self.costs_total) < self.max_cost:
-            
+            break
             start = time.time()
             prediction_function = self.K_mf[-1].predict
             
@@ -110,7 +111,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             else:
                 ei = ei_max - ei_sample
                 x_new = x_ei_max
-                print(f"Corrected EI is {ei:6f}")
+                if self.printing:
+                     print(f"Corrected EI is {ei:6f}")
 
 
             " output "
@@ -146,13 +148,13 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
                 y_virtual_min, _ = prediction_function(x_best) # use the x_best, which is defined for both proposed as reference
                 print(f"y_virtual_min: {y_virtual_min} vs y_min_sample: {y_min_sample}")
                 if not isin(x_new, self.X_mf[-1]) and y_virtual_min <= y_min_sample: # second condition actually implies the first
-                    if self.printing:
-                        print("Sampled at the best extrapolation to end!")
                     self.sample_nested(2, x_new)
                     if self.proposed:
                         # weigh each prediction contribution according to distance to point.
                         self.weighted_prediction()
                         self.create_update_K_pred()
+                    if self.printing:
+                        print(f"Sampled at the best extrapolation to end with value {self.K_mf[-1].predict(x_new)[0]}!")
                 break
 
             " Sampling and training procedures "
@@ -162,10 +164,16 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
             
             self.sample_nested(l, x_new)
 
+            # TODO keep this? otherwise write about it.
+            # sample around each high-fidelity sample for better noise predictions around it at the lower levels!
+            # only sample when size 1, initial hifi subset is sampled seperately
+            if l == self.max_nr_levels - 1:
+                self.sample_around(1, x_new)
+
             if self.proposed:
                 # weigh each prediction contribution according to distance to point.
                 Z_pred, mse_pred, Ef_weighed, Sf_weighed = self.weighted_prediction()
-                if np.any(Sf_weighed/Ef_weighed > 10):
+                if np.all(Sf_weighed/Ef_weighed > 10):
                     if self.printing: print("High Sf/Ef ratio, trying to retrain lower levels!!")
                     self.setK_mf()
                     # then try to retrain the lower levels and redo the weighted prediction!!
@@ -290,15 +298,16 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         " 2) kriging prediction mse (can be spurious!!) " 
         # noise corrected not true at lvl 2 due to reinterpolation!
         sigma_pred_model = []
-        sigma_pred_model.append(self._sigma_recucable_predict(0, x_new, noise_correct=True)[1])
-        sigma_pred_model.append(self._sigma_recucable_predict(1, x_new, noise_correct=True)[1])
-        sigma_pred_model.append(self._sigma_recucable_predict(2, x_new, noise_correct=True)[1])
+        sigma_pred_model.append(self._sigma_reducable_predict(0, x_new, noise_correct=True)[1])
+        sigma_pred_model.append(self._sigma_reducable_predict(1, x_new, noise_correct=True)[1])
+        sigma_pred_model.append(self._sigma_reducable_predict(2, x_new, noise_correct=True)[1])
 
         " 3) smt mfk prediction mse "
         # with propagate_uncertainty, mse is as-is; 
         # this is important to the proposed methods split-up since each level contributes independently!
-        std_meliani = np.sqrt(self._mse_reducable_meliani_smt(x_new, propagate_uncertainty = True)) 
-        std_smt = np.sqrt(self._mse_reducable_meliani_smt(x_new, propagate_uncertainty = False))
+        if not (self.proposed and self.use_single_fidelities):
+            std_meliani = np.sqrt(self._mse_reducable_meliani_smt(x_new, propagate_uncertainty = True)) 
+            std_smt = np.sqrt(self._mse_reducable_meliani_smt(x_new, propagate_uncertainty = False))
 
         " Results selection "
         # Now, calculate the weighed result
@@ -308,8 +317,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         s0_exp_red = abs(Ef_weighed.item()) * sigma_pred_model[0]
         s1_exp_red = sigma_pred_model[1] + abs(Ef_weighed.item()) * (sigma_pred_model[0] + sigma_pred_model[1])
 
-        z0, s0 = self._sigma_recucable_predict(0, x_new, noise_correct = False)
-        z1, s1 = self._sigma_recucable_predict(1, x_new, noise_correct = False)
+        z0, s0 = self._sigma_reducable_predict(0, x_new, noise_correct = False)
+        z1, s1 = self._sigma_reducable_predict(1, x_new, noise_correct = False)
         s2 = (s1 + abs(Ef_weighed) * (s1 + s0) + Sf_weighed * abs(z1 - z0)).item()
         # now various options for lvl 2:
         # options = [np.sqrt(sigma_pred_model).item(), np.sqrt(mse_pred_weighed).item()]
@@ -328,9 +337,9 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         s_exp_red = np.array([s0_exp_red, s1_exp_red, s2_exp_red])
 
         extra_string = ""
-        if len(std_meliani) == 3:
+        if not (self.proposed and self.use_single_fidelities) and len(std_meliani) == 3: #type: ignore
             # extra_string = f"\n\tmse_pred_smt_meliani: {std_pred_smt[2]:4f}"
-            extra_string = f"\n\tsigma_meliani: \t\t{std_meliani}"
+            extra_string = f"\n\tsigma_meliani: \t\t{std_meliani}" #type: ignore
         
         if self.printing:
             print(f"MSE lvl 2 options are: \n\tsigma_pred_model:  \t{np.array(sigma_pred_model)}\n\tsigma_pred_weighed: \t{s_exp_red}{extra_string}")
@@ -339,7 +348,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         return s_exp_red 
         
     ##################### OLD
-    def _sigma_recucable_predict(self, l, x_new, noise_correct = True):
+    def _sigma_reducable_predict(self, l, x_new, noise_correct = True):
         """
         Tries to find the part of the mse that is reducable by sampling and correcting for noise at the sampled points.
         This time, by taking the variance at sampled points from the predictor and averaging those.
