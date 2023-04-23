@@ -39,7 +39,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
         n = 0
         while np.sum(self.costs_total) < self.max_cost:
-            break
+            # break
             start = time.time()
             prediction_function = self.K_mf[-1].predict
             
@@ -57,6 +57,8 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
 
             # EI at sample
             x_min_sample, y_min_sample = self.get_best_sample() # this is a stable value!
+            if self.printing:
+                print(f"Current best sample at x = {x_min_sample}, with y = {y_min_sample}")
             y_pred_sample, mse_pred_sample = prediction_function(x_min_sample)
             
             # only correct if not already corrected. ei_sample could for instance be negative then!
@@ -88,31 +90,36 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
                 print(f"FINDING EI TOOK: {time.time() - start:4f}                                           ")
                 print("MAXIMUM EI: {:4f}".format(np.max(ei_max)))
 
-            if self.proposed:
-                # correct both with ei_sample
-                ei_max_corrected = ei_max - ei_sample
-                ei_extra_corrected = ei_extra - ei_sample # type:ignore
+            if ei_max <= self.ei_criterion:
+                ei = ei_max
+                x_new = x_ei_max
+            else:
+                if self.proposed:
+                    # correct both with ei_sample
+                    ei_max_corrected = ei_max - ei_sample
+                    ei_extra_corrected = ei_extra - ei_sample # type:ignore
 
-            # used for giving preference over sampling a previous known point
-                # we do not want to infinitely sample new low-fi points while sometimes its good to sample a new hifi
-                cost_ratio = self.costs_expected_nested[2]/(self.costs_expected_nested[1])
+                # used for giving preference over sampling a previous known point
+                    # we do not want to infinitely sample new low-fi points while sometimes its good to sample a new hifi
+                    cost_ratio = self.costs_expected[2]/(self.costs_expected_nested[1])
 
-                # check ei_criterion conditions
-                if (ei_max_corrected - ei_extra_corrected) / cost_ratio**(1/2) <= self.ei_criterion: #ei_extra_corrected >= ei_max_corrected and 
-                    ei = ei_extra_corrected
-                    x_new = x_min_extra # type:ignore
-                    if self.printing:
-                        print(f"Using location of best extrapolation with corrected EI of {ei:6f}!")
+                    # check ei_criterion conditions
+                    # TODO was cost_ratio**(1/2)
+                    if (ei_max_corrected - ei_extra_corrected) / cost_ratio <= self.ei_criterion: #ei_extra_corrected >= ei_max_corrected and 
+                        ei = ei_extra_corrected
+                        x_new = x_min_extra # type:ignore
+                        if self.printing:
+                            print(f"Using location of best extrapolation with corrected EI of {ei:6f}!")
+                    else:
+                        ei = ei_max_corrected
+                        x_new = x_ei_max
+                        if self.printing:
+                            print(f"Using location of max EI with corrected EI of {ei:6f}!")
                 else:
-                    ei = ei_max_corrected
+                    ei = ei_max - ei_sample
                     x_new = x_ei_max
                     if self.printing:
-                        print(f"Using location of max EI with corrected EI of {ei:6f}!")
-            else:
-                ei = ei_max - ei_sample
-                x_new = x_ei_max
-                if self.printing:
-                     print(f"Corrected EI is {ei:6f}")
+                        print(f"Corrected EI is {ei:6f}")
 
 
             " output "
@@ -326,7 +333,7 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         # s2_exp_red = min(options)
         s2_exp_red = np.sqrt(mse_pred_weighed).item()
         if self.printing:
-            print(f"s2_exp_red {s2_exp_red} vs {s2}")
+            print(f"s2_exp_red {s2_exp_red} vs s2 met sigma_reducables {s2}")
 
 
         # print("Z_pred_weighed: {:.4f}; Z_pred_model: {:.4f}".format(z_pred_weighed.item() ,z_pred_model.item()))
