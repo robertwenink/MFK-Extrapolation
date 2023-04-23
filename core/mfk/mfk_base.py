@@ -225,6 +225,9 @@ class MultiFidelityKrigingBase(KrigingBase):
         This function samples around some already known point to get a better noise estimate already from the start
         @param initial (bool): for the initial sample we would like a higher periferal sample amount
         """
+        if self.solver.name == 'EVA':
+            bounds_percentage = 0.5
+
         # only do this for the proposed method! not fair otherwise
         if self.proposed:
             for x in X_new:
@@ -243,7 +246,7 @@ class MultiFidelityKrigingBase(KrigingBase):
                 
                 # simply remove samples that are outside the original bounds
                 
-                X_noise = X_noise[~(((X_noise > self.bounds[1, :]) & (X_noise < self.bounds[0, :])).any(1))]
+                X_noise = X_noise[~(((X_noise > self.bounds[1, :]) | (X_noise < self.bounds[0, :])).any(1))]
 
                 self.sample_nested(l, X_noise, train = False)
 
