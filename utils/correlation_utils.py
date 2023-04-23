@@ -9,8 +9,8 @@ def pearson_correlation_squared(Z0, Z1):
     m1 = Z1 - np.mean(Z1)
     m = m0 * m1
     top = np.sum(m)
-    bottom = np.sqrt(np.sum((Z0 - np.mean(Z0)) ** 2)) * \
-             np.sqrt(np.sum((Z1 - np.mean(Z1)) ** 2))
+    bottom = np.sqrt(np.sum(m0 ** 2)) * \
+             np.sqrt(np.sum(m1 ** 2))
     r2 = (top / bottom) ** 2
 
     return r2
@@ -45,4 +45,5 @@ def check_correlations(Z0, Z1, Z2):
         warnings[2] = "r2_diff < 0.9!"
     if any(warnings):
         table.rows.append(warnings)
+    print(table)
     
