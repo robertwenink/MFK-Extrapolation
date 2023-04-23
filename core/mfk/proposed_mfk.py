@@ -27,6 +27,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             Otherwise, use separate Original Kriging models for the truth and other models / levels.
         """
         super().__init__(*args, **kwargs)
+        self.method_weighing = True
 
         # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz/simpon integral part
         self.lambs = np.arange(-5, 5, 0.01)
@@ -229,20 +230,24 @@ class ProposedMultiFidelityKriging(MFK_smt):
             
             # relative weighing of distance scaling wrt variance scaling
             c_dist_rel_weight = 5
-            
+             
             #    we want to keep the correlation/weighing the same if there is no variance,
             #    and otherwise reduce it.
             #    We could simply do: sigma += 1 and divide.
             #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
             #    This decreases distance based influence if sigma > 0.
             #    We take the variance of the fraction, S_f
-            
-            # NOTE normalize D_Sf2 to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
-            D_Sf2_norm = D_Sf2 * (abs(D_Ef) ** 2) 
-            c_var = np.exp(-(D_Sf2_norm)/(np.min(D_Sf2_norm)*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
 
+            # NOTE old version where weighing is done using Sf alone. This was not usable with method weighing!            
+            # NOTE normalize D_Sf2 to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
+            # D_Sf2_norm = D_Sf2 * (abs(D_Ef) ** 2) 
+            # c_var = np.exp(-(D_Sf2_norm)/(np.min(D_Sf2_norm)*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
+            # c = (c_dist.T * c_var).T 
+
+            c_var = np.exp(-(D_mse)/(np.min(D_mse[np.nonzero(D_mse)])*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
+            print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
+            c = (c_dist * c_var) 
             # # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
-            c = (c_dist.T * c_var).T 
              
             if self.printing:
                 if np.min(D_Sf2) * 1000 < np.max(D_Sf2):
@@ -333,13 +338,15 @@ class ProposedMultiFidelityKriging(MFK_smt):
         S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
         # indexing at 1 always returns a smt MFK object!
-        if isinstance(K_mf[1], MFK) and K_mf[1].nlvl == 3: # TODO never use smt as alternative!!
+        Z1_is_alt = False
+        if isinstance(self, MFK) and self.nlvl == 3: # TODO never use smt as alternative!!
             # use the MFK solution if available! 
             # predict_top_level could return either a l1 or l2 prediction.
-            Z1_alt, S1_alt = K_mf[1].predict_top_level(X_unique)
+            Z1_alt, S1_alt = self.predict_top_level(X_unique)
             S1_alt = np.sqrt(S1_alt)
         else:
             Z1_alt, S1_alt = Z1, S1
+            Z1_is_alt = True
         
         # variables for function below
         Ef_non_corrected = ((z_pred - z1_b) / (z1_b - z0_b)).item()
@@ -388,12 +395,6 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # important for: suppose the scenario where a sample at L1 lies between samples of L2. 
         # Then it would not be reasonable to discard all weighted information and just take the L1 value even if Sf/Ef is high.
 
-        # so:   if high Sf/Ef -> use correlation (sc = correlation)
-        #       if low Sf/Ef -> use prediction (sc = 1)
-        
-        # corr = K_mf[-1].corr(correct_formatX(x_b,X_unique.shape[1]), X_unique, K_mf[-1].hps).flatten()
-        lin = np.exp(-1/2 * abs(Sf * Ef)**2) # = 1 for Sf = 0, e.g. when the prediction is perfectly reliable (does not say anything about non-linearity); 
-        
         # we want to linearly decrease lin between some bounds. Lets say untill Sf = 1 * Ef we find this acceptable, after which we will decrease lin (or w) to 0 at Sf = 5 * Ef
         # so with in this example a = 1 and b = 5
         a, b = 1, 5
@@ -405,18 +406,12 @@ class ProposedMultiFidelityKriging(MFK_smt):
             c = Sf / abs(Ef)
             lin = (c - a) / (b - a) 
 
-
-        # w = 1 * lin + corr * (1 - lin) 
-        # w = lin
-
         # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
         # w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1 # this means effectively only method weighing with MFK result!
-        w = 1 # if no method weighing
-        # w = lin
-
-        # print(f"W = {w}")
-        # * np.exp(-abs(Sf/Ef))
-
+        if self.method_weighing:
+            w = lin
+        else:
+            w = 1 # if no method weighing
         # NOTE
         # this is the point at which we can integrate other MF methods!!!!
         # e.g. this is exactly what other Mf methods do: combine multiple fidelities and weigh their contributions automatically.
