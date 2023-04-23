@@ -634,7 +634,10 @@ class Plotting:
                 try:
                     img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio),3)))
                 except:
-                    img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio) + 1,int(w*self.fig.canvas._dpi_ratio),3)))
+                    try:
+                        img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio) + 1,int(w*self.fig.canvas._dpi_ratio),3)))
+                    except:
+                        img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio) + 1,3)))
                 img.save(path)
                 # .savefig('my_plot.png')
                 # self.frames.append(self.fig.canvas.tostring_rgb())
