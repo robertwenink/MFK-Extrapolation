@@ -2,7 +2,7 @@ import numpy as np
 
 from core.sampling.solvers.internal import TestFunction
 from core.sampling.solvers.solver import get_solver
-np.set_printoptions(precision=3,linewidth = 150,sign=' ',suppress = True)
+np.set_printoptions(precision=4,linewidth = 150,sign=' ',suppress = True)
 import sys
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 11})
@@ -30,19 +30,7 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 
 # new TODO 
 # - linearity check voor proposed met smt afmaken
-# - in proposed method de z_pred op sample locaties incrementen met de noise die we eerder vonden! De noise is namelijk niet 0 op sample locaties.
-# 
-
-# TODO list
-# 6) DONE in proposed method voorkeur geven aan de correlation function van het proposed level als die bestaat! -> meer stabiliteit?
-# 11) DONE In de proposed method procedure het model met de laagste 2 levels gescheiden houden in K_mf van de prediction!
-#       Dit moet omdat de levels gelinkt zijn (er is bijv maar 1 sigma_hat) 
-#       en het toplevel als de waarheid wordt genomen terwijl dat bij mij niet perse zo is omdat ik predicted points doorgeef.
-#       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
-#       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
-
-# optional TODO list
-# 1) use validation dataset, seperate from K_truth! (K_truth can be unreliable too, i.e. based on model)
+# - kijken of run 05396_00000 op L = 2 een normale tijd heeft (wss erg lang door laptop dicht tussendoor!)
 
 # schrijven TODO list:
 # 0) Het is frappant hoe erg mijn extrapolatie methode en de method van la gratiet op elkaar lijken!!
@@ -60,13 +48,12 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 #       dus: onderliggend mfk model lvl0 + lvl1 != mfk model lvl2_pred !!
 #       als we dit niet doen zullen de laagste levels gaan overfitten en is de mse_pred ook -> 0 dus niks meer waard!
 # 6) nieuwe EI selection procedure beschrijven!!
-# 7) see train() in mfk_smt: OLS is only possible from 3 hifi samples onwards, independent of 2 or 3 levels !!
+#       Onderdeel hiervan is de 'reducable' amount of noise, en dat meliani/korondi/gratiet dat niet doen.
 # 8) discussie: beschrijven dat het interssant is te zien hoe bij noise de initiele surrogate (of eigenlijk vooral het eerste sample dat dicht bij elkaar light)
 #           niet heel goed kan zijn, maar dat zodra de noise estimates beter worden 
 #           door meer samples op de lower fidelities (dicht bij elkaar) de prediction vele malen beter wordt!!
 # 9) combinatie eval_noise + heteroscedastic beschrijven voor proposed, reinterpolation voor de reference. 
 #   Beschrijven dat alhoewel de aangepaste EI procedure voor beide wordt gebruikt, dit gezien de reinterpolatie voor de reference gelijk is aan het gebruikelijke.
-# 10) verandering van Sf weighing naar min ipv mean omdat het beste sample richtgevend moet zijn.
 # 11) No clear difference between using heteroscedastic noise evaluation or normal noise + reinterpolation has been observed.
 
 
@@ -77,9 +64,9 @@ conv_mods = [0, 1, 2, 3]
 solver_noises = [0.0, 0.02, 0.1]
 conv_types = ["Stable up", "Stable down", "Alternating"]
 
-setup.conv_mod = conv_mods[0]
-setup.conv_type = conv_types[0] # 1 TODO
-setup.solver_noise = solver_noises[1] # 0 TODO
+# setup.conv_mod = conv_mods[0]
+# setup.conv_type = conv_types[0] # 1 TODO
+# setup.solver_noise = solver_noises[1] # 0 TODO
 
 reuse_values = True
 reload_endstate = True
@@ -95,10 +82,10 @@ MFK_kwargs = {'print_global' : False,
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 'corr' : 'squar_exp',
                 }
-
+  
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, proposed = True, optim_var=True, initial_nr_samples = 3, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, proposed = True, optim_var=False, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 
@@ -106,7 +93,7 @@ mf_model = MultiFidelityEGO(setup, proposed = True, optim_var=True, initial_nr_s
 mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
-    mf_model.set_L([1, 2, None])
+    mf_model.set_L([2, 3, None])
     mf_model.set_L_costs([1,10,1000])   
 
 
