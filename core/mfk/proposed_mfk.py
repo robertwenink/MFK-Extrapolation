@@ -27,7 +27,10 @@ class ProposedMultiFidelityKriging(MFK_smt):
             Otherwise, use separate Original Kriging models for the truth and other models / levels.
         """
         super().__init__(*args, **kwargs)
+        self.proposed = True
+
         self.method_weighing = True
+        self.use_uncorrected_Ef = False
 
         # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz/simpon integral part
         self.lambs = np.arange(-5, 5, 0.01)
@@ -327,6 +330,11 @@ class ProposedMultiFidelityKriging(MFK_smt):
         z1_b, s1_b = K1.predict(x_b)
         s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)  # NOTE apparent noise due to smt nugget
 
+        # NOTE puur voor test scenario
+        z0_b, s0_b = 1, 0.1
+        z1_b, s1_b = 1.0001, 0.1
+        z_pred = np.array([2])
+        
         # using the actual samples! # NOTE VEEL VEEL SLECHTER, hebben echt noise regression nodig
         # mask = isin_indices(X_unique, correct_formatX(x_b,self.d))
         # z0_b = self.Z_mf[0][mask]
@@ -349,7 +357,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             Z1_is_alt = True
         
         # variables for function below
-        Ef_non_corrected = ((z_pred - z1_b) / (z1_b - z0_b)).item()
+        Ef_uncorrected = ((z_pred - z1_b) / (z1_b - z0_b)).item()
 
         # @njit
         def exp_f(lamb1, lamb2, pdf):
@@ -357,6 +365,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             integration of standard normal gaussian function lamb"""
             c1 = z_pred - z1_b
             c2 = z1_b - z0_b
+            # NOTE TODO the /2 does not belong originally
             div = c2 + lamb1 * s1_b + lamb2 * s0_b
 
             f = np.divide((c1 - lamb1 * s1_b), div, out=np.ones_like(lamb1) * 0, where=div!=0) # liever wat kleiner (trekt naar Z1 toe) dan heel groot, dus 0
@@ -377,7 +386,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # mid = time.time()
         # print(f"double integral took: {mid - start}")
 
-        # Ef = Ef_non_corrected
+        # Ef = Ef_uncorrected
         @njit
         def var_f(pdf):
             # Var X = E[(X-E[X])**2]
@@ -420,6 +429,15 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
         # retrieve the (corrected) prediction + std
         # NOTE this does not retrieve z_pred at x_b if sampled at kriged locations.
+
+        if self.printing:
+            print(f"({x_b}) Ef org: {Ef_uncorrected:6f} vs Ef corrected: {Ef:6f}; Sf: {Sf:6f}; w: {w}")
+
+        if self.use_uncorrected_Ef:
+            Ef = Ef_uncorrected
+
+        self.last_Ef = Ef
+
         Z2_p = w * (Ef * (Z1 - Z0) + Z1) + (1 - w) * Z1_alt
 
         # NOTE (Eb1+s_b1)*(E[Z1-Z0]+s_[Z1-Z0]), E[Z1-Z0] is just the result of the Kriging
@@ -435,10 +453,6 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
         # set S2_p to 0 at that index (we will later include variance from noise.)
         S2_p[ind] = 0
-
-        # not Sf/Ef bcs for large Ef, Sf will already automatically be smaller by calculation!!
-        if self.printing:
-            print(f"({x_b}) Ef org: {Ef_non_corrected:6f} vs Ef corrected: {Ef:6f}; Sf: {Sf:6f}; w: {w}")
 
         return Z2_p, S2_p ** 2, Sf ** 2, Ef
 

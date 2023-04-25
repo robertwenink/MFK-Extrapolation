@@ -9,7 +9,7 @@ import time
 from copy import deepcopy
 
 from utils.error_utils import RMSE_norm_MF, RMSE_focussed
-np.set_printoptions(precision=3,linewidth = 150,sign=' ')
+np.set_printoptions(precision=4,linewidth = 150,sign=' ')
 
 import warnings 
 warnings.simplefilter("ignore", RuntimeWarning) # Scipy optimize can throw x out of bounds, but this is really consequential

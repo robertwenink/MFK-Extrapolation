@@ -269,7 +269,7 @@ class MultiFidelityKrigingBase(KrigingBase):
         self.Z_truth = self.solver.solve(self.X_truth,self.L[-1])[0]
 
         # TODO select only those indices where the truth is known s.t. we can always calc this!
-        if self.Z_mf[0].shape[0] == self.Z_mf[1].shape[0] == self.Z_truth.shape[0]:
+        if self.Z_mf[0].shape[0] == self.Z_mf[1].shape[0] == self.Z_truth.shape[0] and self.printing:
             check_correlations(self.Z_mf[0], self.Z_mf[1], self.Z_truth)
 
 

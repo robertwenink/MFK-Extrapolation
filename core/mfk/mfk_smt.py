@@ -160,8 +160,9 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         """
         Update the training data and train.
         """
+        TRAIN_MFK_WHEN_SF_PROPOSED = True
         # TODO this is only valid when no method weighing is done!!
-        if not (self.proposed and self.use_single_fidelities):# or True: # TODO
+        if not (self.proposed and self.use_single_fidelities and not TRAIN_MFK_WHEN_SF_PROPOSED):# or True: # TODO
             if self.X_mf[-1].shape[0] >= len(self.X_mf):
                 # then just train the full model
                 if hasattr(self,'not_maximum_level'):
