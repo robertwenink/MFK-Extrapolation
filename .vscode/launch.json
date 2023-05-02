@@ -39,6 +39,13 @@
             "request": "launch",
             "program": "repeated_experiments.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: show_variance_distance_weighing_works.py",
+            "type": "python",
+            "request": "launch",
+            "program": "show_variance_distance_weighing_works.py",
+            "console": "integratedTerminal"
         }
     ]
 }

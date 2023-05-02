@@ -78,7 +78,6 @@ class TestFunction(Solver):
         setup must be None; we do not always require the use of a setup,
         as this class is used in creation of the setup object/ GUI for retrieving min_d, max_d.
         """
-        self.noise_level = 0.02
         
         if setup is not None:
             self.mf = setup.mf
@@ -94,6 +93,8 @@ class TestFunction(Solver):
             self.value_metrics = [np.min(Z), np.max(Z), np.mean(Z)]
 
             self.solver_noise = setup.solver_noise
+            if self.solver_noise == True: # bcs the one from setup is actually a boolean
+                self.solver_noise = 0.02
 
             if self.mf:
                 # keep this for plotting text
@@ -185,7 +186,6 @@ class TestFunction(Solver):
             
             """
             cost = 1
-            noise_level = self.noise_level
 
             # use base solver
             val = func(self, X)
@@ -203,7 +203,7 @@ class TestFunction(Solver):
                 " transformation "
                 # using abs(conv - 1) is a non-linear effect, but is required for mimicking Forrester/Meliani (in which case it is not non-linear??)
                 data_range_multiplier = (self.value_metrics[1] - self.value_metrics[0]) / 20 # is ~20 for forrester
-                linear_gain_mod = 1 * data_range_multiplier
+                linear_gain_mod = 2 * data_range_multiplier
                 A = conv
                 B = 10 * (conv - 1) * linear_gain_mod
                 C = -5 * (conv - 1) * linear_gain_mod
@@ -217,7 +217,7 @@ class TestFunction(Solver):
                     norm_conv = abs(conv - 1) / abs(conv0 - 1)
 
                     # get the convergence corrected noise_level
-                    conv_noise = norm_conv * noise_level * (
+                    conv_noise = norm_conv * self.solver_noise * (
                         # if run with very high numbers, absolute mean is ~0.8
                         # https://en.wikipedia.org/wiki/Half-normal_distribution
                         # 1 * np.sqrt(2) / np.sqrt(np.pi) = 0.7978845608028655
@@ -239,7 +239,7 @@ class TestFunction(Solver):
                 # provide noise, present at every fidelity level and relative to the noise value
                 # defined as 1/10th of the noise_level
                 #  TODO wel of niet /0.8
-                const_noise = noise_level / 10 * (rng.standard_normal(size=val.shape)) / 0.8           
+                const_noise = self.solver_noise / 10 * (rng.standard_normal(size=val.shape)) / 0.8           
 
                 # relative part of noise, this part is bigger for larger values
                 val *= 1 + (1 - ratio_abs_rel_noise) * const_noise

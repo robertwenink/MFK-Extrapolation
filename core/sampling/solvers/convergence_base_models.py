@@ -23,7 +23,9 @@ def conv_stable_up(l):
 
 def conv_alternating(l):
     """alternating harmonic"""
+    # original offset is 2, higher will retrieve more converged result
     offset = 5
+    offset = 2
     n = np.arange(2, l ** CONVERGENCE_SPEED + offset)
     n[::2] *= -1
     harmonic = 1 + np.sum(np.divide(1, n))

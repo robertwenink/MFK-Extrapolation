@@ -110,7 +110,7 @@ class MultiFidelityKrigingBase(KrigingBase):
         self.costs_expected_nested[l] = sum([self.costs_expected[i] for i in range(l+1)])
         self.costs_total = sum(self.costs_per_level.values())
 
-    def print_stats(self,RMSE_list):
+    def print_stats(self, RMSE_list):
         """Print insightfull stats. Best called after adding a high-fidelity sample."""
         if self.printing:
             table = BeautifulTable()
@@ -236,7 +236,10 @@ class MultiFidelityKrigingBase(KrigingBase):
                 ub = x + bounds_range
                 nr_samples = min(self.d * (1 + initial),6)
                 
-                X_noise = lb + lhs(
+                if nr_samples == 1 and self.d == 1:
+                    X_noise = correct_formatX(ub if ub < self.bounds[1, :] else lb, self.d)
+                else:
+                    X_noise = lb + lhs(
                         self.d,
                         samples=nr_samples,
                         criterion="maximin",
@@ -244,9 +247,8 @@ class MultiFidelityKrigingBase(KrigingBase):
                         random_state=self.randomstate,
                     ) * (ub - lb)
                 
-                # simply remove samples that are outside the original bounds
-                
-                X_noise = X_noise[~(((X_noise > self.bounds[1, :]) | (X_noise < self.bounds[0, :])).any(1))]
+                    # simply remove samples that are outside the original bounds
+                    X_noise = X_noise[~(((X_noise > self.bounds[1, :]) | (X_noise < self.bounds[0, :])).any(1))]
 
                 self.sample_nested(l, X_noise, train = False)
 

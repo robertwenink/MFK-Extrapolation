@@ -17,9 +17,6 @@ from utils.selection_utils import isin_indices
 " Say what class to inherit from!! "
 # use MFK_org or MFK_smt
 class ProposedMultiFidelityKriging(MFK_smt):
-    """
-    TODO interesant te bedenken: werkt voor de proposed method onafhankelijke noise estimates beter? -> houdt OK als optie
-    """
 
     def __init__(self, *args, **kwargs):
         """
@@ -30,6 +27,11 @@ class ProposedMultiFidelityKriging(MFK_smt):
         self.proposed = True
 
         self.method_weighing = True
+        self.try_use_MFK = True
+        self.trained_MFK = False
+
+        self.variance_weighing = True
+        self.distance_weighing = True
         self.use_uncorrected_Ef = False
 
         # to find precision, use Y = np.exp(-(lamb1 ** 2 + lamb2 ** 2) / 2) / (2 * np.pi) and use the double trapz/simpon integral part
@@ -148,7 +150,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
                         self.K_pred.options['noise0'] = [MSE[:,0].reshape(-1,1), MSE[:,1].reshape(-1,1), mse_pred_adapted.reshape(-1,1)] # was self.mse_pred!
                         # self.K_pred.options['noise0'] = [[0], [0], [self.mse_pred]]
 
-                    self.K_pred.options['eval_noise'] = False # NOTE als dit False is, doet optim_var niks
+                    self.K_pred.option['eval_noise'] = False # NOTE als dit False is, doet optim_var niks
                     self.K_pred.options['optim_var'] = False # NOTE True would have the same effect
                     self.K_pred.options['use_het_noise'] = True
 
@@ -207,33 +209,65 @@ class ProposedMultiFidelityKriging(MFK_smt):
         
         # In case there is only one sample, nothing to weigh
         if len(Z_s) == 1:
-            Z_pred, mse_pred, Sf2_weighed, Ef_weighed = self.Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_Sf2
+            Z_pred, mse_pred, Sf2_weighed, Ef_weighed, D_w = self.Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_Sf2
         else:
             " Collect new results "
             # NOTE if not in X_unique, we could just add a 0 to all previous,
             # might be faster but more edge-cases
-            D_z, D_mse, D_Sf2, D_Ef = [], [], [], []
+            D_z, D_mse, D_Sf2, D_Ef, D_w = [], [], [], [], []
             for i in range(X_s.shape[0]):
-                Z_p, mse_p, Sf2, Ef = self.Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
-                D_z.append(Z_p), D_mse.append(mse_p), D_Sf2.append(Sf2), D_Ef.append(Ef) # type: ignore
-            D_z, D_mse, D_Sf2, D_Ef = np.array(D_z), np.array(D_mse), np.array(D_Sf2), np.array(D_Ef)
+                Z_p, mse_p, Sf2, Ef, w = self.Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
+                D_z.append(Z_p), D_mse.append(mse_p), D_Sf2.append(Sf2), D_Ef.append(Ef), D_w.append(w) # type: ignore
+            D_z, D_mse, D_Sf2, D_Ef, D_w = np.array(D_z), np.array(D_mse), np.array(D_Sf2), np.array(D_Ef), np.array(D_w)
 
             " Weighing "
-            # 1) distance based: take the (tuned) Kriging correlation function
-            # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
-            # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
-            c_dist = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
+            # preparation: get columns with sampled points
+            idx = isin_indices(X_unique, X_s) # 1d
+            mask = np.array([isin_indices(X_unique, correct_formatX(xs, self.d)) for xs in X_s]) # locaties in de #samples x 1d array
 
-             
-            # get columns with sampled points
-            idx = isin_indices(X_unique, X_s)
-            mask = [isin_indices(X_unique, correct_formatX(xs, self.d)) for xs in X_s]
+            # 1) distance based: take the (tuned) Kriging correlation function
+            c_dist_org = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
+
+            if self.distance_weighing:
+                # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
+                # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
+                c_dist = np.zeros_like(c_dist_org)
+
+                # distance_weighing is momenteel niet interpolerend!!!
+                # 1) get the values of other samples at the locations of a sample, always use the original values for this!!
+                # c_dist_inter *= X_s.shape[0]
+                selection = c_dist_org[:, idx]
+                for i, col in enumerate(selection): # enumerate works bcs sample nr corresponds with row nr
+                    # 2) remove these from the complete rows such that value at sample is 0 in all other rows
+                    c_dist_inter = deepcopy(c_dist_org)
+                    c_dist_inter -= col[:, np.newaxis]
+
+                    # re-add the value at the column index
+                    j = np.where(col == 1.0)[0]
+                    c_dist_inter[j,:] += col[j] 
+
+                    # 4) clip the result to 0 (no negative values: if negative, that means other samples contributions should be the only one)
+                    c_dist_inter = c_dist_inter.clip(min=0)
+
+                    c_dist += c_dist_inter
+
+                # 3) rescale the rows based on the value at its own sample
+                c_dist /= np.sum(c_dist, axis = 0)
+
+                # 5) check that there are no columns with zeros only and that at samples the others are all 0!
+                col_indices = np.where(np.all(c_dist == 0, axis=0))[0]
+                if col_indices.any():
+                    print("WARNING: THERE ARE COLUMNS WITH 0 ONLY")
+
+                sums = np.sum(c_dist[:, idx], axis=0)
+                if np.all(sums == 1):
+                    print("WARNING: NOT ONLY SAMPLES ARE 1!")
+
+            else:            
+                c_dist = np.ones_like(c_dist_org)
 
             # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
-            
-            # relative weighing of distance scaling wrt variance scaling
-            c_dist_rel_weight = 5
-             
+                         
             #    we want to keep the correlation/weighing the same if there is no variance,
             #    and otherwise reduce it.
             #    We could simply do: sigma += 1 and divide.
@@ -247,10 +281,25 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # c_var = np.exp(-(D_Sf2_norm)/(np.min(D_Sf2_norm)*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
             # c = (c_dist.T * c_var).T 
 
-            c_var = np.exp(-(D_mse)/(np.min(D_mse[np.nonzero(D_mse)])*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
-            print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
+            if self.variance_weighing:
+                # relative weighing of distance scaling wrt variance scaling
+                c_dist_rel_weight = 5
+                if np.all(~D_w):
+                    # if there is nothing
+                    D_w = ~D_w
+
+                mse_mean = np.mean(D_mse[D_w, :], axis = 1) # select using boolean weight (only use samples not completely w = 0)
+                c_var = np.exp(-(D_mse)/(np.mean(mse_mean))*c_dist_rel_weight) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
+
+                # We basically do not want to include the other method in variance weighing. If all are other method neither.
+                # so we take the mean over the c_var`s of those of the extrapolation, in effect distance weighing becomes the prevalent
+                c_var[~D_w,:] = np.mean(c_var[D_w], axis = 0)
+                print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
+            else:
+                c_var = np.ones_like(D_mse)
+
+            # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
             c = (c_dist * c_var) 
-            # # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
              
             if self.printing:
                 if np.min(D_Sf2) * 1000 < np.max(D_Sf2):
@@ -331,9 +380,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
         s0_b, s1_b = np.sqrt(s0_b), np.sqrt(s1_b)  # NOTE apparent noise due to smt nugget
 
         # NOTE puur voor test scenario
-        z0_b, s0_b = 1, 0.1
-        z1_b, s1_b = 1.0001, 0.1
-        z_pred = np.array([2])
+        # z0_b, s0_b = 1, 0.1
+        # z1_b, s1_b = 1.0001, 0.1
+        # z_pred = np.array([2])
         
         # using the actual samples! # NOTE VEEL VEEL SLECHTER, hebben echt noise regression nodig
         # mask = isin_indices(X_unique, correct_formatX(x_b,self.d))
@@ -346,14 +395,14 @@ class ProposedMultiFidelityKriging(MFK_smt):
         S0, S1 = np.sqrt(S0), np.sqrt(S1)
 
         # indexing at 1 always returns a smt MFK object!
-        Z1_is_alt = False
-        if isinstance(self, MFK) and self.nlvl == 3: # TODO never use smt as alternative!!
+        Z1_is_alt = False 
+        if self.trained_MFK and self.try_use_MFK: # isinstance(self, MFK) and hasattr(self,'nlvl') and self.nlvl == 3
             # use the MFK solution if available! 
             # predict_top_level could return either a l1 or l2 prediction.
             Z1_alt, S1_alt = self.predict_top_level(X_unique)
-            S1_alt = np.sqrt(S1_alt)
+            S1_alt = np.sqrt(S1_alt) * 2 # TODO NOTE x2 om in variance weighing de eigen method wat meer voorkeur te geven
         else:
-            Z1_alt, S1_alt = Z1, S1
+            Z1_alt, S1_alt = Z1, S1 * 2 # TODO NOTE x2 om in variance weighing de eigen method wat meer voorkeur te geven
             Z1_is_alt = True
         
         # variables for function below
@@ -365,7 +414,6 @@ class ProposedMultiFidelityKriging(MFK_smt):
             integration of standard normal gaussian function lamb"""
             c1 = z_pred - z1_b
             c2 = z1_b - z0_b
-            # NOTE TODO the /2 does not belong originally
             div = c2 + lamb1 * s1_b + lamb2 * s0_b
 
             f = np.divide((c1 - lamb1 * s1_b), div, out=np.ones_like(lamb1) * 0, where=div!=0) # liever wat kleiner (trekt naar Z1 toe) dan heel groot, dus 0
@@ -454,7 +502,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # set S2_p to 0 at that index (we will later include variance from noise.)
         S2_p[ind] = 0
 
-        return Z2_p, S2_p ** 2, Sf ** 2, Ef
+        return Z2_p, S2_p ** 2, Sf ** 2, Ef, w
 
 
 

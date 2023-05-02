@@ -69,7 +69,12 @@ class Plotting:
         self.solver = get_solver(setup)
         self.plot_exact_possible = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
         self.try_show_exact = True
+        self.plot_truth = False
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
+
+        # plot seperate ax with only response?
+        self.plot_double_axes = False
+        self.plot_NRMSE_text = False
 
         if setup.d == 1 or len(setup.d_plot) == 1:
             self.plot = self.plot_1d
@@ -172,16 +177,18 @@ class Plotting:
             l += 1
 
         if show_exact:
-            if not is_truth:
+            if self.plot_truth and not is_truth:
                 show_exact = False
-        
+            color_exact = self.colors[l+1]
+        else:
+            color_exact = 0
+
         # color and marker of this level
         if color == "":
             color = self.colors[l]
         if marker == "":
             marker = self.markers[3] # we only display one set of samples, so better be consistent!
         
-        color_exact = self.colors[l+1]
 
         return l, label, label_samples, label_exact, color, marker, show_exact, color_exact
 
@@ -190,14 +197,17 @@ class Plotting:
     ###########################################################################
 
     def init_1d_fig(self):
-        fig, self.axes = plt.subplots(2, 1, figsize = (12,8))
+        fig, self.axes = plt.subplots(1 + self.plot_double_axes, 1, figsize = (12, 4 + 4 * self.plot_double_axes))
         fig.suptitle("{}".format(self.figure_title))
+        if not self.plot_double_axes:
+            self.axes = [self.axes]
+
         for ax in self.axes:
             ax.colors = []
         fig.canvas.manager.window.move(0,0)
         self.fig = fig
 
-    def plot_1d_ax(self, ax, predictor, l, X_sample = None, y_sample = None, show_exact: bool = True, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
+    def plot_1d_ax(self, ax, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
         """
         plot 1d function
         """
@@ -233,10 +243,15 @@ class Plotting:
             ax.plot(*self.X_plot, y_exact, '--', label = label_exact, color = color_exact, alpha = 0.5) 
             ax.colors.append(color_exact)
 
-    def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = False, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
+    def plot_1d(self, predictor, l, X_sample = None, y_sample = None, show_exact: bool = True, is_truth : bool = False, label="", color = "", marker = "", label_samples = ""):
+        if l >= self.l_hifi and show_exact:
+            show_exact = self.plot_exact_possible
+        else:
+            show_exact = False
+
         self.plot_1d_ax(self.axes[0],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker, label_samples)
-        if l >= self.l_hifi:
-            show_exact = self.try_show_exact
+
+        if l >= self.l_hifi and self.plot_double_axes:
             self.plot_1d_ax(self.axes[1],predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker, label_samples)
 
 
@@ -347,7 +362,7 @@ class Plotting:
                 ax.scatter(*X_sample[:, self.d_plot].T, y_sample, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label = label_samples) # needs s argument, otherwise smaller in 3d!
                 ax.colors.append(color)
 
-            if show_exact and self.plot_exact_possible:
+            if show_exact and self.plot_exact_possible and l >= self.l_hifi:
                 fix_colors(ax.plot_surface(*self.X_plot, y_exact, alpha=0.5, label = label_exact, color = color_exact))
                 ax.colors.append(color_exact)
         else:
@@ -362,7 +377,7 @@ class Plotting:
                 ax.scatter(*X_sample[:, self.d_plot].T, marker = marker, s = self.s_standard + self.truth_s_increase if is_truth else self.s_standard, color = color, linewidth=2, facecolor = "none" if is_truth else color, label= label_samples)
                 ax.colors.append(color)
 
-            if show_exact and self.plot_exact_possible:
+            if show_exact and self.plot_exact_possible and l >= self.l_hifi:
                 CS = ax.contour(*self.X_plot, y_exact, colors=color_exact)
                 CS.collections[-1].set_label(label_exact)
                 ax.colors.append(color_exact)
@@ -377,7 +392,7 @@ class Plotting:
         """      
         for i, ax in enumerate(self.axes):
             if i == 1 or i == 3: # right two plots, here we only want the truth / +exact
-                show_exact = self.try_show_exact # NOTE not showing exact for now!!
+                show_exact = self.plot_exact_possible
                 if l >= self.l_hifi:
                     self.plot_2d_ax(ax,predictor,l,X_sample,y_sample,show_exact,is_truth,label,color,marker,label_samples)
             else:
@@ -403,11 +418,11 @@ class Plotting:
         """
         Use to plot the fully sampled hifi truth Kriging with the prediction core.ordinary_kriging.
         """
-
-        self.plot(mf_model.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
-        
-        for ax in self.axes:
-            self.plot_kriged_truth_best(ax, mf_model)
+        if self.plot_truth:
+            self.plot(mf_model.K_truth, mf_model.l_hifi, mf_model.X_truth, mf_model.Z_truth, is_truth=True) #  color = 'black',
+            
+            for ax in self.axes:
+                self.plot_kriged_truth_best(ax, mf_model)
 
     def set_zoom_inset(self, axes_nrs, x_rel_range : list,  inset_rel_limits = [[]]):
         """
@@ -526,8 +541,8 @@ class Plotting:
 
             t_start = time.time()
 
-            X = mf_model.X_mf # contains the hifi sampled level too
-            Z = mf_model.Z_mf # contains the hifi sampled level too
+            X_mf = mf_model.X_mf # contains the hifi sampled level too
+            Z_mf = mf_model.Z_mf # contains the hifi sampled level too
             K_mf = mf_model.K_mf
             L = mf_model.L
             self.l_hifi = mf_model.l_hifi
@@ -552,13 +567,22 @@ class Plotting:
                 else:
                     ax.clear()
                 ax.colors =[]
-
+            
+            if self.plot_NRMSE_text:
+                ax = self.axes[-1]
+                xlims = ax.get_xlim()
+                ax.text(0.05, 0.9, f"NRMSE = {round(RMSE[-1],2)}%",
+                    horizontalalignment='left',
+                    verticalalignment='top',
+                    transform=ax.transAxes,
+                    fontsize = 'large', zorder = 10)
+                ax.set_xlim(xlims)
 
             " plot known kriging levels"
             has_prediction = isinstance(mf_model,ProposedMultiFidelityKriging) and mf_model.l_hifi + 1 == mf_model.number_of_levels
             for l in range(mf_model.number_of_levels - 1 if has_prediction else mf_model.number_of_levels):
                 if mf_model.d == 1 or not has_prediction: # for 1d the added points is not too confusing
-                    self.plot(K_mf[l], l, X[l], Z[l]) 
+                    self.plot(K_mf[l], l, X_mf[l], Z_mf[l]) 
                 else:
                     self.plot(K_mf[l], l)
 
@@ -569,10 +593,10 @@ class Plotting:
                 if K_mf_extra is None: # very crowded plot otherwise!
                     # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
                     # includes sample points, but not the predicted points!
-                    self.plot(K_mf[l], l, X[l], Z[l], label="Predicted level {}".format(l))
+                    self.plot(K_mf[l], l, X_mf[l], Z_mf[l], label="Predicted level {}".format(l))
                     
                     # set up to plot our prediction`s` estimated part of points seperately in black
-                    X_plot_est = mf_model.return_unique_exc(X_exclude=X[-1])
+                    X_plot_est = mf_model.return_unique_exc(X_exclude=X_mf[-1])
                     Z_plot_est = K_mf[l].predict(self.transform_X(X_plot_est))[0]
 
                     # plot the methods prediction points
@@ -581,13 +605,18 @@ class Plotting:
                 else:
                     self.plot(K_mf[l], l, label="Predicted level {}".format(l))
 
+            " plot MFK if available, for 1d only"
+            if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
+                self.plot(mf_model, len(self.colors) - 1, show_exact = False, label="MFK of Le Gratiet (2014)")
+
+
             " plot best point "
             # set up to plot best out of all the *sampled* hifi locations
             # NOTE not per definition the best location of all previous levels too
             ind_best = mf_model.get_best_sample(arg=True)
 
             for ax in self.axes:
-                self.plot_best(ax, X[-1], Z[-1], ind_best)
+                self.plot_best(ax, X_mf[-1], Z_mf[-1], ind_best)
 
             " plot 'full' Kriging level in case of linearity check"
             # Is per definition a prediction!
@@ -611,7 +640,6 @@ class Plotting:
             if self.plot_exact_possible:
                 for ax in self.axes:
                     self.plot_optima(ax, mf_model)
-
 
             self.set_axis_props(mf_model)
 
@@ -664,10 +692,12 @@ class Plotting:
             counter = 0
 
             # !! deze hele klotezooi is nodig om de kleuren te corrigeren, locatie is eigenlijk sidebusiness
-            leg = ax.legend()
+            leg = ax.legend() # create a naive legend
+            handles, labels = ax.get_legend_handles_labels()
+
             if mf_model.d == 1:
                 for i, lh in enumerate(leg.legendHandles):
-                    if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D):
+                    if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D):# or 'level 2' in lh._label:
                         is_line_or_surface.append(i)
                         is_line_or_surface_colors.append(lh._color)
                     else:
@@ -694,12 +724,26 @@ class Plotting:
 
             # reorder, surfaces / lines flushed forwards! 
             order = is_line_or_surface + is_other
+
+            # changing the order of the last four entries (exact, predicted, best, optima)
+            if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
+                # then we plot MFK too, use last 5
+                order_sub = order[-5:]
+                del order[-5:]
+                order += order_sub[2:4] + [order_sub[1]] + [order_sub[0]] + [order_sub[-1]]
+            else:
+                order_sub = order[-4:]
+                del order[-4:]
+                order_pred = order_sub[1:3]
+                del order_sub[1:3]
+                order += order_pred + order_sub
+
             if (mf_model.d != 1) and ax_nr == 1 or ax_nr == 3:
                 loc = 'upper left'
                 bb = (1.08, 1.0)
             else:
                 if mf_model.d == 1 and ax_nr == 0:
-                    bb = (-0.08, 0.45)
+                    bb = (-0.08, 0.49)
                     loc = 'center right'
                 else:
                     bb = (-0.08, 1.0)
@@ -710,12 +754,6 @@ class Plotting:
             if ax_nr == 0 or ax_nr == 1: # works for both 1d as 2d plotting
                 extra_text = [u"\nVariance displayed with\n\u00B1 {} standard deviations".format(self.std_mult)]
                 extra = [Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)]
-
-            handles, labels = ax.get_legend_handles_labels()
-            if mf_model.d == 1:
-                order_sub = order[-4:-2]
-                del order[-4:-2]
-                order += order_sub
 
             leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc = loc, bbox_to_anchor=bb)
 
@@ -813,7 +851,7 @@ class Plotting:
                 if ax.name == '3d':
                     ax.set_zlim(zlim)
         
-        if self.d == 1:
+        if self.d == 1 and self.plot_double_axes:
             maxx = -1000000000
             minn = 1000000000
             for line in self.axes[0].get_lines():

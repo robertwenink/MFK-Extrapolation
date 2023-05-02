@@ -42,13 +42,13 @@ class MFK_wrap(MFK):
         y, mse = self.predict_values(X).reshape(-1,), self.predict_variances_all_levels(X, redo_Ft)[0][:, -1].reshape(-1,)
         return y, mse
     
-    # TODO this is only called for sf functions. Double of the function in Object_wrapper
+    # NOTE this is only called for sf functions. Double of the function in Object_wrapper
     def corr(self, X, X_other):
-        # NOTE from mfk.py line 419
+        # NOTE from mfk.py line 419 
         dx = self._differences(X, Y=X_other)
         d = self._componentwise_distance(dx) 
         r_ = self._correlation_types[self.options["corr"]](
-            self.optimal_theta[0], d 
+            self.optimal_theta[0], d
         ).reshape(X.shape[0], X_other.shape[0])
         return r_
 
@@ -125,7 +125,7 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
                     print("Creating Kriging model of truth")
                 kwargs = deepcopy(self.MFK_kwargs)
                 kwargs['n_start'] *= 2 # truth is not tuned often so rather not have any slipups
-                kwargs['optim_var'] = self.optim_var
+                kwargs['optim_var'] = True #self.optim_var
                 self.K_truth = MFK_wrap(**kwargs)
                 self.K_truth.name = "K_truth"
 
@@ -161,8 +161,10 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         Update the training data and train.
         """
         TRAIN_MFK_WHEN_SF_PROPOSED = True
-        # TODO this is only valid when no method weighing is done!!
-        if not (self.proposed and self.use_single_fidelities and not TRAIN_MFK_WHEN_SF_PROPOSED):# or True: # TODO
+        if not (self.proposed and self.use_single_fidelities and not TRAIN_MFK_WHEN_SF_PROPOSED) and self.method_weighing:
+            print("TRAINING UNDERLYING MFK")
+            self.trained_MFK = True
+            # condition: de single fidelities worden in setK_mf getraind dus we hoeven dan dit blok niet aan te roepen, tenzij we expliciet method_weighing doen
             if self.X_mf[-1].shape[0] >= len(self.X_mf):
                 # then just train the full model
                 if hasattr(self,'not_maximum_level'):
@@ -363,14 +365,5 @@ class ObjectWrapper(MFK_smt):
         return self._predict_l(X, self.l_fake, redo_Ft)
     
     def corr(self, X, X_other):
-        # NOTE from mfk.py line 419
-        # dx = self._differences(X, Y=self.X_norma_all[lvl])
-        dx = self._differences(X, Y=X_other)
-        d = self._componentwise_distance(dx) 
-        r_ = self._correlation_types[self.options["corr"]](
-            # self.optimal_theta[self.l_fake], d NOTE poging tot normalizeren
-            # max(self.optimal_theta), d * (10/2) ** 2
-            self.optimal_theta[self.l_fake], d # TODO normalize with the average distance between real datapoints
-        ).reshape(X.shape[0], X_other.shape[0])
-        return r_
+        MFK_wrap.corr(self, X, X_other)
 

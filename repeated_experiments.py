@@ -290,7 +290,7 @@ if __name__ == '__main__':
 
     # variables 
     conv_mods = [0, 1, 2, 3]
-    solver_noises = [0.0, 0.02, 0.1] # to be passed as solver.noise_level = .. 
+    solver_noises = [0.0, 0.02, 0.1] 
     conv_types = ["Stable up", "Stable down", "Alternating"] # average these results
 
     # NOTE testing only

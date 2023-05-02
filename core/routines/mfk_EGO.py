@@ -33,9 +33,9 @@ class MultiFidelityEGO(ProposedMultiFidelityKriging, MFK_smt, EfficientGlobalOpt
         " OPTION FOR USING SINGLE FIDELITY LEVELS BEHIND K_PRED"
         self.use_single_fidelities = True
 
-    def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None):
-        self.max_cost = np.inf
-        self.max_iter = 50
+    def optimize(self, pp : Plotting = None, cp : ConvergencePlotting = None, max_cost = np.inf, max_iter = 50):
+        self.max_cost = max_cost
+        self.max_iter = max_iter
 
         n = 0
         while np.sum(self.costs_total) < self.max_cost:
