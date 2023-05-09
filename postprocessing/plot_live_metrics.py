@@ -104,8 +104,8 @@ class ConvergencePlotting():
 
         " RMSE plots "
         ax_rmse.set_title("RMSE convergence")
-        p3_full, = ax_rmse.plot([], [], color=self.colors[2], label = "Full predicted surrogate")
-        p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (z <= opt + {}% range)\npredicted surrogate".format(self.RMSE_focuss_percentage))
+        p3_full, = ax_rmse.plot([], [], color=self.colors[2], label = "Full extrapolated surrogate")
+        p3_focussed, = ax_rmse.plot([], [], color=self.colors[3], label = "Focussed (z <= opt + {}% range)\nextrapolated surrogate".format(self.RMSE_focuss_percentage))
         ax_rmse.set_ylabel(f"RMSE with respect to the {'exact solution' if isinstance(self.solver, TestFunction) else 'kriged truth'} [%]", fontsize = self.main_font_size)
         ax_rmse.set_xlabel("Iteration number [-]", fontsize = self.main_font_size)
 

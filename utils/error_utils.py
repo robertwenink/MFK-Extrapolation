@@ -24,7 +24,7 @@ def MAE_norm(Z, Z_predict):
 def RMSE_norm_MF(mf_model, no_samples = False):
     """
     Calculate multifidelity RMSE.
-    @param no_samples (bool): only calculate RMSE based on predicted points i.e. points not sampled at the highest level.
+    @param no_samples (bool): only calculate RMSE based on extrapolated points i.e. points not sampled at the highest level.
     """
     # RMSE zou eigenlijk alleen moeten worden bepaald op plekken waar er GEEN samples op level 2 zijn, alleen predicted points!
     # anders gaat de RMSE automatisch omlaag, wat misleidend is.
