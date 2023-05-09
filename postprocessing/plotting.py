@@ -1,5 +1,6 @@
 # pyright: reportGeneralTypeIssues=false
 
+from matplotlib.transforms import Bbox
 import numpy as np
 import time 
 import os 
@@ -75,6 +76,7 @@ class Plotting:
         # plot seperate ax with only response?
         self.plot_double_axes = False
         self.plot_NRMSE_text = False
+        self.show_legend = True
 
         if setup.d == 1 or len(setup.d_plot) == 1:
             self.plot = self.plot_1d
@@ -463,7 +465,7 @@ class Plotting:
 
         color_predicted = 'black'
         ax.colors.append(color_predicted)
-        label_predicted = label if label != "" else "Predicted points level {}".format(l)
+        label_predicted = label if label != "" else "Extrapolated points level {}".format(l)
         marker_predicted = "+"
 
         # 3D scatter plot
@@ -593,7 +595,7 @@ class Plotting:
                 if K_mf_extra is None: # very crowded plot otherwise!
                     # prediction line, this is re-interpolated if we used noise and might not cross the sample points exactly
                     # includes sample points, but not the predicted points!
-                    self.plot(K_mf[l], l, X_mf[l], Z_mf[l], label="Predicted level {}".format(l))
+                    self.plot(K_mf[l], l, X_mf[l], Z_mf[l], label="Extrapolated level {}".format(l))
                     
                     # set up to plot our prediction`s` estimated part of points seperately in black
                     X_plot_est = mf_model.return_unique_exc(X_exclude=X_mf[-1])
@@ -603,7 +605,7 @@ class Plotting:
                     for ax in self.axes:
                         self.plot_predicted_points(ax, l, X_plot_est, Z_plot_est)
                 else:
-                    self.plot(K_mf[l], l, label="Predicted level {}".format(l))
+                    self.plot(K_mf[l], l, label="Extrapolated level {}".format(l))
 
             " plot MFK if available, for 1d only"
             if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
@@ -631,7 +633,7 @@ class Plotting:
                 best = np.argmin(K_mf_extra.Z_s) 
                 
                 for ax in self.axes:
-                    self.plot_predicted_points(ax, l, X_plot_est, Z_plot_est, label="Predicted points of\n"+K_mf_extra.name)
+                    self.plot_predicted_points(ax, l, X_plot_est, Z_plot_est, label="Extrapolated points of\n"+K_mf_extra.name)
 
             if hasattr(mf_model, "K_truth"):
                 self.plot_kriged_truth(mf_model)
@@ -653,22 +655,32 @@ class Plotting:
                 # self.frames.append(image_from_plot)
                 if self.save_svg:
                     path = os.path.join(self.video_path, 'image_{}.svg'.format(self.counter))
-                    self.fig.savefig(path)
+                    if self.d == 1 and self.fig._suptitle.get_text() == "":
+                        w, h = self.fig.get_size_inches()
+                        bbox = Bbox([[0,0],[w,h - 0.5]])
+                        self.fig.savefig(path, bbox_inches=bbox)
+                    else:
+                        self.fig.savefig(path, bbox_inches='tight')
                 
                 path = os.path.join(self.video_path, 'image_{}.png'.format(self.counter))
                 # self.fig.savefig(path)
                 # img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(tuple(int(i*self.fig.canvas._dpi_ratio) for i in self.fig.canvas.get_width_height()[::-1]) + (3,)))
-                w, h = self.fig.canvas.get_width_height()
-                try:
-                    img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio),3)))
-                except:
+                if self.d == 1 and self.fig._suptitle.get_text() == "":
+                    w, h = self.fig.get_size_inches()
+                    bbox = Bbox([[0,0],[w,h - 0.5]])
+                    self.fig.savefig(path, bbox_inches=bbox)
+                else:
+                    w, h = self.fig.canvas.get_width_height()
                     try:
-                        img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio) + 1,int(w*self.fig.canvas._dpi_ratio),3)))
+                        img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio),3)))
                     except:
-                        img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio) + 1,3)))
-                img.save(path)
-                # .savefig('my_plot.png')
-                # self.frames.append(self.fig.canvas.tostring_rgb())
+                        try:
+                            img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio) + 1,int(w*self.fig.canvas._dpi_ratio),3)))
+                        except:
+                            img = Image.fromarray(np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((int(h*self.fig.canvas._dpi_ratio),int(w*self.fig.canvas._dpi_ratio) + 1,3)))
+                    img.save(path)
+                    # .savefig('my_plot.png')
+                    # self.frames.append(self.fig.canvas.tostring_rgb())
             
             print("##############################")
             print("### Plotting took {:.4f} s ###".format(time.time() - t_start))
@@ -685,101 +697,102 @@ class Plotting:
     def set_axis_props(self, mf_model):
         """ set axes properties like color and legend """
         
-        for ax_nr, ax in enumerate(self.axes):
-            is_line_or_surface = [] # encodes for items that get flushed up the legend
-            is_line_or_surface_colors = []
-            is_other = []
-            counter = 0
+        if self.show_legend:
+            for ax_nr, ax in enumerate(self.axes):
+                is_line_or_surface = [] # encodes for items that get flushed up the legend
+                is_line_or_surface_colors = []
+                is_other = []
+                counter = 0
 
-            # !! deze hele klotezooi is nodig om de kleuren te corrigeren, locatie is eigenlijk sidebusiness
-            leg = ax.legend() # create a naive legend
-            handles, labels = ax.get_legend_handles_labels()
+                # !! deze hele klotezooi is nodig om de kleuren te corrigeren, locatie is eigenlijk sidebusiness
+                leg = ax.legend() # create a naive legend
+                handles, labels = ax.get_legend_handles_labels()
 
-            if mf_model.d == 1:
-                for i, lh in enumerate(leg.legendHandles):
-                    if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D):# or 'level 2' in lh._label:
-                        is_line_or_surface.append(i)
-                        is_line_or_surface_colors.append(lh._color)
-                    else:
-                        # still if the label color is exactly the same as of line or surface, we want to add it after!
-                        loc = -1
-                        for jj, j in enumerate(is_line_or_surface_colors):
-                            if lh._original_edgecolor == j:
-                                loc = jj + 1 + counter
-                                break
-                        if loc >= 0:
-                            is_line_or_surface.insert(loc,i)
-                            counter += 1
+                if mf_model.d == 1:
+                    for i, lh in enumerate(leg.legendHandles):
+                        if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D):# or 'level 2' in lh._label:
+                            is_line_or_surface.append(i)
+                            is_line_or_surface_colors.append(lh._color)
                         else:
-                            is_other.append(i)
-            else: 
-                for i, lh in enumerate(leg.legendHandles):
-                    if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D) or 'level 2' in lh._label:
-                        is_line_or_surface.append(i)
-                    else:
-                        if len(is_line_or_surface) > 0 and ax.colors[i]==ax.colors[is_line_or_surface[-1]]:# and not 'best' in lh._label: #NOTE als best sample aan het eind moet
+                            # still if the label color is exactly the same as of line or surface, we want to add it after!
+                            loc = -1
+                            for jj, j in enumerate(is_line_or_surface_colors):
+                                if lh._original_edgecolor == j:
+                                    loc = jj + 1 + counter
+                                    break
+                            if loc >= 0:
+                                is_line_or_surface.insert(loc,i)
+                                counter += 1
+                            else:
+                                is_other.append(i)
+                else: 
+                    for i, lh in enumerate(leg.legendHandles):
+                        if isinstance(lh,mpl.patches.Rectangle) or isinstance(lh,mpl.lines.Line2D) or 'level 2' in lh._label:
                             is_line_or_surface.append(i)
                         else:
-                            is_other.append(i)            
+                            if len(is_line_or_surface) > 0 and ax.colors[i]==ax.colors[is_line_or_surface[-1]]:# and not 'best' in lh._label: #NOTE als best sample aan het eind moet
+                                is_line_or_surface.append(i)
+                            else:
+                                is_other.append(i)            
 
-            # reorder, surfaces / lines flushed forwards! 
-            order = is_line_or_surface + is_other
+                # reorder, surfaces / lines flushed forwards! 
+                order = is_line_or_surface + is_other
 
-            # changing the order of the last four entries (exact, predicted, best, optima)
-            if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
-                # then we plot MFK too, use last 5
-                order_sub = order[-5:]
-                del order[-5:]
-                order += order_sub[2:4] + [order_sub[1]] + [order_sub[0]] + [order_sub[-1]]
-            else:
-                order_sub = order[-4:]
-                del order[-4:]
-                order_pred = order_sub[1:3]
-                del order_sub[1:3]
-                order += order_pred + order_sub
-
-            if (mf_model.d != 1) and ax_nr == 1 or ax_nr == 3:
-                loc = 'upper left'
-                bb = (1.08, 1.0)
-            else:
-                if mf_model.d == 1 and ax_nr == 0:
-                    bb = (-0.08, 0.49)
-                    loc = 'center right'
+                # changing the order of the last four entries (exact, predicted, best, optima)
+                if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
+                    # then we plot MFK too, use last 5
+                    order_sub = order[-5:]
+                    del order[-5:]
+                    order += order_sub[2:4] + [order_sub[1]] + [order_sub[0]] + [order_sub[-1]]
                 else:
-                    bb = (-0.08, 1.0)
-                    loc = 'upper right'
-            
-            extra = []
-            extra_text = []
-            if ax_nr == 0 or ax_nr == 1: # works for both 1d as 2d plotting
-                extra_text = [u"\nVariance displayed with\n\u00B1 {} standard deviations".format(self.std_mult)]
-                extra = [Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)]
+                    order_sub = order[-4:]
+                    del order[-4:]
+                    order_pred = order_sub[1:3]
+                    del order_sub[1:3]
+                    order += order_pred + order_sub
 
-            leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc = loc, bbox_to_anchor=bb)
+                if (mf_model.d != 1) and ax_nr == 1 or ax_nr == 3:
+                    loc = 'upper left'
+                    bb = (1.08, 1.0)
+                else:
+                    if mf_model.d == 1 and ax_nr == 0:
+                        bb = (-0.08, 0.49)
+                        loc = 'center right'
+                    else:
+                        bb = (-0.08, 1.0)
+                        loc = 'upper right'
+                
+                extra = []
+                extra_text = []
+                if ax_nr == 0 or ax_nr == 1: # works for both 1d as 2d plotting
+                    extra_text = [u"\nVariance displayed with\n\u00B1 {} standard deviations".format(self.std_mult)]
+                    extra = [Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)]
 
-            # now reset the color and alpha! (calling ax.legend resets this)
-            # NOTE this is only fucked for 3d surface plots
-            if ax.name == '3d':
-                ax.set_zlabel("Z")
-                for i in range(len(order)):
-                    lh = leg.legendHandles[i]
-                    without_facecolor = False
+                leg = ax.legend([handles[idx] for idx in order] + extra,[labels[idx] for idx in order] + extra_text,loc = loc, bbox_to_anchor=bb)
+
+                # now reset the color and alpha! (calling ax.legend resets this)
+                # NOTE this is only fucked for 3d surface plots
+                if ax.name == '3d':
+                    ax.set_zlabel("Z")
+                    for i in range(len(order)):
+                        lh = leg.legendHandles[i]
+                        without_facecolor = False
+                        try:
+                            if not any(lh.get_facecolor()):
+                                without_facecolor = True
+                        except:
+                            pass
+
+                        if not without_facecolor:
+                            lh.set_alpha(1)
+                            lh.set_color(ax.colors[order[i]])
+                    for t in leg.texts:
+                        t.set_alpha(1)
+                else:
                     try:
-                        if not any(lh.get_facecolor()):
-                            without_facecolor = True
+                        ax.clabel(ax.CS, inline=1, fontsize=10)
                     except:
                         pass
-
-                    if not without_facecolor:
-                        lh.set_alpha(1)
-                        lh.set_color(ax.colors[order[i]])
-                for t in leg.texts:
-                    t.set_alpha(1)
-            else:
-                try:
-                    ax.clabel(ax.CS, inline=1, fontsize=10)
-                except:
-                    pass
 
         for ax in self.axes:
             ax.set_xlabel(self.axis_labels[0])
