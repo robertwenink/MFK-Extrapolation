@@ -58,15 +58,15 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 
 
 # inits based on input settings
-setup = Input(1)
+setup = Input(0)
 
 conv_mods = [0, 1, 2, 3]
 conv_types = ["Stable up", "Stable down", "Alternating"]
 solver_noises = [0.0, 0.02, 0.1]
 
-setup.conv_mod = conv_mods[1]
-setup.conv_type = conv_types[2]
-setup.solver_noise = solver_noises[-1]
+# setup.conv_mod = conv_mods[1]
+# setup.conv_type = conv_types[2]
+# setup.solver_noise = solver_noises[-1]
 
 reuse_values = False
 reload_endstate = False
@@ -87,12 +87,14 @@ MFK_kwargs = {'print_global' : False,
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
 mf_model = MultiFidelityEGO(setup, proposed = True, optim_var= True, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
+mf_model.use_het_noise = True
 
 # NOTE for EVA: refinement levels
 mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L([1, 2, None])
+    mf_model.set_L([0, 2, None])
     mf_model.set_L_costs([1,10,1000])   
 
 
@@ -130,7 +132,8 @@ else:
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
-    mf_model.optimize(pp, cp, max_iter = 1)
+    # mf_model.optimize(pp, cp, max_iter = 1)
+    mf_model.optimize(pp, cp)
     # mf_model.optimize()   
 
 " post processing "

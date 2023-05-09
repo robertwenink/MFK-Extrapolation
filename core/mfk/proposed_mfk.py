@@ -29,6 +29,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         self.method_weighing = True
         self.try_use_MFK = True
         self.trained_MFK = False
+        self.use_het_noise = False
 
         self.variance_weighing = True
         self.distance_weighing = True
@@ -72,9 +73,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
     def create_update_K_pred(self, data_dict = None):
         # options
-        USE_SF_PRED_MODEL = False # base Proposed model on single fidelity levels?
         USE_SF_PRED_MODEL = self.use_single_fidelities # base Proposed model on single fidelity levels?
-        USE_HET_NOISE_FOR_EI = False # use heteroscedastic noise addition?
+        USE_HET_NOISE_FOR_EI = self.use_het_noise # use heteroscedastic noise addition?
         DO_MANUAL_REINTERPOLATE = False
 
         if hasattr(self,'mse_pred') and hasattr(self,'Z_pred'):
@@ -133,6 +133,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
                 if USE_HET_NOISE_FOR_EI:
                     if USE_SF_PRED_MODEL:
+                        current_variance = self.K_pred.predict_variances(self.X_unique).reshape(-1,)
+                        # self.K_pred.options['noise0'] = [self.mse_pred + current_variance]
                         self.K_pred.options['noise0'] = [self.mse_pred]
                     else:
                         MSE = self.K_pred.predict_variances_all_levels(self.X_unique)[0]
@@ -150,8 +152,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
                         self.K_pred.options['noise0'] = [MSE[:,0].reshape(-1,1), MSE[:,1].reshape(-1,1), mse_pred_adapted.reshape(-1,1)] # was self.mse_pred!
                         # self.K_pred.options['noise0'] = [[0], [0], [self.mse_pred]]
 
-                    self.K_pred.option['eval_noise'] = False # NOTE als dit False is, doet optim_var niks
-                    self.K_pred.options['optim_var'] = False # NOTE True would have the same effect
+                    self.K_pred.options['eval_noise'] = False # NOTE als dit False is, doet optim_var niks
+                    self.K_pred.options['optim_var'] = False # NOTE True would have no effect with optim_var no
                     self.K_pred.options['use_het_noise'] = True
 
                     self.K_pred.train()
@@ -210,6 +212,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # In case there is only one sample, nothing to weigh
         if len(Z_s) == 1:
             Z_pred, mse_pred, Sf2_weighed, Ef_weighed, D_w = self.Kriging_unknown_z(X_s, X_unique, Z_s, K_mf) # NOTE niet echt D_Sf2
+            D_w = np.array(D_w, dtype=bool)
         else:
             " Collect new results "
             # NOTE if not in X_unique, we could just add a 0 to all previous,
@@ -218,7 +221,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             for i in range(X_s.shape[0]):
                 Z_p, mse_p, Sf2, Ef, w = self.Kriging_unknown_z(X_s[i], X_unique, Z_s[i], K_mf)
                 D_z.append(Z_p), D_mse.append(mse_p), D_Sf2.append(Sf2), D_Ef.append(Ef), D_w.append(w) # type: ignore
-            D_z, D_mse, D_Sf2, D_Ef, D_w = np.array(D_z), np.array(D_mse), np.array(D_Sf2), np.array(D_Ef), np.array(D_w)
+            D_z, D_mse, D_Sf2, D_Ef, D_w = np.array(D_z), np.array(D_mse), np.array(D_Sf2), np.array(D_Ef), np.array(D_w, dtype=bool)
 
             " Weighing "
             # preparation: get columns with sampled points
@@ -227,6 +230,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
 
             # 1) distance based: take the (tuned) Kriging correlation function
             c_dist_org = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
+            c_dist_org = c_dist_org
 
             if self.distance_weighing:
                 # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
@@ -236,33 +240,72 @@ class ProposedMultiFidelityKriging(MFK_smt):
                 # distance_weighing is momenteel niet interpolerend!!!
                 # 1) get the values of other samples at the locations of a sample, always use the original values for this!!
                 # c_dist_inter *= X_s.shape[0]
+                # selection = c_dist_org[:, idx]
+                # for i, col in enumerate(selection): # enumerate works bcs sample nr corresponds with row nr
+                #     # 2) remove these from the complete rows such that value at sample is 0 in all other rows
+                #     c_dist_inter = deepcopy(c_dist_org)
+                #     j = np.where(col == 1.0)[0]
+
+                #     # c_dist_inter -= col[:, np.newaxis]
+                #     c_dist_inter -= np.max(np.delete(col, j))
+
+                #     # re-add the value at the column index
+                #     # c_dist_inter[j,:] += col[j] 
+                #     c_dist_inter[j,:] += np.max(np.delete(col, j))
+
+                #     # 4) clip the result to 0 (no negative values: if negative, that means other samples contributions should be the only one)
+                #     c_dist_inter = c_dist_inter.clip(min=0)
+
+                #     c_dist += c_dist_inter
+
+                # # 3) rescale the rows based on the value at its own sample
+                # c_dist /= np.sum(c_dist, axis = 0)
+
+                " alternatieve optie "
+                # er is geen interpolerende oplossing momenteel.
+                # daarom: sequentially huidige locatie eraf halen, column opnieuw schalen naar 1, herhalen voor volgend punt
                 selection = c_dist_org[:, idx]
-                for i, col in enumerate(selection): # enumerate works bcs sample nr corresponds with row nr
-                    # 2) remove these from the complete rows such that value at sample is 0 in all other rows
-                    c_dist_inter = deepcopy(c_dist_org)
-                    c_dist_inter -= col[:, np.newaxis]
-
-                    # re-add the value at the column index
+                c_dist_inter = deepcopy(c_dist_org)
+                # only use linearly consistent row operations! so, rowwise +- and constant multiply
+                # for each sample, make the other rows 0 (then other sample row operations will keep this zero, multiplications too)
+                for i, col in enumerate(selection.T): # NOTE col selects the row otherwise!!!!
+                    col = c_dist_inter[:, idx][:,i] # NOTE col selects the row!!!!
                     j = np.where(col == 1.0)[0]
-                    c_dist_inter[j,:] += col[j] 
+                    aftrek = col[:,np.newaxis] * c_dist_inter[j,:]
+                    aftrek[j,:] = 0
 
-                    # 4) clip the result to 0 (no negative values: if negative, that means other samples contributions should be the only one)
-                    c_dist_inter = c_dist_inter.clip(min=0)
+                    c_dist_inter -= aftrek
 
-                    c_dist += c_dist_inter
+                    # rescale such that rows at samples are one again
+                    for k in range(c_dist_org.shape[0]):
+                        # scale all samples back to 1, scale rest of row too
+                        z = np.where(mask[k,:] == True)[0] # get column of the sample
+                        c_dist_inter[k,:] /= c_dist_inter[k,z]
 
-                # 3) rescale the rows based on the value at its own sample
-                c_dist /= np.sum(c_dist, axis = 0)
 
-                # 5) check that there are no columns with zeros only and that at samples the others are all 0!
+                # clip to max min (i.e. negative values should not have influence anymore)
+                # NOTE max destroys some of the correlation information. The balancing between samples is still done by dividing with the sum
+                c_dist_inter = c_dist_inter.clip(min = 0)# , max=1) 
+
+                # rescale: contributions of all samples should add up to 1
+                c_dist_inter /= np.sum(c_dist_inter, axis=0)
+
+                c_dist = c_dist_inter
+
                 col_indices = np.where(np.all(c_dist == 0, axis=0))[0]
                 if col_indices.any():
                     print("WARNING: THERE ARE COLUMNS WITH 0 ONLY")
+                    print(col_indices)
 
                 sums = np.sum(c_dist[:, idx], axis=0)
-                if np.all(sums == 1):
-                    print("WARNING: NOT ONLY SAMPLES ARE 1!")
+                if not np.all(np.isclose(sums, 1)):
+                    print("WARNING: SAMPLE COLUMNS DONT SUM TO 1")
+                    print(sums)
 
+                c_dist_samples = c_dist[mask]
+                if not np.all(np.isclose(c_dist_samples,1)):
+                    print("WARNING: NOT ONLY SAMPLES ARE 1 / SAMPLES NOT 1!")
+                    print(c_dist_samples)
             else:            
                 c_dist = np.ones_like(c_dist_org)
 
