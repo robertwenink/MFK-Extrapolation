@@ -110,12 +110,12 @@ class MultiFidelityKrigingBase(KrigingBase):
         self.costs_expected_nested[l] = sum([self.costs_expected[i] for i in range(l+1)])
         self.costs_total = sum(self.costs_per_level.values())
 
-    def print_stats(self, RMSE_list):
+    def print_stats(self, RMSE_list, RMSE_focuss_list = None):
         """Print insightfull stats. Best called after adding a high-fidelity sample."""
         if self.printing:
             table = BeautifulTable()
             print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-            print("Total costs: {}".format(self.costs_total))
+            print("| Total costs: {}".format(self.costs_total))
             row0 = [self.X_mf[l].shape[0] for l in range(self.number_of_levels)]
             row1 = [self.costs_per_level[l] for l in range(self.number_of_levels)]
             row2 = [self.costs_expected[l] for l in range(self.number_of_levels)]
@@ -127,7 +127,15 @@ class MultiFidelityKrigingBase(KrigingBase):
             table.rows.append(row1)
             table.rows.append(row2)
             table.rows.append(row3)
-            table.rows.header = ["Number of samples","Costs","Expected costs","RMSE wrt kriged truth"]
+            header = ["Number of samples","Costs","Expected costs","NRMSE wrt truth"]
+
+            if not RMSE_focuss_list is None:
+                row4 = ["{:.4f} %".format(RMSE) for RMSE in RMSE_focuss_list] 
+                table.rows.append(row4)
+                header += ["FNRMSE wrt kriged truth"]
+
+
+            table.rows.header = header
             table.columns.header = ["Level {}".format(l) for l in range(self.number_of_levels)]
             table.set_style(BeautifulTable.STYLE_MARKDOWN) # type: ignore
             print(table)

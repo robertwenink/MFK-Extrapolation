@@ -244,28 +244,36 @@ class EVA(ExternalSolver):
         df = self.read_csv(output_path)
         x = df.iloc[:, 0]
 
-        ax2.plot(x, df.iloc[:, 1], label="original")
+        ax2.plot(x, df.iloc[:, 1], label="Original signal")
 
         # moving averages
+        plot_all_filters = False
+        y = filter_spiked_signal(df , self.filter_span_frac, self.fitler_delta)
+        if plot_all_filters:
+            ax2.plot(
+                x,
+                df.rolling(5, min_periods=1).mean().iloc[:, 1],
+                label="Simple Moving average over 5 timesteps",
+            )
+            ax2.plot(
+                x,
+                df.rolling(10, min_periods=1).mean().iloc[:, 1],
+                label="Simple Moving average over 10 timesteps",
+            )
+            ax2.plot(
+                x,
+                df.ewm(alpha=0.15, adjust=False).mean().iloc[:, 1],
+                label="Exponential Moving Average, alpha = 0.3",
+            )
+            ax2.plot(
+                x,
+                y,
+                label="Composite signal filter", linewidth=3,
+            )
         ax2.plot(
             x,
-            df.rolling(5, min_periods=1).mean().iloc[:, 1],
-            label="Simple Moving average over 5 timesteps",
-        )
-        ax2.plot(
-            x,
-            df.rolling(10, min_periods=1).mean().iloc[:, 1],
-            label="Simple Moving average over 10 timesteps",
-        )
-        ax2.plot(
-            x,
-            df.ewm(alpha=0.15, adjust=False).mean().iloc[:, 1],
-            label="Exponential Moving Average, alpha = 0.3",
-        )
-        ax2.plot(
-            x,
-            filter_spiked_signal(df , self.filter_span_frac, self.fitler_delta),
-            label="Composite signal filter", linewidth=3,
+            y,
+            label="Filtered signal", linewidth=3,
         )
         # set non overlapping ticks and legend
         x_ticks = x[:: int(len(x) / 10)]
@@ -280,19 +288,35 @@ class EVA(ExternalSolver):
             ax1.legend(handles, labels, loc = 'upper center', bbox_to_anchor=(0.5, -0.03))
 
         # naming the figure such that we can remove it later when we plot another one
-        fig.subplots_adjust(top=0.903,
-            bottom=0.294,
-            left=0.081,
-            right=0.987,
-            hspace=0.2,
-            wspace=0.0
-            )
-        
         fig.set_label("body_forces")
         if alternative_sup_title:
-            fig.suptitle(alternative_sup_title)
+            fig.suptitle(alternative_sup_title, y = 0.95)
         else:
-            fig.suptitle(os.path.split(output_path)[-1])
+            fig.suptitle("x = " + os.path.split(output_path)[-1], y = 0.95)
+
+        if plot_all_filters:
+            fig.subplots_adjust(top=0.903,
+                bottom=0.294,
+                left=0.081,
+                right=0.987,
+                hspace=0.2,
+                wspace=0.0
+                )
+        else:
+            fig.subplots_adjust(top=0.87,
+                bottom=0.224,
+                left=0.055,
+                right=0.987,
+                hspace=0.2,
+                wspace=0.0)
+        
+        r = np.nanmax(y) - np.nanmin(y)
+        ax2.set_ylim([np.nanmin(y) - r * .05, np.nanmax(y) + r * .2])
+        ax2.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+
+        start_ind = int(len(y) / 3)
+        x_max = x.iloc[np.where(y==np.nanmax(y[start_ind:]))[0]].to_string(index=False)
+        print(f"Maximum value is {np.nanmax(y)} at t = {x_max}")
 
     def solve(self, X, refinement=None, get_time_trace=False):
         """
@@ -396,7 +420,8 @@ class EVA(ExternalSolver):
         print(f'{f"--- Finished sampling batch in {(time.time() - start_time) / 60:.2f} minutes ---":<110}')
 
         # inspect best sample from batch.
-        self.inspect_results(self.get_output_path(X[np.argmin(Z)], refinement)[0])
+        if refinement > 1.0:
+            self.inspect_results(self.get_output_path(X[np.argmin(Z)], refinement)[0])
 
         if get_time_trace:
             return np.array(Z), np.sum(costs), acc_tt_list

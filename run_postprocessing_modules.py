@@ -49,17 +49,17 @@ nlvl = len(mf_model.L)
 #     Z.append(z)
 #     TT.append(tt)
 
-for i in range(2,nlvl):
-    for j in range(i):
-        for k in range(j):
-            print("###### Checking the refinements: {}, {}, {} ######".format(mf_model.L[k],mf_model.L[j],mf_model.L[i]))
-            if i == nlvl - 1:
-                Z_top = mf_model.Z_truth
-            else:
-                Z_top = mf_model.Z_mf[i]
-            inds = isin_indices(mf_model.X_mf[j],mf_model.X_truth,inversed=False)
-            _, inds_sort = np.unique(mf_model.Z_mf[k][inds], axis = 0, return_index = True)
-            check_correlations(mf_model.Z_mf[k][inds][inds_sort], mf_model.Z_mf[j][inds][inds_sort], Z_top)
+# for i in range(2,nlvl):
+#     for j in range(i):
+#         for k in range(j):
+#             print("###### Checking the refinements: {}, {}, {} ######".format(mf_model.L[k],mf_model.L[j],mf_model.L[i]))
+#             if i == nlvl - 1:
+#                 Z_top = mf_model.Z_truth
+#             else:
+#                 Z_top = mf_model.Z_mf[i]
+#             inds = isin_indices(mf_model.X_mf[j],mf_model.X_truth,inversed=False)
+#             _, inds_sort = np.unique(mf_model.Z_mf[k][inds], axis = 0, return_index = True)
+#             check_correlations(mf_model.Z_mf[k][inds][inds_sort], mf_model.Z_mf[j][inds][inds_sort], Z_top)
         
  
 # plot_grid_convergence_Z(mf_model, Z)

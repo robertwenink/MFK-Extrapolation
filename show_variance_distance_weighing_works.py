@@ -75,7 +75,7 @@ if True:
     Z1 = mf_model.solver.solve(np.atleast_2d(X), mf_model.L[1])[0]
     Z2 = mf_model.solver.solve(np.atleast_2d(X), mf_model.L[2])[0]
 
-    if True:
+    if False:
         X_mf = [np.array([[ 0.3198],
             [ 0.8034],
             [ 0.5142],
@@ -269,79 +269,79 @@ if True:
     pp.fig.suptitle(pp.figure_title + ": Distance + Variance weighing", x = 0.625, y = 0.95)
     pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~ Only Method weighing ~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    # NOTE deze er later tussen gezet tov report, bij rerunnen oppassen bij het uploaden van images naar overleaf
-    # Also enable method_weighing weighing
-    mf_model.method_weighing = True
-    mf_model.variance_weighing = False
-    mf_model.distance_weighing = False
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Method (MFK) weighing", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~ Only Method weighing ~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # # NOTE deze er later tussen gezet tov report, bij rerunnen oppassen bij het uploaden van images naar overleaf
+    # # Also enable method_weighing weighing
+    # mf_model.method_weighing = True
+    # mf_model.variance_weighing = False
+    # mf_model.distance_weighing = False
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Method (MFK) weighing", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~ Distance + Method weighing ~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~ Distance + Method weighing ~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    # Also enable method_weighing weighing
-    mf_model.method_weighing = True
-    mf_model.variance_weighing = False
-    mf_model.distance_weighing = True
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Distance + Method (MFK) weighing", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # # Also enable method_weighing weighing
+    # mf_model.method_weighing = True
+    # mf_model.variance_weighing = False
+    # mf_model.distance_weighing = True
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Distance + Method (MFK) weighing", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~ Variance + Method weighing ~~~~~~~~~~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~ Variance + Method weighing ~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    # Also enable method_weighing weighing
-    mf_model.method_weighing = True
-    mf_model.variance_weighing = True
-    mf_model.distance_weighing = False
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Variance + Method (MFK) weighing", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # # Also enable method_weighing weighing
+    # mf_model.method_weighing = True
+    # mf_model.variance_weighing = True
+    # mf_model.distance_weighing = False
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Variance + Method (MFK) weighing", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~ Distance + Variance + Method weighing MFK ~~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~ Distance + Variance + Method weighing MFK ~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    # Also enable method_weighing weighing
-    mf_model.method_weighing = True
-    mf_model.variance_weighing = True
-    mf_model.distance_weighing = True
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Distance + Variance + Method (MFK) weighing", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # # Also enable method_weighing weighing
+    # mf_model.method_weighing = True
+    # mf_model.variance_weighing = True
+    # mf_model.distance_weighing = True
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Distance + Variance + Method (MFK) weighing", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~~ Distance + Variance + Method weighing Z1 ~~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~ Distance + Variance + Method weighing Z1 ~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    # Also enable method_weighing weighing
-    mf_model.method_weighing = True
-    mf_model.variance_weighing = True
-    mf_model.distance_weighing = True
-    mf_model.try_use_MFK = False
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Distance + Variance + Method (Z1) weighing", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # # Also enable method_weighing weighing
+    # mf_model.method_weighing = True
+    # mf_model.variance_weighing = True
+    # mf_model.distance_weighing = True
+    # mf_model.try_use_MFK = False
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Distance + Variance + Method (Z1) weighing", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
 " Non linear cases "
-if False:
+if True:
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print("~~~~~~~~~~~~~~~~~~~ Non-linear ~~~~~~~~~~~~~~~~~~~~~")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -411,16 +411,16 @@ if False:
     pp.fig.suptitle(pp.figure_title + ": Distance + Variance weighing", x = 0.625, y = 0.95)
     pp.draw_current_levels(mf_model)
 
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("~~~~ Distance + Variance Non-linear + het noise ~~~~")
-    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("~~~~ Distance + Variance Non-linear + het noise ~~~~")
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    mf_model.use_het_noise = True
-    mf_model.train()
-    mf_model.weighted_prediction()
-    mf_model.create_update_K_pred()
-    pp.fig.suptitle(pp.figure_title + ": Distance + Variance weighing + heteroscedastic noise", x = 0.625, y = 0.95)
-    pp.draw_current_levels(mf_model)
+    # mf_model.use_het_noise = True
+    # mf_model.train()
+    # mf_model.weighted_prediction()
+    # mf_model.create_update_K_pred()
+    # pp.fig.suptitle(pp.figure_title + ": Distance + Variance weighing + heteroscedastic noise", x = 0.625, y = 0.95)
+    # pp.draw_current_levels(mf_model)
 
 pp.render_video()
 print(" Simulation finished ")

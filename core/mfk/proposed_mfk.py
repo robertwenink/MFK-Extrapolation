@@ -203,7 +203,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # data pre-setting
         X_unique, K_mf =  self.X_unique, self.K_mf
         if X_test.size != 0:
-            X_unique = X_test
+            X_unique = np.append(X_unique,X_test, axis = 0)
 
         # 
         if not (np.any(X_s) and np.any(Z_s)):
@@ -228,44 +228,52 @@ class ProposedMultiFidelityKriging(MFK_smt):
             idx = isin_indices(X_unique, X_s) # 1d
             mask = np.array([isin_indices(X_unique, correct_formatX(xs, self.d)) for xs in X_s]) # locaties in de #samples x 1d array
 
-            # 1) distance based: take the (tuned) Kriging correlation function
-            c_dist_org = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
-            c_dist_org = c_dist_org
+            # 1) variance based: predictions based on fractions without large variances Sf involved are more reliable
+            if self.variance_weighing:
+                # relative weighing of distance scaling wrt variance scaling
+                if np.all(~D_w):
+                    # if there is nothing
+                    D_w = ~D_w
+
+                if np.all(D_w) and self.method_weighing:
+                    c_var = np.ones_like(D_mse) # do nothing, we trust all our samples equally -> only distance weighing!
+                else:
+                    mse_mean = np.mean(D_mse[D_w, :], axis = 1) # select using boolean weight (only use samples not completely w = 0)
+                    divisor = np.max(mse_mean[mse_mean <= np.mean(mse_mean)])
+                    exp_fac = D_mse/divisor - 0
+                    # print(exp_fac)
+                    c_var = np.exp(-exp_fac) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
+                    # print("c_var before clipping")
+                    # print(c_var)
+                    c_var = c_var.clip(max = 1)
+                    # We basically do not want to include the other method in variance weighing. If all are other method neither.
+                    # so we take the mean over the c_var`s of those of the extrapolation, in effect distance weighing becomes the prevalent
+                    c_var[~D_w,:] = np.mean(c_var[D_w], axis = 0)
+                    print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
+            else:
+                c_var = np.ones_like(D_mse)
+
+            # 2) distance based: take the (tuned) Kriging correlation function
+            c_dist_corr = K_mf[-1].corr(X_s, X_unique)#, K_mf[-1].hps) NOTE this means not usable for OK anymore
+            c_dist_org = c_dist_corr * c_var
 
             if self.distance_weighing:
                 # NOTE one would say retrain/ retune on only the sampled Z_s (as little as 2 samples), to get the best/most stable weighing.
                 # However, we cannot tune on such little data, the actual scalings theta are best represented by the (densely sampled) previous level.
                 c_dist = np.zeros_like(c_dist_org)
 
-                # distance_weighing is momenteel niet interpolerend!!!
-                # 1) get the values of other samples at the locations of a sample, always use the original values for this!!
-                # c_dist_inter *= X_s.shape[0]
-                # selection = c_dist_org[:, idx]
-                # for i, col in enumerate(selection): # enumerate works bcs sample nr corresponds with row nr
-                #     # 2) remove these from the complete rows such that value at sample is 0 in all other rows
-                #     c_dist_inter = deepcopy(c_dist_org)
-                #     j = np.where(col == 1.0)[0]
-
-                #     # c_dist_inter -= col[:, np.newaxis]
-                #     c_dist_inter -= np.max(np.delete(col, j))
-
-                #     # re-add the value at the column index
-                #     # c_dist_inter[j,:] += col[j] 
-                #     c_dist_inter[j,:] += np.max(np.delete(col, j))
-
-                #     # 4) clip the result to 0 (no negative values: if negative, that means other samples contributions should be the only one)
-                #     c_dist_inter = c_dist_inter.clip(min=0)
-
-                #     c_dist += c_dist_inter
-
-                # # 3) rescale the rows based on the value at its own sample
-                # c_dist /= np.sum(c_dist, axis = 0)
-
-                " alternatieve optie "
+                " distance weighing "
                 # er is geen interpolerende oplossing momenteel.
                 # daarom: sequentially huidige locatie eraf halen, column opnieuw schalen naar 1, herhalen voor volgend punt
                 selection = c_dist_org[:, idx]
                 c_dist_inter = deepcopy(c_dist_org)
+
+                # rescale such that rows at samples are one again
+                for k in range(c_dist_org.shape[0]):
+                    # scale all samples back to 1, scale rest of row too
+                    z = np.where(mask[k,:] == True)[0] # get column of the sample
+                    c_dist_inter[k,:] /= c_dist_inter[k,z]
+
                 # only use linearly consistent row operations! so, rowwise +- and constant multiply
                 # for each sample, make the other rows 0 (then other sample row operations will keep this zero, multiplications too)
                 for i, col in enumerate(selection.T): # NOTE col selects the row otherwise!!!!
@@ -282,9 +290,10 @@ class ProposedMultiFidelityKriging(MFK_smt):
                         z = np.where(mask[k,:] == True)[0] # get column of the sample
                         c_dist_inter[k,:] /= c_dist_inter[k,z]
 
-
                 # clip to max min (i.e. negative values should not have influence anymore)
                 # NOTE max destroys some of the correlation information. The balancing between samples is still done by dividing with the sum
+                # print("c_dist_inter before clipping")
+                # print(c_dist_inter)
                 c_dist_inter = c_dist_inter.clip(min = 0)# , max=1) 
 
                 # rescale: contributions of all samples should add up to 1
@@ -307,43 +316,27 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     print("WARNING: NOT ONLY SAMPLES ARE 1 / SAMPLES NOT 1!")
                     print(c_dist_samples)
             else:            
-                c_dist = np.ones_like(c_dist_org)
+                c_dist = np.ones_like(c_dist_corr)
+                c_dist = c_dist_corr
 
-            # 2) variance based: predictions based on fractions without large variances Sf involved are more reliable
-                         
-            #    we want to keep the correlation/weighing the same if there is no variance,
-            #    and otherwise reduce it.
-            #    We could simply do: sigma += 1 and divide.
-            #    However, sigma is dependend on scale of Z, so we should better use e^-sigma.
-            #    This decreases distance based influence if sigma > 0.
-            #    We take the variance of the fraction, S_f
-
-            # NOTE old version where weighing is done using Sf alone. This was not usable with method weighing!            
-            # NOTE normalize D_Sf2 to D_Ef, hier geldt dat een hogere E_f automatisch een lagere S_f heeft, dus we normalizeren inverse
-            # D_Sf2_norm = D_Sf2 * (abs(D_Ef) ** 2) 
-            # c_var = np.exp(-(D_Sf2_norm)/(np.min(D_Sf2_norm)*c_dist_rel_weight)) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
-            # c = (c_dist.T * c_var).T 
-
-            if self.variance_weighing:
-                # relative weighing of distance scaling wrt variance scaling
-                c_dist_rel_weight = 5
-                if np.all(~D_w):
-                    # if there is nothing
-                    D_w = ~D_w
-
-                mse_mean = np.mean(D_mse[D_w, :], axis = 1) # select using boolean weight (only use samples not completely w = 0)
-                c_var = np.exp(-(D_mse)/(np.mean(mse_mean))*c_dist_rel_weight) # min omdat bij uitschieters alleen de meest bizarre uitschieter gefilterd wordt terwijl de rest miss ook wel kak is.
-
-                # We basically do not want to include the other method in variance weighing. If all are other method neither.
-                # so we take the mean over the c_var`s of those of the extrapolation, in effect distance weighing becomes the prevalent
-                c_var[~D_w,:] = np.mean(c_var[D_w], axis = 0)
-                print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
-            else:
-                c_var = np.ones_like(D_mse)
+            " reweigh c_dist "
+            # Although interpolating and ruling out influence of samples that should not have influence,
+            #       in high variance environments there is no 'averaging' effect anymore over sample contributions, thereby deteriorating NRMSE
+            # In this way, it can be that distance weighing is essential in non-linear cases, but can be bad if each sample in principle has a good estimate (besides noise)
+            # Therefore, re-add part of a ones matrix for this averaging effect + avoiding all zeros situations
+            dist_ratio = 1/10 # higher is more parts non-reduced solution
+            c_dist += dist_ratio * c_dist_corr
+            c_dist /= np.sum(c_dist, axis=0)
 
             # moet wel echt * zijn op eoa manier, want anders als het een heel onbetrouwbaar 'maar dicht bij' sample is, weegt ie alsnog zwaar mee
             c = (c_dist * c_var) 
-             
+            c /= np.sum(c, axis=0)
+
+            np.set_printoptions(formatter={'float': '{: 0.3f}'.format}, linewidth=1000)
+            
+            # print(idx)
+            # print(c)
+
             if self.printing:
                 if np.min(D_Sf2) * 1000 < np.max(D_Sf2):
                     print("FF kijken hier")
@@ -380,7 +373,10 @@ class ProposedMultiFidelityKriging(MFK_smt):
             if self.printing:
                 print(f"Max mse_pred = {max(self.mse_pred)}")
 
-        return Z_pred, mse_pred, Ef_weighed, np.sqrt(Sf2_weighed)
+        if X_test is None:
+            return Z_pred, mse_pred, Ef_weighed, np.sqrt(Sf2_weighed)
+        else:
+            return Z_pred[-1], mse_pred[-1], Ef_weighed[-1], np.sqrt(Sf2_weighed[-1])
     
     
     def set_state(self, data_dict):
@@ -443,9 +439,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # use the MFK solution if available! 
             # predict_top_level could return either a l1 or l2 prediction.
             Z1_alt, S1_alt = self.predict_top_level(X_unique)
-            S1_alt = np.sqrt(S1_alt) * 2 # TODO NOTE x2 om in variance weighing de eigen method wat meer voorkeur te geven
+            S1_alt = np.sqrt(S1_alt)
         else:
-            Z1_alt, S1_alt = Z1, S1 * 2 # TODO NOTE x2 om in variance weighing de eigen method wat meer voorkeur te geven
+            Z1_alt, S1_alt = Z1, S1
             Z1_is_alt = True
         
         # variables for function below
@@ -546,13 +542,4 @@ class ProposedMultiFidelityKriging(MFK_smt):
         S2_p[ind] = 0
 
         return Z2_p, S2_p ** 2, Sf ** 2, Ef, w
-
-
-
-def print_metrics(Z_pred, mse_pred, Ef_weighed,Sf_weighed,sigma_hat):
-    print("┃ MEAN VALUES IN WEIGHED PREDICTION")
-    print(f"┃ Z: {np.mean(Z_pred)}; mse: {np.mean(mse_pred)}\
-    \n┃ Ef weighed: {np.mean(Ef_weighed)}; Sf non-weighed: {np.mean(Sf_weighed)}\n\
-    ┃ Sigma_hat: {sigma_hat}")
-
 

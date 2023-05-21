@@ -57,6 +57,8 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
 
     def __init__(self, *args, **kwargs):
         self.MFK_kwargs = kwargs['MFK_kwargs']
+        self.method_weighing = False # per definition
+
         super().__init__(**self.MFK_kwargs)
         MultiFidelityKrigingBase.__init__(self, *args, **kwargs)
 
@@ -160,9 +162,9 @@ class MFK_smt(MFK_wrap, MultiFidelityKrigingBase):
         """
         Update the training data and train.
         """
-        TRAIN_MFK_WHEN_SF_PROPOSED = True
-        if not (self.proposed and self.use_single_fidelities and not TRAIN_MFK_WHEN_SF_PROPOSED) and self.method_weighing:
-            print("TRAINING UNDERLYING MFK")
+        if not self.proposed or self.method_weighing:
+            if self.printing:
+                print("TRAINING UNDERLYING MFK")
             self.trained_MFK = True
             # condition: de single fidelities worden in setK_mf getraind dus we hoeven dan dit blok niet aan te roepen, tenzij we expliciet method_weighing doen
             if self.X_mf[-1].shape[0] >= len(self.X_mf):
@@ -365,5 +367,5 @@ class ObjectWrapper(MFK_smt):
         return self._predict_l(X, self.l_fake, redo_Ft)
     
     def corr(self, X, X_other):
-        MFK_wrap.corr(self, X, X_other)
+        return MFK_wrap.corr(self, X, X_other)
 

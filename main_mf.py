@@ -1,7 +1,11 @@
 import numpy as np
+from core.sampling.DoE import LHS
 
 from core.sampling.solvers.internal import TestFunction
 from core.sampling.solvers.solver import get_solver
+from utils.correlation_utils import print_pearson_correlations
+from utils.error_utils import RMSE_focussed, RMSE_norm_MF
+from utils.formatting_utils import correct_formatX
 np.set_printoptions(precision=4,linewidth = 150,sign=' ',suppress = True)
 import sys
 import matplotlib.pyplot as plt
@@ -62,11 +66,11 @@ setup = Input(0)
 
 conv_mods = [0, 1, 2, 3]
 conv_types = ["Stable up", "Stable down", "Alternating"]
-solver_noises = [0.0, 0.02, 0.1]
+solver_noises = [0.0, 0.02, 0.05]
 
-# setup.conv_mod = conv_mods[1]
-# setup.conv_type = conv_types[2]
-# setup.solver_noise = solver_noises[-1]
+setup.conv_mod = conv_mods[0]
+setup.conv_type = conv_types[0]
+setup.solver_noise = solver_noises[2]
 
 reuse_values = False
 reload_endstate = False
@@ -77,7 +81,7 @@ MFK_kwargs = {'print_global' : False,
                 'eval_noise' : True,# always true
                 # 'eval_noise' : setup.noise_regression, 
                 'propagate_uncertainty' : False,  
-                'optim_var' : False, # true: HF samples is forced to zero; = reinterpolation
+                'optim_var' : True, # true: HF samples is forced to zero; = reinterpolation
                 'hyper_opt' : 'Cobyla', # [‘Cobyla’, ‘TNC’] Cobyla standard
                 'n_start': 30, # 10 = default, but I want it a bit more robust ( does not always tune to the same -> major influence to own result!)
                 'corr' : 'squar_exp',
@@ -85,16 +89,24 @@ MFK_kwargs = {'print_global' : False,
   
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, proposed = True, optim_var= True, initial_nr_samples = 1, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 3, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
-mf_model.use_het_noise = True
+
+mf_model.distance_weighing = False
+mf_model.variance_weighing = False
+
+mf_model.method_weighing = False
+mf_model.try_use_MFK = True
+
+mf_model.use_uncorrected_Ef = False
+mf_model.use_het_noise = False
 
 # NOTE for EVA: refinement levels
 mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
     mf_model.set_L([1, 2, None])
-    mf_model.set_L([0, 2, None])
+    # mf_model.set_L([0, 2, None])
     mf_model.set_L_costs([1,10,1000])   
 
 
@@ -128,7 +140,16 @@ if mf_model.X_mf[-1].shape[0] >= 3:
 else:
     print("Too little hifi samples for reliable linearity check!")
 
-# sys.exit()
+pp.draw_current_levels(mf_model)
+
+# provide full report
+RMSE = RMSE_norm_MF(mf_model, no_samples=True)
+X_RMSE = LHS(setup, n_per_d=80)
+RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
+mf_model.print_stats(RMSE, RMSE_focus)
+print_pearson_correlations(mf_model)
+plt.show()
+sys.exit()
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
@@ -140,7 +161,21 @@ if isinstance(mf_model, MultiFidelityEGO):
 setup.create_input_file(mf_model, cp, endstate = True)
 cp.plot_convergence() 
 pp.draw_current_levels(mf_model)
-pp.render_video()
+
+# report again fully
+RMSE = RMSE_norm_MF(mf_model, no_samples=True)
+X_RMSE = LHS(setup, n_per_d=80)
+RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
+mf_model.print_stats(RMSE, RMSE_focus)
+print_pearson_correlations(mf_model)
+
+# to print the best point easily
+mf_model.solver.solve(correct_formatX(mf_model.get_best_sample()[0][0],mf_model.d),mf_model.L[-1])
+
+try:
+    pp.render_video()
+except:
+    pass
 
 print(" Simulation finished ")
 plt.show()

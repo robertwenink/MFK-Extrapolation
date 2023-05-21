@@ -70,7 +70,7 @@ class Plotting:
         self.solver = get_solver(setup)
         self.plot_exact_possible = isinstance(self.solver, TestFunction) # Can we cheaply retrieve the exact surface of that level?
         self.try_show_exact = True
-        self.plot_truth = False
+        self.plot_truth = not self.plot_exact_possible
         self.figure_title = setup.solver_str + " {}d".format(setup.d)
 
         # plot seperate ax with only response?
@@ -608,7 +608,7 @@ class Plotting:
                     self.plot(K_mf[l], l, label="Extrapolated level {}".format(l))
 
             " plot MFK if available, for 1d only"
-            if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
+            if hasattr(mf_model,'try_use_MFK') and mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
                 self.plot(mf_model, len(self.colors) - 1, show_exact = False, label="MFK of Le Gratiet (2014)")
 
 
@@ -739,17 +739,20 @@ class Plotting:
                 order = is_line_or_surface + is_other
 
                 # changing the order of the last four entries (exact, predicted, best, optima)
-                if mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
+                if hasattr(mf_model,'try_use_MFK') and mf_model.try_use_MFK and mf_model.trained_MFK and self.d == 1:
                     # then we plot MFK too, use last 5
                     order_sub = order[-5:]
                     del order[-5:]
                     order += order_sub[2:4] + [order_sub[1]] + [order_sub[0]] + [order_sub[-1]]
-                else:
+                elif self.d == 1:
                     order_sub = order[-4:]
                     del order[-4:]
                     order_pred = order_sub[1:3]
                     del order_sub[1:3]
                     order += order_pred + order_sub
+
+                if self.d == 2:
+                    pass
 
                 if (mf_model.d != 1) and ax_nr == 1 or ax_nr == 3:
                     loc = 'upper left'
