@@ -804,10 +804,11 @@ class Plotting:
             if mf_model.d > 1:
                 ax.set_ylabel(self.axis_labels[1])
 
+            # reset x and y lim. For axin outside the plot, the bounds get fucked each timestep
+            ax.set_xlim(self.lb[self.d_plot[0]],self.ub[self.d_plot[0]])
+
             # formatting for inset axis!
             if hasattr(ax,'axin'):
-                # reset x and y lim. For axin outside the plot, the bounds get fucked each timestep
-                ax.set_xlim(self.lb[self.d_plot[0]],self.ub[self.d_plot[0]])
 
                 # sub region of the original image to display
                 # we basically set different limits on the original data

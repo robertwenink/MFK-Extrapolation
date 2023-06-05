@@ -65,6 +65,7 @@ if True:
     mf_model.method_weighing = False
     mf_model.variance_weighing = False
     mf_model.distance_weighing = False
+    mf_model.use_uncorrected_Ef = True
 
     # startpunt van voorbeeld eerste hifi punt moet zijn: x = 0.4161
     mf_model.set_L([1, 2, None])
@@ -75,7 +76,7 @@ if True:
     Z1 = mf_model.solver.solve(np.atleast_2d(X), mf_model.L[1])[0]
     Z2 = mf_model.solver.solve(np.atleast_2d(X), mf_model.L[2])[0]
 
-    if False:
+    if True:
         X_mf = [np.array([[ 0.3198],
             [ 0.8034],
             [ 0.5142],

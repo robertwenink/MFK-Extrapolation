@@ -148,6 +148,7 @@ def filter_spiked_signal(original_dataframe, span_frac, delta):
     no_outliers = pd.DataFrame(remove_outliers(original_dataframe.iloc[:, 1], fbewma, delta)).interpolate()
 
     # d_filtered = no_outliers.to_numpy().flatten()
+    # d_filtered = fbewma 
     d_filtered = pd.DataFrame(ewma_fb_np(pd.DataFrame(no_outliers).interpolate(), span_frac*2)).interpolate().to_numpy().flatten() # type:ignore
-
+    
     return d_filtered

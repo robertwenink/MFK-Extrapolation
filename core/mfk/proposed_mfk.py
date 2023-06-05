@@ -179,6 +179,18 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # update the K_pred model in K_mf!
             self.setK_mf(only_rebuild_top_level=True)
 
+    def check_validity(self, Ef_array, w_bool, mu = 0.05):
+        if np.sum(w_bool) <= 1:
+            print("Validity check: not enough useable data")
+        else:    
+            E_mean = np.dot(Ef_array, w_bool) / np.sum(w_bool)
+
+            lh = np.abs(E_mean-Ef_array) * w_bool
+            if np.all(lh <= mu * E_mean):
+                print("Validity check: Valid!")
+            else:
+                print("Validity check: Maybe not valid!")
+        print(f"Validity check: {len(w_bool)-np.sum(w_bool)} unlucky samples")
 
     def weighted_prediction(self, X_s = [], Z_s = [], assign : bool = True, X_test = np.array([])):
         """
@@ -238,7 +250,9 @@ class ProposedMultiFidelityKriging(MFK_smt):
                 if np.all(D_w) and self.method_weighing:
                     c_var = np.ones_like(D_mse) # do nothing, we trust all our samples equally -> only distance weighing!
                 else:
-                    mse_mean = np.mean(D_mse[D_w, :], axis = 1) # select using boolean weight (only use samples not completely w = 0)
+                    D_w_local = D_w if self.method_weighing else np.ones_like(D_w, dtype=bool) # because of lin is returned in kriging unknown z now
+
+                    mse_mean = np.mean(D_mse[D_w_local, :], axis = 1) # select using boolean weight (only use samples not completely w = 0)
                     divisor = np.max(mse_mean[mse_mean <= np.mean(mse_mean)])
                     exp_fac = D_mse/divisor - 0
                     # print(exp_fac)
@@ -248,7 +262,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     c_var = c_var.clip(max = 1)
                     # We basically do not want to include the other method in variance weighing. If all are other method neither.
                     # so we take the mean over the c_var`s of those of the extrapolation, in effect distance weighing becomes the prevalent
-                    c_var[~D_w,:] = np.mean(c_var[D_w], axis = 0)
+                    c_var[~D_w_local,:] = np.mean(c_var[D_w_local], axis = 0)
                     print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
             else:
                 c_var = np.ones_like(D_mse)
@@ -324,7 +338,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             #       in high variance environments there is no 'averaging' effect anymore over sample contributions, thereby deteriorating NRMSE
             # In this way, it can be that distance weighing is essential in non-linear cases, but can be bad if each sample in principle has a good estimate (besides noise)
             # Therefore, re-add part of a ones matrix for this averaging effect + avoiding all zeros situations
-            dist_ratio = 1/10 # higher is more parts non-reduced solution
+            dist_ratio = 1/100 # higher is more parts non-reduced solution
             c_dist += dist_ratio * c_dist_corr
             c_dist /= np.sum(c_dist, axis=0)
 
@@ -364,6 +378,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             Ef_weighed = np.dot(D_Ef, c_z)
             Sf2_weighed = np.dot(D_Sf2, c_z)
 
+        self.check_validity(D_Ef, D_w)
         # print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf2, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
         # assign the found values to the mf_model, in order to be easily retrieved.
@@ -373,7 +388,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             if self.printing:
                 print(f"Max mse_pred = {max(self.mse_pred)}")
 
-        if X_test is None:
+        if X_test is None or len(Z_s) == 1:
             return Z_pred, mse_pred, Ef_weighed, np.sqrt(Sf2_weighed)
         else:
             return Z_pred[-1], mse_pred[-1], Ef_weighed[-1], np.sqrt(Sf2_weighed[-1])
@@ -500,7 +515,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             lin = 0
         else:
             c = Sf / abs(Ef)
-            lin = (c - a) / (b - a) 
+            lin = 1 - (c - a) / (b - a) 
 
         # alleen terugvallen wanneer de laag eronder of MFK ook daadwerkelijk wat kan toevoegen
         # w = lin if isinstance(K_mf[1],MFK) and K_mf[1].nlvl == 3 else 1 # this means effectively only method weighing with MFK result!
@@ -541,5 +556,5 @@ class ProposedMultiFidelityKriging(MFK_smt):
         # set S2_p to 0 at that index (we will later include variance from noise.)
         S2_p[ind] = 0
 
-        return Z2_p, S2_p ** 2, Sf ** 2, Ef, w
+        return Z2_p, S2_p ** 2, Sf ** 2, Ef, lin
 

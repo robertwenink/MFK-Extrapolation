@@ -219,13 +219,13 @@ class EVA(ExternalSolver):
 
         return max_acc, cost_in_seconds, df.to_numpy()
 
-    def inspect_results(self, output_path, only_ax2 = False, alternative_sup_title = None, legend = True):
+    def inspect_results(self, output_path, only_ax2 = False, alternative_sup_title = None, legend = True, plot_all_filters = False):
         """
         Output path is the base path of the EVA solution folder.
         """
         plt.close("body_forces")
         if only_ax2:
-            fig, (ax2) = plt.subplots(1, 1)
+            fig, (ax2) = plt.subplots(1, 1, figsize = (11, 5.2))
         else:
             fig, (ax2, ax1) = plt.subplots(1, 2, figsize = (13, 5.2))
             
@@ -247,7 +247,6 @@ class EVA(ExternalSolver):
         ax2.plot(x, df.iloc[:, 1], label="Original signal")
 
         # moving averages
-        plot_all_filters = False
         y = filter_spiked_signal(df , self.filter_span_frac, self.fitler_delta)
         if plot_all_filters:
             ax2.plot(
@@ -270,11 +269,12 @@ class EVA(ExternalSolver):
                 y,
                 label="Composite signal filter", linewidth=3,
             )
-        ax2.plot(
-            x,
-            y,
-            label="Filtered signal", linewidth=3,
-        )
+        else:
+            ax2.plot(
+                x,
+                y,
+                label="Filtered signal", linewidth=3,
+            )
         # set non overlapping ticks and legend
         x_ticks = x[:: int(len(x) / 10)]
         x_ticks = x_ticks.drop(x_ticks.index[1])
@@ -285,7 +285,11 @@ class EVA(ExternalSolver):
         ax2.set_ylabel("Body force in y-direction [N/m]")
         if legend:
             handles, labels = ax2.get_legend_handles_labels()
-            ax1.legend(handles, labels, loc = 'upper center', bbox_to_anchor=(0.5, -0.03))
+            if only_ax2:
+                # ax1.legend(handles, labels, loc = 'upper center', bbox_to_anchor=(0.5, 0.5))
+                ax2.legend(handles, labels, loc = 'center left', bbox_to_anchor=(1.05, 0.5))
+            else:
+                ax1.legend(handles, labels, loc = 'upper center', bbox_to_anchor=(0.5, -0.03))
 
         # naming the figure such that we can remove it later when we plot another one
         fig.set_label("body_forces")
@@ -293,8 +297,15 @@ class EVA(ExternalSolver):
             fig.suptitle(alternative_sup_title, y = 0.95)
         else:
             fig.suptitle("x = " + os.path.split(output_path)[-1], y = 0.95)
-
-        if plot_all_filters:
+        
+        if plot_all_filters and only_ax2:
+            fig.subplots_adjust(top=0.88,
+                bottom=0.22,
+                left=0.061,
+                right=0.637,
+                hspace=0.2,
+                wspace=0.0)
+        elif plot_all_filters:
             fig.subplots_adjust(top=0.903,
                 bottom=0.294,
                 left=0.081,

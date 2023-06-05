@@ -66,11 +66,11 @@ setup = Input(0)
 
 conv_mods = [0, 1, 2, 3]
 conv_types = ["Stable up", "Stable down", "Alternating"]
-solver_noises = [0.0, 0.02, 0.05]
+solver_noises = [0.0, 0.02, 0.05, 0.1]
 
-setup.conv_mod = conv_mods[0]
+setup.conv_mod = conv_mods[1]
 setup.conv_type = conv_types[0]
-setup.solver_noise = solver_noises[2]
+setup.solver_noise = solver_noises[0]
 
 reuse_values = False
 reload_endstate = False
@@ -92,8 +92,8 @@ MFK_kwargs = {'print_global' : False,
 mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 3, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
-mf_model.distance_weighing = False
-mf_model.variance_weighing = False
+mf_model.distance_weighing = True
+mf_model.variance_weighing = True
 
 mf_model.method_weighing = False
 mf_model.try_use_MFK = True
@@ -112,7 +112,8 @@ if isinstance(get_solver(setup),TestFunction):
 
 # init plotting etc
 pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=False, make_video=True)
-pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
+# pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
+pp.plot_NRMSE_text = True
 cp = ConvergencePlotting(setup)
 
 
@@ -131,15 +132,6 @@ else:
 
 setup.create_input_file(mf_model, cp if used_endstate else None, endstate = used_endstate)
 
-do_check = False
-if mf_model.X_mf[-1].shape[0] >= 3:
-    if do_check and not reload_endstate and not check_linearity(mf_model, pp):
-        print("WARNING Linearity check: NOT LINEAR enough, but continueing for now.")
-    else:
-        print("Linearity check: LINEAR enough!")
-else:
-    print("Too little hifi samples for reliable linearity check!")
-
 pp.draw_current_levels(mf_model)
 
 # provide full report
@@ -148,8 +140,6 @@ X_RMSE = LHS(setup, n_per_d=80)
 RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
 mf_model.print_stats(RMSE, RMSE_focus)
 print_pearson_correlations(mf_model)
-plt.show()
-sys.exit()
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
