@@ -1,2 +1,2 @@
-# Multi-fidelity Kriging extrapolation
+# Multi-fidelity Kriging Extrapolation
 A master's thesis project
