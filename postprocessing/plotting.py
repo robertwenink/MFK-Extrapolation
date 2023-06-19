@@ -45,7 +45,7 @@ class Plotting:
             plt.rcParams["figure.dpi"] = 80
         else:
             self.sub_skip = 1
-            self.n_per_d = 100
+            self.n_per_d = 150
             
         if len(self.d_plot) == 1: 
             # then no need for reducing 
@@ -197,6 +197,61 @@ class Plotting:
     ###########################################################################
     ## Plotting                                                             ###
     ###########################################################################
+
+    def plot_exact_new_figure(self):
+        from matplotlib import cm
+        from matplotlib.colors import LightSource
+        cmap = cm.summer
+        # cmap = cm.cividis
+        # cmap = cm.plasma
+        if "Rosenbrock" in self.solver.name:
+            ls = LightSource(azdeg=45, altdeg=45)  # Customize light properties
+            if self.d >2:
+                ls = LightSource(azdeg=45, altdeg=65)  # Customize light propert    ies
+        else:
+            ls = LightSource(azdeg=-45, altdeg=45)  # Customize light properties
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1, projection="3d")
+        y_exact, _ = self.solver.solve(self.X_pred, l = -1) #l argument possible
+        y_exact = y_exact.reshape(self.X_plot[0].shape)
+        rgb = ls.shade(y_exact, cmap)
+        surf = ax.plot_surface(*self.X_plot, y_exact, facecolors=rgb, shade=True, linewidth=0.05)
+        # surf = ax.plot_surface(*self.X_plot, y_exact, shade = True, lightsource=ls, cmap = cmap, linewidth=0.2)
+        surf.set_edgecolor((0.95,0.95,0.95,1))
+        # fix_colors(ax.plot_surface(*self.X_plot, y_exact))
+        fig.suptitle(f"{self.d}d {self.solver.name}", y = 0.9)
+        if self.d > 2:
+            fig.suptitle(f"{self.d}d {self.solver.name} (projected)", y = 0.9)
+        
+        ax.set_zlabel("Z")
+        ax.set_xlabel("x1")
+        ax.set_ylabel("x2")
+        fig.tight_layout()
+        
+        " figure with transform! "
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1, projection="3d")
+        y_1 = self.solver.solve(self.X_pred, l = 2)[0].reshape(self.X_plot[0].shape) #l argument possible
+        y_2 = self.solver.solve(self.X_pred, l = 3)[0].reshape(self.X_plot[0].shape) #l argument possible
+        y_exact, _ = self.solver.solve(self.X_pred, l = -1) #l argument possible
+        y_exact = y_exact.reshape(self.X_plot[0].shape)
+
+        rgb = ls.shade(y_exact, cmap)
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_exact, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_1, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_2, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
+        # surf = ax.plot_surface(*self.X_plot, y_exact, shade = True, lightsource=ls, cmap = cmap, linewidth=0.2)
+        surf.set_edgecolor((0.95,0.95,0.95,1))
+        # fix_colors(ax.plot_surface(*self.X_plot, y_exact))
+        fig.suptitle(f"{self.d}d {self.solver.name}", y = 0.9)
+        if self.d > 2:
+            fig.suptitle(f"{self.d}d {self.solver.name} (projected)", y = 0.9)
+        
+        ax.set_zlabel("Z")
+        ax.set_xlabel("x1")
+        ax.set_ylabel("x2")
+        fig.tight_layout()
 
     def init_1d_fig(self):
         fig, self.axes = plt.subplots(1 + self.plot_double_axes, 1, figsize = (12, 4 + 4 * self.plot_double_axes))
