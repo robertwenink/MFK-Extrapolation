@@ -179,14 +179,16 @@ class ProposedMultiFidelityKriging(MFK_smt):
             # update the K_pred model in K_mf!
             self.setK_mf(only_rebuild_top_level=True)
 
-    def check_validity(self, Ef_array, w_bool, mu = 0.05):
+    def check_validity(self, Ef_array, w_bool, mu = 0.02):
         if np.sum(w_bool) <= 1:
             print("Validity check: not enough useable data")
         else:    
             E_mean = np.dot(Ef_array, w_bool) / np.sum(w_bool)
 
             lh = np.abs(E_mean-Ef_array) * w_bool
-            if np.all(lh <= mu * E_mean):
+            if self.printing:
+                print(lh)
+            if np.all(lh <= mu * abs(E_mean)):
                 print("Validity check: Valid!")
             else:
                 print("Validity check: Maybe not valid!")
@@ -263,7 +265,8 @@ class ProposedMultiFidelityKriging(MFK_smt):
                     # We basically do not want to include the other method in variance weighing. If all are other method neither.
                     # so we take the mean over the c_var`s of those of the extrapolation, in effect distance weighing becomes the prevalent
                     c_var[~D_w_local,:] = np.mean(c_var[D_w_local], axis = 0)
-                    print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
+                    if self.printing:
+                        print(f"c_var means = {np.mean(c_var,axis=1)}, met X_s = {X_s}")
             else:
                 c_var = np.ones_like(D_mse)
 
@@ -338,7 +341,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             #       in high variance environments there is no 'averaging' effect anymore over sample contributions, thereby deteriorating NRMSE
             # In this way, it can be that distance weighing is essential in non-linear cases, but can be bad if each sample in principle has a good estimate (besides noise)
             # Therefore, re-add part of a ones matrix for this averaging effect + avoiding all zeros situations
-            dist_ratio = 1/100 # higher is more parts non-reduced solution
+            dist_ratio = 10/100 # higher is more parts non-reduced solution
             c_dist += dist_ratio * c_dist_corr
             c_dist /= np.sum(c_dist, axis=0)
 
@@ -378,7 +381,7 @@ class ProposedMultiFidelityKriging(MFK_smt):
             Ef_weighed = np.dot(D_Ef, c_z)
             Sf2_weighed = np.dot(D_Sf2, c_z)
 
-        self.check_validity(D_Ef, D_w)
+            self.check_validity(D_Ef, D_w)
         # print_metrics(Z_pred, mse_pred, Ef_weighed, D_Sf2, K_mf[1].optimal_par[0]["sigma2"]) # type:ignore
 
         # assign the found values to the mf_model, in order to be easily retrieved.
@@ -388,10 +391,16 @@ class ProposedMultiFidelityKriging(MFK_smt):
             if self.printing:
                 print(f"Max mse_pred = {max(self.mse_pred)}")
 
-        if X_test is None or len(Z_s) == 1:
+        if X_test.shape[0] == 0:
             return Z_pred, mse_pred, Ef_weighed, np.sqrt(Sf2_weighed)
         else:
-            return Z_pred[-1], mse_pred[-1], Ef_weighed[-1], np.sqrt(Sf2_weighed[-1])
+            # in case we want to return only one item. Above, x_test is appended to x_unique for easier implementation.
+            # this means we select the last item here to retrieve x_test
+            if len(Z_s) == 1:
+                return Z_pred[-1], mse_pred[-1], Ef_weighed, np.sqrt(Sf2_weighed)
+            else:
+                # bcs for multiple samples, Ef is weighed per sample, there is not a single Ef for all
+                return Z_pred[-1], mse_pred[-1], Ef_weighed[-1], np.sqrt(Sf2_weighed[-1])
     
     
     def set_state(self, data_dict):
