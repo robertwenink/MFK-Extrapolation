@@ -96,6 +96,8 @@ theta0 = sm.options["theta0"]
 noise0 = sm.options["noise0"]
 
 # %% Kriging on monofidelity HF doe
+print(theta0[1].tolist())
+print([noise0[1]])
 sm_monoHF =  MFK(theta0=theta0[1].tolist(), theta_bounds = [1e-1, 20],
                  noise0=[noise0[1]], use_het_noise=False, n_start=1)
 

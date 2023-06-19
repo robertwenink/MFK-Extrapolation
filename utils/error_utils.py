@@ -9,8 +9,8 @@ def RMSE(Z, Z_predict):
     return RMSE
 
 
-def RMSE_norm(Z, Z_predict):
-    return RMSE(Z, Z_predict) / np.mean(np.abs(Z))
+def RMSE_norm(Z, Z_predict, Z_full):
+    return RMSE(Z, Z_predict) / (np.max(Z_full) - np.min(Z_full))
 
 
 def MAE_norm(Z, Z_predict):
@@ -32,9 +32,9 @@ def RMSE_norm_MF(mf_model, no_samples = False):
     for i, K_l in enumerate(mf_model.K_mf):
         if no_samples:
             inds = isin_indices(mf_model.X_truth,mf_model.X_mf[-1],inversed=True)
-            RMSE.append(RMSE_norm(mf_model.Z_truth[inds], K_l.predict(mf_model.X_truth[inds])[0]))
+            RMSE.append(RMSE_norm(mf_model.Z_truth[inds], K_l.predict(mf_model.X_truth[inds])[0], mf_model.Z_truth))
         else:
-            RMSE.append(RMSE_norm(mf_model.Z_truth, K_l.predict(mf_model.X_truth)[0]))
+            RMSE.append(RMSE_norm(mf_model.Z_truth, K_l.predict(mf_model.X_truth)[0], mf_model.Z_truth))
     
     return RMSE
 
@@ -63,8 +63,7 @@ def RMSE_focussed(mf_model, X_search, focus_perc):
     RMSE = []
     for K_l in mf_model.K_mf:
         # normalize with the full range, not the limited one!
-        RMSE_n = RMSE_norm(z_search_truth[mask], K_l.predict(X_search[mask])[0]) \
-            * np.mean(np.abs(z_search_truth[mask])) / np.mean(np.abs(z_search_truth))
+        RMSE_n = RMSE_norm(z_search_truth[mask], K_l.predict(X_search[mask])[0], mf_model.Z_truth) 
         RMSE.append(RMSE_n)
 
     return RMSE

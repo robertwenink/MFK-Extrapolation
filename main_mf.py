@@ -66,10 +66,10 @@ setup = Input(0)
 
 conv_mods = [0, 1, 2, 3]
 conv_types = ["Stable up", "Stable down", "Alternating"]
-solver_noises = [0.0, 0.02, 0.05, 0.1]
+solver_noises = [0.0, 0.02, 0.05]
 
 setup.conv_mod = conv_mods[1]
-setup.conv_type = conv_types[0]
+setup.conv_type = conv_types[1]
 setup.solver_noise = solver_noises[0]
 
 reuse_values = False
@@ -89,14 +89,14 @@ MFK_kwargs = {'print_global' : False,
   
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 3, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 2, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 mf_model.distance_weighing = True
 mf_model.variance_weighing = True
 
 mf_model.method_weighing = False
-mf_model.try_use_MFK = True
+mf_model.try_use_MFK = False
 
 mf_model.use_uncorrected_Ef = False
 mf_model.use_het_noise = False
@@ -105,20 +105,23 @@ mf_model.use_het_noise = False
 mf_model.set_L([0.5, 1, 2])
 
 if isinstance(get_solver(setup),TestFunction):
-    mf_model.set_L([1, 2, None])
+    mf_model.set_L([2, 3, None])
+    # mf_model.set_L([1, 2, None])
     # mf_model.set_L([0, 2, None])
     mf_model.set_L_costs([1,10,1000])   
 
 
 # init plotting etc
 pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=False, make_video=True)
+pp.plot_exact_new_figure()
+# plt.show()
 # pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
 pp.plot_NRMSE_text = True
 cp = ConvergencePlotting(setup)
 
 
 
-" level 0 and 1 : setting 'DoE' and 'solve' "
+" level 0 and 1 : setting 'DoE' and 'solve' " 
 used_endstate = hasattr(setup,'model_end') and hasattr(setup,'prepare_succes') and reload_endstate
 if used_endstate:
     mf_model.set_state(deepcopy(setup.model_end))
@@ -140,6 +143,9 @@ X_RMSE = LHS(setup, n_per_d=80)
 RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
 mf_model.print_stats(RMSE, RMSE_focus)
 print_pearson_correlations(mf_model)
+
+# plt.show()
+# sys.exit()
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):

@@ -114,6 +114,15 @@ def worker(proposed, nr_samples, conv_mod, solver_noise, conv_type, X_l, solver_
         mf_model.set_L([2, 3, None])
         mf_model.set_L_costs([1,10,1000])   
         mf_model.prepare_initial_surrogate(setup, X_l)   
+        
+        mf_model.distance_weighing = True
+        mf_model.variance_weighing = True
+
+        mf_model.method_weighing = False
+        mf_model.try_use_MFK = False
+
+        mf_model.use_uncorrected_Ef = False
+        mf_model.use_het_noise = False
 
         " run "
         RMSE_start = RMSE_norm_MF(mf_model, no_samples=True)
@@ -280,17 +289,17 @@ if __name__ == '__main__':
     scenarios = [('Branin',2),
                 ('Rosenbrock',2),
                 ('Rosenbrock',5)]
-    scenarios = [scenarios[-1]]
+    scenarios = [scenarios[0]]
 
-    nr_repetitions = 2
-    rep_start_index = 2 # in case we already done x repetitions before and dfs are already defined.
+    nr_repetitions = 10
+    rep_start_index = 0 # in case we already done x repetitions before and dfs are already defined.
 
     # Solver / scenario dependent variables
     proposed_and_samples = [(True, 1), (True, 3), (False, 3)] # 1 en 3 voor Own, alleen 3 voor reference.
 
     # variables 
-    conv_mods = [0, 1, 2, 3]
-    solver_noises = [0.0, 0.02, 0.1] 
+    conv_mods = [0, 1, 2]
+    solver_noises = [0.0, 0.02, 0.05] 
     conv_types = ["Stable up", "Stable down", "Alternating"] # average these results
 
     # NOTE testing only
@@ -307,8 +316,8 @@ if __name__ == '__main__':
 
         XX_l = create_Xs(solver_str, d, nr_repetitions)
         for rep_nr in range(nr_repetitions):
-            # run_scenario_per_rep(solver_str, d, XX_l[rep_nr], rep_nr + rep_start_index)
-            pass
+            run_scenario_per_rep(solver_str, d, XX_l[rep_nr], rep_nr + rep_start_index)
+            # pass
 
         # process dfs of scenario
         if True: # False if just reading a _complete file already.

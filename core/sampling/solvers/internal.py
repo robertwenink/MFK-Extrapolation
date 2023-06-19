@@ -93,7 +93,7 @@ class TestFunction(Solver):
             self.value_metrics = [np.min(Z), np.max(Z), np.mean(Z)]
 
             self.solver_noise = setup.solver_noise
-            if self.solver_noise == True: # bcs the one from setup is actually a boolean
+            if self.solver_noise == True: # bcs the one from setup is usually a boolean
                 self.solver_noise = 0.02
 
             if self.mf:
@@ -131,24 +131,24 @@ class TestFunction(Solver):
                 3 (more non-linear variant)
         @returns self.conv_mod_func(X,l)
         """
-
+        nr_of_periods = 2
         if conv_mod == 1:
             return lambda X, l: conv_base_func(l) + 2 * (1 - conv_base_func(l)) * (
-                np.sin(X_acc_func(X) * 2 * np.pi)
+                np.sin(X_acc_func(X) / (np.sum(self.bound_range)) * nr_of_periods * 2 * np.pi)
             )
         elif conv_mod == 2:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
                 np.sin(
                     # bij problemen ooit met negatieve power: np.sign(conv_base_func(l))*np.abs((conv_base_func(l)+0j)**(1/2)))
                     (conv_base_func(l))**(1/8)
-                    * X_acc_func(X)
+                    * X_acc_func(X) / (np.sum(self.bound_range)) * nr_of_periods
                     * 2
                     * np.pi
                 )
             )
         elif conv_mod == 3:
             return lambda X, l: conv_base_func(l) + (1 - conv_base_func(l)) * (
-                np.sin((conv_base_func(l))**(1/2) * X_acc_func(X) * 2 * np.pi)
+                np.sin((conv_base_func(l))**(1/4) * X_acc_func(X) / (np.sum(self.bound_range)) * nr_of_periods * 2 * np.pi)
             )
         else:
             return lambda X, l: conv_base_func(l) * np.ones(X.shape[0])
@@ -280,6 +280,39 @@ class Forrester2008(TestFunction):
     def get_optima(self):
         return correct_formatX([[0.757249]],self.d), [-6.02074]
 
+class Branin_Perdikaris(TestFunction):
+    max_d = 2
+    min_d = 2
+    name = "Branin_Perdikaris"
+
+    def hifi(self, x1, x2):
+        return ((-1.275 * x1**2)/np.pi**2 + 5*x1/np.pi + x2 -6)**2 + (10 - 5/(4*np.pi))*np.cos(x1) + 10
+    
+    def mefi(self, x1, x2):
+        return 10*np.sqrt(self.hifi(x1-2,x2-2)) + 2*(x1 - 0.5) - 3*(3*x2 -1) -1
+
+    def lofi(self, x1, x2):
+        return self.mefi(1.2*(x1+2), 1.2*(x2+2)) - 3 * x2 + 1
+
+    def solve(self, X, l = None):
+        X = self.check_format_X(X)
+        x1 = X[:, 0]
+        x2 = X[:, 1]
+
+        if l == 1:
+            return self.lofi(x1,x2), 1
+        if l == 2:
+            return self.mefi(x1,x2), 1
+        if l == 3 or l == None:
+            return self.hifi(x1,x2), 1
+
+    @staticmethod
+    def get_preferred_search_space(d):
+        return [["x0", "x1"], [-5, 0], [10, 15]]
+    
+    def get_optima(self):
+        # return correct_formatX([[-np.pi,12.275],[np.pi,2.275],[9.42478,2.475]],self.d), 0.397887
+        return correct_formatX([[-np.pi,12.275]],self.d), [0.397887]
 
 class Branin(TestFunction):
     max_d = 2
