@@ -238,9 +238,10 @@ class Plotting:
         y_exact = y_exact.reshape(self.X_plot[0].shape)
 
         rgb = ls.shade(y_exact, cmap)
-        surf = fix_colors(ax.plot_surface(*self.X_plot, y_exact, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
-        surf = fix_colors(ax.plot_surface(*self.X_plot, y_1, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
-        surf = fix_colors(ax.plot_surface(*self.X_plot, y_2, facecolors=rgb, shade=True, linewidth=0.05, alpha = .8))
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_1, shade=True, linewidth=0.05, alpha = .4, label = "Low fidelity"))
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_2, shade=True, linewidth=0.05, alpha = .4, label = "Medium fidelity"))
+        # surf = fix_colors(ax.plot_surface(*self.X_plot, y_exact, linewidth=0.05, alpha = .45, label = "High fidelity"))
+        surf = fix_colors(ax.plot_surface(*self.X_plot, y_exact, facecolors=rgb, shade=True, linewidth=0.05, alpha = .45, label = "High fidelity"))
         # surf = ax.plot_surface(*self.X_plot, y_exact, shade = True, lightsource=ls, cmap = cmap, linewidth=0.2)
         surf.set_edgecolor((0.95,0.95,0.95,1))
         # fix_colors(ax.plot_surface(*self.X_plot, y_exact))
@@ -251,6 +252,18 @@ class Plotting:
         ax.set_zlabel("Z")
         ax.set_xlabel("x1")
         ax.set_ylabel("x2")
+        handles, labels = ax.get_legend_handles_labels()
+        order = [2,1,0]
+        leg = fig.legend([handles[idx] for idx in order],[labels[idx] for idx in order]) 
+
+
+        for i, lh in enumerate(leg.legendHandles):
+            lh.set_alpha(0.8)
+            if order[i] != 2:
+                lh.set_color(self.colors[order[i]])
+            else:
+                lh.set_color( (0.0, 0.5, 0.4))
+
         fig.tight_layout()
 
     def init_1d_fig(self):

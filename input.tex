@@ -1,7 +1,7 @@
 ## Input for the code
 
 # Name file (between ' with spaces on both sides and no spaces in name)
-' Wedge_optimization_constant_mass_low '
+' Wedge_optimization_with_VTK '
 
 ## PARAMETERS
 
@@ -96,7 +96,7 @@ NONE
 0 -26.58 0 0
 
 # Mass of body [m/rho, value, xg, yg]
-0 1255 0 0
+0 15816 0 0
 
 # Motion of body [uncoupled: 0 0 0, coupled: 0 1 1, pendulum: 1 px py cyl_radius length I C K start_rad]
 0 0 1
@@ -260,7 +260,7 @@ NONE
 1 	10	1 1 0 1 1	0.3
 
 # Save VTK: yes (1)/no (0), amount of steps[dt], [(fake)fraction, velocity, density, pressure, cell, body]
-0	0.0001	1 1 0 1 1 1
+1	0.0001	1 1 0 1 1 1
 
 # Save pressure profile around object: yes (1)/no (0), amount of steps[dt]
 0  0.0001

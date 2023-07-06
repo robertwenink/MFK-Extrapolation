@@ -87,6 +87,19 @@ MFK_kwargs = {'print_global' : False,
                 'corr' : 'squar_exp',
                 }
   
+
+# init plotting etc
+pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=False, make_video=True)
+pp.plot_exact_new_figure()
+# plt.show()
+# pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
+pp.plot_NRMSE_text = True
+cp = ConvergencePlotting(setup)
+
+plt.show()
+sys.exit()
+
+
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
 mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 2, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
@@ -109,16 +122,6 @@ if isinstance(get_solver(setup),TestFunction):
     # mf_model.set_L([1, 2, None])
     # mf_model.set_L([0, 2, None])
     mf_model.set_L_costs([1,10,1000])   
-
-
-# init plotting etc
-pp = Plotting(setup, plotting_pause = 0.001, plot_once_every=1, fast_plot=False, make_video=True)
-pp.plot_exact_new_figure()
-# plt.show()
-# pp.set_zoom_inset([0,3], x_rel_range = [0.05,0.2])
-pp.plot_NRMSE_text = True
-cp = ConvergencePlotting(setup)
-
 
 
 " level 0 and 1 : setting 'DoE' and 'solve' " 
@@ -144,8 +147,8 @@ RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
 mf_model.print_stats(RMSE, RMSE_focus)
 print_pearson_correlations(mf_model)
 
-# plt.show()
-# sys.exit()
+plt.show()
+sys.exit()
 
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
