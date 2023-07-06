@@ -144,9 +144,6 @@ RMSE_focus = RMSE_focussed(mf_model, X_RMSE, 10)
 mf_model.print_stats(RMSE, RMSE_focus)
 print_pearson_correlations(mf_model)
 
-plt.show()
-sys.exit()
-
 " sample from the predicted distribution in EGO fashion"
 if isinstance(mf_model, MultiFidelityEGO):
     # mf_model.optimize(pp, cp, max_iter = 1)
