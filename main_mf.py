@@ -62,7 +62,7 @@ from postprocessing.plot_live_metrics import ConvergencePlotting
 
 
 # inits based on input settings
-setup = Input(0)
+setup = Input(1)
 
 conv_mods = [0, 1, 2, 3]
 conv_types = ["Stable up", "Stable down", "Alternating"]
@@ -99,7 +99,7 @@ cp = ConvergencePlotting(setup)
 
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
-mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = True, initial_nr_samples = 2, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
+mf_model = MultiFidelityEGO(setup, proposed = True, optim_var = False, initial_nr_samples = 2, max_cost = np.inf, MFK_kwargs = MFK_kwargs)
 # mf_model = ProposedMultiFidelityKriging(setup, max_cost = 150000, initial_nr_samples = 1, MFK_kwargs = MFK_kwargs)
 
 mf_model.distance_weighing = True
