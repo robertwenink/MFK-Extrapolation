@@ -96,9 +96,6 @@ pp.plot_exact_new_figure()
 pp.plot_NRMSE_text = True
 cp = ConvergencePlotting(setup)
 
-plt.show()
-sys.exit()
-
 
 # NOTE zonder noise werkt zonder optim var beter voor reference
 # mf_model = MFK_smt(setup, max_cost = 150000, initial_nr_samples = 1, **MFK_kwargs)# NOTE cant use one (1) because of GLS in smt!
